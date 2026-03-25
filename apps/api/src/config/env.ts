@@ -9,8 +9,18 @@ const appRoot = path.resolve(currentDir, '../..');
 
 config({ path: path.resolve(appRoot, '.env') });
 
+/** Render (and some hosts) may expose PORT as ""; Number("") is 0 and breaks listen(). */
+function parsePortInput(val: unknown): number | undefined {
+  if (val === undefined || val === null) return undefined;
+  const s = String(val).trim();
+  if (s === '') return undefined;
+  const n = Number(s);
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  return n;
+}
+
 const envSchema = z.object({
-  PORT: z.coerce.number().default(3000),
+  PORT: z.preprocess(parsePortInput, z.number().int().positive().default(3000)),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   DATABASE_URL: z.string().min(1),
   UPLOADS_DIR: z.string().default('./uploads'),
