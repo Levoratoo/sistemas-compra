@@ -1,0 +1,448 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum ProjectStatus {
+  DRAFT
+  PLANNED
+  ACTIVE
+  ON_HOLD
+  CLOSED
+  CANCELLED
+}
+
+enum ImplementationStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  BLOCKED
+}
+
+enum DocumentType {
+  NOTICE
+  TERMS_OF_REFERENCE
+  IMPLEMENTATION_MAP
+  COST_SPREADSHEET
+  CONTROL_SPREADSHEET
+  OTHER_ATTACHMENT
+}
+
+enum DocumentProcessingStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum DocumentReviewStatus {
+  PENDING_REVIEW
+  REVIEWED
+  CONFLICT
+  REJECTED
+}
+
+enum ExtractedFieldReviewStatus {
+  PENDING_REVIEW
+  CONFIRMED
+  CORRECTED
+  REJECTED
+  CONFLICT
+}
+
+enum ExtractedTargetType {
+  PROJECT
+  PROJECT_ROLE
+  BUDGET_ITEM
+}
+
+enum DataOriginType {
+  MANUAL
+  DOCUMENT_EXTRACTED
+}
+
+enum ItemCategory {
+  UNIFORM
+  EPI
+  EQUIPMENT
+  CONSUMABLE
+  OTHER
+}
+
+enum PurchaseStatus {
+  TO_START
+  QUOTING
+  UNDER_REVIEW
+  APPROVAL_PENDING
+  APPROVED
+  PAYMENT_PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum DeliveryStatus {
+  NOT_SCHEDULED
+  SCHEDULED
+  PARTIALLY_DELIVERED
+  DELIVERED
+  DELAYED
+  CANCELLED
+}
+
+enum ReplenishmentTriggerType {
+  FROM_DELIVERY
+  FROM_PROJECT_START
+  FROM_LAST_REPLENISHMENT
+  MANUAL
+}
+
+enum IntervalUnit {
+  DAY
+  WEEK
+  MONTH
+  YEAR
+}
+
+enum TaskStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  BLOCKED
+}
+
+enum TaskCategory {
+  DOCUMENTATION
+  TEAM
+  UNIFORMS
+  EPI
+  EQUIPMENT
+  TRAINING
+  TIME_TRACKING
+  COMPLIANCE
+  GENERAL
+}
+
+model Project {
+  id                       String               @id @default(cuid())
+  code                     String               @unique
+  name                     String
+  organizationName         String
+  procurementProcessNumber String?
+  bidNumber                String?
+  contractNumber           String?
+  city                     String?
+  state                    String?
+  objectSummary            String?
+  projectStatus            ProjectStatus        @default(DRAFT)
+  implementationStatus     ImplementationStatus @default(NOT_STARTED)
+  plannedSignatureDate     DateTime?
+  plannedStartDate         DateTime?
+  actualStartDate          DateTime?
+  contractDurationMonths   Int                  @default(12)
+  monthlyContractValue     Decimal?
+  notes                    String?
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+
+  documents             ProjectDocument[]
+  roles                 ProjectRole[]
+  budgetItems           BudgetItem[]
+  purchaseOrders        PurchaseOrder[]
+  implementationTasks   ImplementationTask[]
+
+  @@unique([organizationName, procurementProcessNumber])
+  @@unique([organizationName, contractNumber])
+  @@index([organizationName])
+  @@index([bidNumber])
+  @@index([projectStatus])
+  @@index([implementationStatus])
+  @@index([plannedStartDate])
+}
+
+model ProjectDocument {
+  id               String                   @id @default(cuid())
+  projectId        String
+  documentType     DocumentType
+  originalFileName String
+  storagePath      String                   @unique
+  mimeType         String?
+  fileSizeBytes    Int?
+  checksum         String?
+  documentDate     DateTime?
+  processingStatus DocumentProcessingStatus @default(PENDING)
+  reviewStatus     DocumentReviewStatus     @default(PENDING_REVIEW)
+  processingError  String?
+  notes            String?
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  project           Project          @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  extractedFields   ExtractedField[]
+  sourceRoles              ProjectRole[]         @relation("RoleSourceDocument")
+  sourceBudgetItems        BudgetItem[]          @relation("BudgetItemSourceDocument")
+  sourceImplementationTasks ImplementationTask[] @relation("TaskSourceDocument")
+
+  @@index([projectId])
+  @@index([projectId, documentType])
+  @@index([projectId, originalFileName])
+  @@index([processingStatus])
+  @@index([reviewStatus])
+  @@index([checksum])
+}
+
+model ExtractedField {
+  id                String                     @id @default(cuid())
+  projectDocumentId String
+  targetType        ExtractedTargetType
+  recordGroupKey    String?
+  fieldKey          String
+  proposedValue     String
+  confirmedValue    String?
+  sourcePage        Int?
+  sourceSheetName   String?
+  sourceCellRef     String?
+  sourceExcerpt     String?
+  confidenceScore   Float?
+  reviewStatus      ExtractedFieldReviewStatus @default(PENDING_REVIEW)
+  reviewNote        String?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  projectDocument ProjectDocument @relation(fields: [projectDocumentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([projectDocumentId])
+  @@index([targetType])
+  @@index([reviewStatus])
+  @@index([recordGroupKey])
+  @@index([fieldKey])
+  @@index([projectDocumentId, targetType, recordGroupKey])
+}
+
+model ProjectRole {
+  id                   String         @id @default(cuid())
+  projectId            String
+  roleName             String
+  cboCode              String?
+  workRegime           String?
+  workloadLabel        String?
+  allocationSector     String?
+  plannedPositions     Int?
+  employeesPerPosition Int?
+  plannedHeadcount     Int
+  sourceType           DataOriginType @default(MANUAL)
+  sourceDocumentId     String?
+  sourceSheetName      String?
+  sourceCellRef        String?
+  sourcePage           Int?
+  sourceExcerpt        String?
+  notes                String?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sourceDocument ProjectDocument? @relation("RoleSourceDocument", fields: [sourceDocumentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([projectId])
+  @@index([projectId, roleName])
+  @@index([sourceDocumentId])
+}
+
+model BudgetItem {
+  id               String         @id @default(cuid())
+  projectId        String
+  itemCategory     ItemCategory
+  subcategory      String?
+  name             String
+  description      String?
+  specification    String?
+  unit             String?
+  sizeLabel        String?
+  requiresCa       Boolean?
+  roleReference    String?
+  allocationSector String?
+  plannedQuantity  Decimal?
+  bidUnitValue     Decimal?
+  /** Valor máximo permitido pela rubrica do edital (teto de compra por item). */
+  rubricMaxValue   Decimal?
+  /** Valor efetivamente gasto / comprado (controle operacional). */
+  purchasedValue   Decimal?
+  hasBidReference  Boolean        @default(true)
+  /** Trecho do edital só para leitura (ex.: cláusulas 8.7.x); sem previsão de compra/valores. */
+  contextOnly      Boolean        @default(false)
+  sourceType       DataOriginType @default(MANUAL)
+  sourceDocumentId String?
+  sourceSheetName  String?
+  sourceCellRef    String?
+  sourcePage       Int?
+  sourceExcerpt    String?
+  notes            String?
+
+  /** --- Fase 2: controle operacional (planilha "Projetos - Controles") --- */
+  priority                      String?
+  peopleCount                   Int?
+  /** Status Compras (rótulos da planilha: orçamento, entrega, etc.) */
+  operationalPurchaseStatus     String?
+  /** Prazo edital para entrega (dias), quando aplicável */
+  editalDeliveryDeadlineDays    Int?
+  /** Prazo de reposição previsto no edital (dias) */
+  replenishmentPeriodDaysEdital Int?
+  approvedSupplierName          String?
+  glpiTicketNumber              String?
+  opPaymentSentAt               DateTime?
+  opExpectedDeliveryAt          DateTime?
+  opDeliveredAt                 DateTime?
+  operationalStagesStatus       String?
+  nextReplenishmentExpectedAt   DateTime?
+  replenishmentStateLabel       String?
+  competenceLabel               String?
+  administrativeFeePercent      Decimal?
+  /** Valor unitário real (mercado / compra), distinto da rubrica do edital */
+  actualUnitValue               Decimal?
+
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  project            Project             @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sourceDocument     ProjectDocument?    @relation("BudgetItemSourceDocument", fields: [sourceDocumentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  purchaseOrderItems PurchaseOrderItem[]
+  replenishmentRule  ReplenishmentRule?
+
+  @@index([projectId])
+  @@index([projectId, name])
+  @@index([projectId, itemCategory])
+  @@index([itemCategory])
+  @@index([hasBidReference])
+  @@index([sourceDocumentId])
+}
+
+model ImplementationTask {
+  id               String         @id @default(cuid())
+  projectId        String
+  title            String
+  category         TaskCategory
+  description      String?
+  status           TaskStatus     @default(NOT_STARTED)
+  dueDate          DateTime?
+  sourceDocumentId String?
+  sourcePage       Int?
+  notes            String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sourceDocument ProjectDocument? @relation("TaskSourceDocument", fields: [sourceDocumentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([projectId])
+  @@index([projectId, category])
+  @@index([status])
+  @@index([sourceDocumentId])
+}
+
+model Supplier {
+  id             String   @id @default(cuid())
+  legalName      String
+  documentNumber String?  @unique
+  contactName    String?
+  phone          String?
+  email          String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  purchaseOrders PurchaseOrder[]
+
+  @@index([legalName])
+}
+
+model PurchaseOrder {
+  id                String         @id @default(cuid())
+  projectId         String
+  supplierId        String?
+  purchaseStatus    PurchaseStatus @default(TO_START)
+  purchaseDate      DateTime?
+  internalReference String?
+  glpiNumber        String?
+  paymentSentAt     DateTime?
+  notes             String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  project  Project             @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  supplier Supplier?           @relation(fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  items    PurchaseOrderItem[]
+
+  @@unique([projectId, glpiNumber])
+  @@index([projectId])
+  @@index([supplierId])
+  @@index([purchaseStatus])
+  @@index([purchaseDate])
+  @@index([paymentSentAt])
+  @@index([internalReference])
+}
+
+model PurchaseOrderItem {
+  id                   String         @id @default(cuid())
+  purchaseOrderId      String
+  budgetItemId         String
+  quantityPurchased    Decimal
+  realUnitValue        Decimal
+  expectedDeliveryDate DateTime?
+  deliveredAt          DateTime?
+  deliveryStatus       DeliveryStatus @default(NOT_SCHEDULED)
+  notes                String?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  purchaseOrder       PurchaseOrder        @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  budgetItem          BudgetItem           @relation(fields: [budgetItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  replenishmentEvents ReplenishmentEvent[]
+
+  @@index([purchaseOrderId])
+  @@index([budgetItemId])
+  @@index([deliveryStatus])
+  @@index([expectedDeliveryDate])
+  @@index([deliveredAt])
+}
+
+model ReplenishmentRule {
+  id            String                   @id @default(cuid())
+  budgetItemId  String                   @unique
+  triggerType   ReplenishmentTriggerType
+  intervalUnit  IntervalUnit
+  intervalValue Int
+  warningDays   Int                      @default(30)
+  baseDate      DateTime?
+  isEnabled     Boolean                  @default(true)
+  notes         String?
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  budgetItem BudgetItem           @relation(fields: [budgetItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  events     ReplenishmentEvent[]
+
+  @@index([isEnabled])
+}
+
+model ReplenishmentEvent {
+  id                  String    @id @default(cuid())
+  replenishmentRuleId String
+  purchaseOrderItemId String?
+  baseDateUsed        DateTime
+  plannedDate         DateTime
+  completedDate       DateTime?
+  notes               String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  replenishmentRule ReplenishmentRule  @relation(fields: [replenishmentRuleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  purchaseOrderItem PurchaseOrderItem? @relation(fields: [purchaseOrderItemId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@unique([replenishmentRuleId, plannedDate])
+  @@index([plannedDate])
+  @@index([completedDate])
+  @@index([purchaseOrderItemId])
+}

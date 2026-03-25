@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+.env
+apps/api/.env
+apps/web/.env
+apps/*/dist/
+apps/api/prisma/*.db
+apps/api/prisma/*.db-*
+apps/api/uploads/*
+!apps/api/uploads/.gitkeep

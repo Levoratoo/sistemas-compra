@@ -1,0 +1,25 @@
+{
+  "name": "sitecompras",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "postinstall": "node apps/api/scripts/patch-prisma-bin.mjs && npm run db:generate",
+    "setup": "npm run setup:env && npm run db:generate && npm run db:migrate && npm run db:seed",
+    "setup:env": "node scripts/setup.mjs",
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w apps/api\" \"npm run dev --prefix apps/web\"",
+    "dev:api": "npm run dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "preview:web": "npm run build -w apps/web && npm run start -w apps/web",
+    "build": "npm run build -w apps/api && npm run build -w apps/web",
+    "db:generate": "npm run db:generate -w apps/api",
+    "db:migrate": "npm run db:migrate -w apps/api",
+    "db:push": "npm run db:migrate",
+    "db:seed": "npm run db:seed -w apps/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
