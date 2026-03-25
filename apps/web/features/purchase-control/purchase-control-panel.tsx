@@ -14,11 +14,12 @@ import { useProjectQuery } from '@/hooks/use-projects';
 import type { BudgetItem } from '@/types/api';
 import type { BudgetItemPayload } from '@/services/budget-items-service';
 
-const cell = 'max-w-0 overflow-hidden border-b border-r border-neutral-200 p-0 align-top';
+const cell =
+  'max-w-0 overflow-hidden border-b border-r border-border p-0 align-top dark:border-border';
 const inp =
-  'box-border min-h-8 w-full min-w-0 border-0 bg-transparent px-1.5 py-1.5 text-[11px] leading-tight text-neutral-800 outline-none focus:bg-[#fafbfc] focus:ring-1 focus:ring-inset focus:ring-primary/25';
+  'box-border min-h-8 w-full min-w-0 border-0 bg-transparent px-1.5 py-1.5 text-[11px] leading-tight text-foreground outline-none focus:bg-muted focus:ring-1 focus:ring-inset focus:ring-primary/25';
 const th =
-  'relative border-b border-r border-neutral-300 bg-[#f4f5f7] px-1.5 py-2 text-left text-[9px] font-semibold uppercase tracking-wide text-neutral-600';
+  'relative border-b border-r border-border bg-muted px-1.5 py-2 text-left text-[9px] font-semibold uppercase tracking-wide text-muted-foreground';
 
 /**
  * Faixa “Fase 1” = texto do edital (sem duplicar prioridade/função/qtd/rubrica — isso fica na Fase 2).
@@ -251,13 +252,13 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
                 <thead className="sticky top-0 z-20 shadow-sm">
                   <tr className="bg-muted/90 backdrop-blur">
                     <th
-                      className="border-b border-neutral-300 px-2 py-2 text-center text-[10px] font-bold uppercase tracking-wider text-primary"
+                      className="border-b border-border px-2 py-2 text-center text-[10px] font-bold uppercase tracking-wider text-primary"
                       colSpan={FASE1_COL_COUNT}
                     >
                       Fase 1 — Referência do edital
                     </th>
                     <th
-                      className="border-b border-neutral-300 px-2 py-2 text-center text-[10px] font-bold uppercase tracking-wider text-primary"
+                      className="border-b border-border px-2 py-2 text-center text-[10px] font-bold uppercase tracking-wider text-primary"
                       colSpan={FASE2_COL_COUNT}
                     >
                       Fase 2 — Operação
@@ -324,8 +325,8 @@ function PurchaseControlRow({
     item.opDeliveredAt != null ? nextReplenishmentIsoFromDelivered(item.opDeliveredAt) : null;
 
   return (
-    <tr className="hover:bg-neutral-50/80">
-      <td className={cn(cell, 'bg-neutral-50/90 px-1.5 py-2 text-[11px] text-neutral-600')}>{orgName}</td>
+    <tr className="hover:bg-muted/40">
+      <td className={cn(cell, 'bg-muted/50 px-1.5 py-2 text-[11px] text-muted-foreground')}>{orgName}</td>
       <td className={cell}>
         <select
           key={`${rk}-cat`}
@@ -446,7 +447,7 @@ function PurchaseControlRow({
           onBlur={(e) => onPatch(item.id, { operationalPurchaseStatus: e.target.value || null })}
         />
       </td>
-      <td className={cn(cell, 'bg-neutral-50/90 px-1.5 py-2 text-[11px] text-neutral-600')}>
+      <td className={cn(cell, 'bg-muted/50 px-1.5 py-2 text-[11px] text-muted-foreground')}>
         {formatDate(plannedSignatureDate)}
       </td>
       <td className={cell}>
@@ -476,7 +477,7 @@ function PurchaseControlRow({
           onBlur={(e) => onPatch(item.id, { actualUnitValue: numOrNull(e.target.value) })}
         />
       </td>
-      <td className={cn(cell, 'bg-[#fafbfc] px-1.5 py-2 text-right tabular-nums text-neutral-600')}>
+      <td className={cn(cell, 'bg-muted/40 px-1.5 py-2 text-right tabular-nums text-muted-foreground')}>
         {valorTotalFase2 != null ? formatCurrency(valorTotalFase2) : '—'}
       </td>
       <td className={cell}>
@@ -533,10 +534,10 @@ function PurchaseControlRow({
         />
       </td>
       <td
-        className={cn(cell, 'bg-neutral-50/70 px-1.5 py-2')}
+        className={cn(cell, 'bg-muted/50 px-1.5 py-2')}
         title="Calculada automaticamente: data de entrega na unidade + 6 meses."
       >
-        <span className="block min-h-8 tabular-nums text-[11px] leading-tight text-neutral-800">
+        <span className="block min-h-8 tabular-nums text-[11px] leading-tight text-foreground">
           {dataReposicaoPrevista ? formatDate(dataReposicaoPrevista) : '—'}
         </span>
       </td>
@@ -557,7 +558,7 @@ function PurchaseControlRow({
           onBlur={(e) => onPatch(item.id, { competenceLabel: e.target.value || null })}
         />
       </td>
-      <td className={cn(cell, 'bg-neutral-50/90 px-1.5 py-2 text-[11px] text-neutral-600')}>
+      <td className={cn(cell, 'bg-muted/50 px-1.5 py-2 text-[11px] text-muted-foreground')}>
         {contractNumber || '—'}
       </td>
       <td className={cell}>

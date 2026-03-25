@@ -1,6 +1,17 @@
 import type { NextConfig } from 'next';
 
+/** Render Static Site / GitHub Pages: definir `NEXT_STATIC_EXPORT=1` no build. */
+const staticExport = process.env.NEXT_STATIC_EXPORT === '1';
+
+/** Opcional: subpath (ex.: `nome-do-repo` no GitHub Pages). */
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH?.trim() || undefined;
+
 const nextConfig: NextConfig = {
+  ...(staticExport && {
+    output: 'export' as const,
+    images: { unoptimized: true },
+  }),
+  ...(basePath ? { basePath } : {}),
   /** Evita chunk `vendor-chunks/zod.js` ausente no SSR (Webpack às vezes não gera o ficheiro relativo). */
   serverExternalPackages: ['zod'],
   reactStrictMode: true,

@@ -316,7 +316,7 @@ function PurchaseItemDialog({
                 <Label htmlFor="manualItemQuantity">Quantidade planejada</Label>
                 <Input id="manualItemQuantity" type="number" {...form.register('manualItemQuantity')} />
               </div>
-              <label className="md:col-span-2 flex items-center gap-3 rounded-2xl border border-border bg-white px-4 py-3 text-sm text-card-foreground">
+              <label className="md:col-span-2 flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-sm text-card-foreground">
                 <input type="checkbox" {...form.register('manualHasBidReference')} />
                 Item manual possui referência de rubrica
               </label>

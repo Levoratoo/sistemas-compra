@@ -4,6 +4,7 @@ import { CalendarDays, PanelLeft } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 
 import { useSidebar } from '@/components/layout/sidebar-context';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 const pageTitles: Record<string, { title: string; description: string }> = {
   '/': {
@@ -80,11 +81,14 @@ export function AppHeader() {
               <p className="mt-1.5 text-sm font-medium leading-relaxed text-muted-foreground">{copy.description}</p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-border/90 bg-card px-4 py-2.5 text-sm text-muted-foreground shadow-sm">
-            <CalendarDays className="size-4 text-primary" aria-hidden />
-            <span className="tabular-nums">
-              {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full' }).format(new Date())}
-            </span>
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
+            <ThemeToggle />
+            <div className="flex items-center gap-3 rounded-2xl border border-border/90 bg-card px-4 py-2.5 text-sm text-muted-foreground shadow-sm">
+              <CalendarDays className="size-4 text-primary" aria-hidden />
+              <span className="tabular-nums">
+                {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full' }).format(new Date())}
+              </span>
+            </div>
           </div>
         </div>
       </header>

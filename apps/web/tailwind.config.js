@@ -19,41 +19,41 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        border: '#e2e8f0',
-        input: '#f1f5f9',
-        ring: '#14b8a6',
-        background: '#f8fafc',
-        foreground: '#0f172a',
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
         primary: {
-          DEFAULT: '#0d9488',
-          foreground: '#f0fdfa',
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
         },
         secondary: {
-          DEFAULT: '#f1f5f9',
-          foreground: '#0f172a',
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))',
         },
         muted: {
-          DEFAULT: '#f1f5f9',
-          foreground: '#64748b',
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))',
         },
         accent: {
-          DEFAULT: '#f59e0b',
-          foreground: '#451a03',
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))',
         },
         card: {
-          DEFAULT: '#ffffff',
-          foreground: '#0f172a',
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))',
         },
         destructive: {
-          DEFAULT: '#dc2626',
-          foreground: '#fff1f2',
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
         },
         sidebar: {
-          DEFAULT: '#0f172a',
-          foreground: '#f8fafc',
-          muted: '#94a3b8',
-          accent: '#14b8a6',
-          border: '#1e293b',
+          DEFAULT: 'hsl(var(--sidebar))',
+          foreground: 'hsl(var(--sidebar-foreground))',
+          muted: 'hsl(var(--sidebar-muted))',
+          accent: 'hsl(var(--sidebar-accent))',
+          border: 'hsl(var(--sidebar-border))',
         },
       },
       borderRadius: {
@@ -69,8 +69,12 @@ module.exports = {
       backgroundImage: {
         mesh:
           'radial-gradient(at 0% 0%, rgb(20 184 166 / 0.12) 0px, transparent 50%), radial-gradient(at 100% 0%, rgb(245 158 11 / 0.08) 0px, transparent 45%), radial-gradient(at 100% 100%, rgb(13 148 136 / 0.06) 0px, transparent 40%)',
+        'mesh-dark':
+          'radial-gradient(at 0% 0%, rgb(20 184 166 / 0.08) 0px, transparent 50%), radial-gradient(at 100% 0%, rgb(245 158 11 / 0.05) 0px, transparent 45%), radial-gradient(at 100% 100%, rgb(13 148 136 / 0.05) 0px, transparent 40%)',
         'grid-subtle':
           'linear-gradient(to right, rgb(148 163 184 / 0.08) 1px, transparent 1px), linear-gradient(to bottom, rgb(148 163 184 / 0.08) 1px, transparent 1px)',
+        'grid-subtle-dark':
+          'linear-gradient(to right, rgb(148 163 184 / 0.06) 1px, transparent 1px), linear-gradient(to bottom, rgb(148 163 184 / 0.06) 1px, transparent 1px)',
       },
       backgroundSize: {
         'grid-subtle': '40px 40px',

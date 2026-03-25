@@ -1,32 +1,51 @@
 /**
- * Produção: aplica migrações pendentes e inicia o servidor.
- * Idempotente — `migrate deploy` só faz algo quando há migrações novas.
+ * Produção: sobe o HTTP **em paralelo** com `migrate deploy`.
+ * Antes o migrate corria com spawnSync *antes* do servidor — no Render o health check
+ * expirava porque nada escutava na PORT a tempo.
  *
- * Para pular migrações (ex.: troubleshooting): SKIP_PRISMA_MIGRATE_ON_START=1
+ * Para pular migrações no arranque: SKIP_PRISMA_MIGRATE_ON_START=1
  */
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(__dirname, '..');
 const prismaCli = path.join(appRoot, 'scripts/prisma-cli.mjs');
+const serverJs = path.join(appRoot, 'dist/server.js');
 
-if (process.env.SKIP_PRISMA_MIGRATE_ON_START !== '1') {
-  const migrate = spawnSync(process.execPath, [prismaCli, 'migrate', 'deploy'], {
-    cwd: appRoot,
-    env: process.env,
-    stdio: 'inherit',
-  });
-  if (migrate.status !== 0) {
-    process.exit(migrate.status ?? 1);
-  }
-}
+const skipMigrate = process.env.SKIP_PRISMA_MIGRATE_ON_START === '1';
 
-const server = spawnSync(process.execPath, [path.join(appRoot, 'dist/server.js')], {
+const server = spawn(process.execPath, [serverJs], {
   cwd: appRoot,
   env: process.env,
   stdio: 'inherit',
 });
 
-process.exit(server.status ?? 0);
+let migrateChild = null;
+
+if (!skipMigrate) {
+  migrateChild = spawn(process.execPath, [prismaCli, 'migrate', 'deploy'], {
+    cwd: appRoot,
+    env: process.env,
+    stdio: 'inherit',
+  });
+
+  migrateChild.on('exit', (code, signal) => {
+    if (code !== 0) {
+      try {
+        server.kill(signal ?? 'SIGTERM');
+      } catch {
+        // ignore
+      }
+      process.exit(code ?? 1);
+    }
+  });
+}
+
+server.on('exit', (code, signal) => {
+  if (migrateChild && !migrateChild.killed) {
+    migrateChild.kill(signal ?? 'SIGTERM');
+  }
+  process.exit(code ?? 0);
+});

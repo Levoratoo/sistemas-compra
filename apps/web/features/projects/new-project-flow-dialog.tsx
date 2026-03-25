@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { bootstrapProjectFromDocument } from '@/services/projects-service';
+import type { DocumentType } from '@/types/api';
 import { cn } from '@/lib/utils';
 
 /** Fluxo de criação por upload assume sempre edital (leitura seções 7/8, etc.). */

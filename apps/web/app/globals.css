@@ -4,6 +4,54 @@
 
 :root {
   color-scheme: light;
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 173 58% 39%;
+  --primary: 173 58% 39%;
+  --primary-foreground: 166 76% 97%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+  --accent: 38 92% 50%;
+  --accent-foreground: 32 81% 14%;
+  --sidebar: 222 47% 11%;
+  --sidebar-foreground: 210 40% 98%;
+  --sidebar-muted: 215 20% 65%;
+  --sidebar-border: 217 33% 17%;
+  --sidebar-accent: 173 58% 39%;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: 222 47% 7%;
+  --foreground: 210 40% 98%;
+  --card: 222 47% 11%;
+  --card-foreground: 210 40% 98%;
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+  --border: 217 33% 22%;
+  --input: 217 33% 22%;
+  --ring: 173 58% 45%;
+  --primary: 173 58% 45%;
+  --primary-foreground: 166 76% 97%;
+  --secondary: 217 33% 17%;
+  --secondary-foreground: 210 40% 98%;
+  --destructive: 0 62% 45%;
+  --destructive-foreground: 0 0% 98%;
+  --accent: 38 92% 50%;
+  --accent-foreground: 32 81% 14%;
+  --sidebar: 222 47% 6%;
+  --sidebar-foreground: 210 40% 98%;
+  --sidebar-muted: 215 20% 55%;
+  --sidebar-border: 217 33% 14%;
+  --sidebar-accent: 173 58% 45%;
 }
 
 * {
@@ -31,15 +79,15 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  background: #f8fafc;
-  color: #0f172a;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 
 ::selection {
-  background: rgb(20 184 166 / 0.22);
-  color: #0f172a;
+  background: hsl(var(--primary) / 0.22);
+  color: hsl(var(--foreground));
 }
 
 a {

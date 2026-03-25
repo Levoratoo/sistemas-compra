@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -71,9 +71,28 @@ if (!existsSync(binDir)) {
   process.exit(0);
 }
 
-writeFileSync(prismaShPath, shellWrapper, 'utf8');
-writeFileSync(prismaCmdPath, cmdWrapper, 'utf8');
-writeFileSync(prismaPs1Path, ps1Wrapper, 'utf8');
+/**
+ * Em Linux/macOS, `node_modules/.bin/prisma` costuma ser um symlink para
+ * `prisma/build/index.js`. Escrever por cima segue o symlink e **corrompe** o CLI
+ * real do Prisma. Removemos o link/ficheiro antes de gravar o nosso wrapper.
+ */
+function safeWriteExecutable(filePath, content) {
+  if (existsSync(filePath)) {
+    try {
+      const st = lstatSync(filePath);
+      if (st.isSymbolicLink() || st.isFile()) {
+        unlinkSync(filePath);
+      }
+    } catch {
+      // ignora
+    }
+  }
+  writeFileSync(filePath, content, 'utf8');
+}
+
+safeWriteExecutable(prismaShPath, shellWrapper);
+safeWriteExecutable(prismaCmdPath, cmdWrapper);
+safeWriteExecutable(prismaPs1Path, ps1Wrapper);
 
 chmodSync(prismaShPath, 0o755);
 

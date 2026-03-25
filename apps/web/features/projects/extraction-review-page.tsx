@@ -149,6 +149,11 @@ function buildBudgetDrafts(
       src === 'edital_secao_8_uniforme_epi' || src === 'edital_secao_8_epi_lista';
     const fromEdital = fromEdital7 || fromEdital8;
     const contextOnly = isEditalBudgetLineContextOnly(j);
+    let extractedSource: BudgetDraft['extractedSource'];
+    if (fromEdital7) extractedSource = 'edital';
+    else if (fromEdital8) extractedSource = 'edital8';
+    else if (j?.description) extractedSource = 'map';
+    else extractedSource = undefined;
     return {
       id: f.id,
       name: d.slice(0, 500),
@@ -161,13 +166,7 @@ function buildBudgetDrafts(
       sourcePage: f.sourcePage,
       sourceExcerpt: f.sourceExcerpt,
       contextOnly,
-      extractedSource: fromEdital7
-        ? 'edital'
-        : fromEdital8
-          ? 'edital8'
-          : j?.description
-            ? 'map'
-            : undefined,
+      extractedSource,
     };
   }).filter((b) => !b.contextOnly);
 }
@@ -401,7 +400,7 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
           {budgetItems.length === 0 ? (
             <p className="text-xs text-muted-foreground">Nenhuma linha de compra detectada neste documento.</p>
           ) : (
-            <div className="w-full min-w-0 overflow-x-auto rounded-md border border-neutral-200/90 bg-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.9)] ring-1 ring-neutral-950/[0.04]">
+            <div className="w-full min-w-0 overflow-x-auto rounded-md border border-border bg-card shadow-sm ring-1 ring-border/60">
               <table className="w-full table-fixed border-collapse text-[13px] leading-normal antialiased">
                 <colgroup>
                   {budgetColPercents.map((pct, idx) => (
@@ -409,8 +408,8 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                   ))}
                 </colgroup>
                 <thead>
-                  <tr className="bg-[#f6f7f9]">
-                    <th className="relative border-b border-neutral-300/80 border-r border-neutral-200 px-2 py-2 pr-3 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-neutral-600">
+                  <tr className="bg-muted/80">
+                    <th className="relative border-b border-border/90 border-r border-border px-2 py-2 pr-3 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                       Descrição
                       <button
                         aria-label="Ajustar largura entre Descrição e Cat."
@@ -419,7 +418,7 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                         onPointerDown={(ev) => handleBudgetColumnResizeStart(ev, 0)}
                       />
                     </th>
-                    <th className="relative border-b border-neutral-300/80 border-r border-neutral-200 px-1.5 py-2 pr-3 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-neutral-600">
+                    <th className="relative border-b border-border/90 border-r border-border px-1.5 py-2 pr-3 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                       Cat.
                       <button
                         aria-label="Ajustar largura entre Cat. e Orig."
@@ -428,7 +427,7 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                         onPointerDown={(ev) => handleBudgetColumnResizeStart(ev, 1)}
                       />
                     </th>
-                    <th className="relative border-b border-neutral-300/80 border-r border-neutral-200 px-1 py-2 pr-3 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-neutral-600">
+                    <th className="relative border-b border-border/90 border-r border-border px-1 py-2 pr-3 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                       Orig.
                       <button
                         aria-label="Ajustar largura entre Orig. e Qtd"
@@ -437,7 +436,7 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                         onPointerDown={(ev) => handleBudgetColumnResizeStart(ev, 2)}
                       />
                     </th>
-                    <th className="relative border-b border-neutral-300/80 border-r border-neutral-200 px-1 py-2 pr-3 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-neutral-600">
+                    <th className="relative border-b border-border/90 border-r border-border px-1 py-2 pr-3 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                       Qtd
                       <button
                         aria-label="Ajustar largura entre Qtd e Vlr unit. rubrica"
@@ -446,7 +445,7 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                         onPointerDown={(ev) => handleBudgetColumnResizeStart(ev, 3)}
                       />
                     </th>
-                    <th className="relative border-b border-neutral-300/80 border-r border-neutral-200 px-1.5 py-2 pr-3 text-right text-[10px] font-semibold uppercase tracking-[0.06em] text-neutral-600">
+                    <th className="relative border-b border-border/90 border-r border-border px-1.5 py-2 pr-3 text-right text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                       Vlr unit. rubrica (R$)
                       <button
                         aria-label="Ajustar largura entre Vlr unit. rubrica e Vlr total rubrica"
@@ -455,7 +454,7 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                         onPointerDown={(ev) => handleBudgetColumnResizeStart(ev, 4)}
                       />
                     </th>
-                    <th className="border-b border-neutral-300/80 px-1.5 py-2 text-right text-[10px] font-semibold uppercase tracking-[0.06em] text-neutral-600">
+                    <th className="border-b border-neutral-300/80 px-1.5 py-2 text-right text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                       Vlr total rubrica (R$)
                     </th>
                   </tr>
@@ -469,12 +468,12 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                         className="align-top transition-colors hover:bg-neutral-50/90"
                         title={tip}
                       >
-                        <td className="min-w-0 border-b border-r border-neutral-200 bg-white p-0 align-top">
+                        <td className="min-w-0 border-b border-r border-border bg-card p-0 align-top">
                           <div className="px-2 pt-1.5">
                             <textarea
                               className={cn(
                                 'box-border min-h-[2.25rem] w-full resize-y border-0 bg-transparent py-1.5 text-[13px] leading-snug text-neutral-800 outline-none',
-                                'placeholder:text-neutral-400 focus:bg-[#fafbfc] focus:ring-1 focus:ring-inset focus:ring-primary/25',
+                                'placeholder:text-neutral-400 focus:bg-muted focus:ring-1 focus:ring-inset focus:ring-primary/25',
                               )}
                               onChange={(e) =>
                                 setBudgetItems((prev) =>
@@ -487,11 +486,11 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                             />
                           </div>
                         </td>
-                        <td className="border-b border-r border-neutral-200 bg-white p-0 align-top">
+                        <td className="border-b border-r border-border bg-card p-0 align-top">
                           <Select
                             className={cn(
                               'h-auto min-h-[1.75rem] w-full cursor-pointer rounded-none border-0 bg-transparent px-1.5 py-1.5 text-[12px] text-neutral-700 shadow-none',
-                              'focus:bg-[#fafbfc] focus:ring-1 focus:ring-inset focus:ring-primary/25',
+                              'focus:bg-muted focus:ring-1 focus:ring-inset focus:ring-primary/25',
                             )}
                             onChange={(e) =>
                               setBudgetItems((prev) =>
@@ -509,14 +508,14 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                             ))}
                           </Select>
                         </td>
-                        <td className="border-b border-r border-neutral-200 bg-[#fafbfc] px-1 py-1.5 text-center align-middle text-[11px] font-medium tabular-nums text-neutral-500">
+                        <td className="border-b border-r border-border bg-muted/50 px-1 py-1.5 text-center align-middle text-[11px] font-medium tabular-nums text-muted-foreground">
                           {budgetSourceAbbrev(b)}
                         </td>
-                        <td className="border-b border-r border-neutral-200 bg-white p-0 align-top">
+                        <td className="border-b border-r border-border bg-card p-0 align-top">
                           <Input
                             className={cn(
                               'h-8 rounded-none border-0 bg-transparent px-1 py-0 text-center text-[13px] tabular-nums text-neutral-800 shadow-none',
-                              'focus:bg-[#fafbfc] focus:ring-1 focus:ring-inset focus:ring-primary/25',
+                              'focus:bg-muted focus:ring-1 focus:ring-inset focus:ring-primary/25',
                             )}
                             min={0}
                             onChange={(e) =>
@@ -536,11 +535,11 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                             value={b.plannedQuantity ?? ''}
                           />
                         </td>
-                        <td className="border-b border-r border-neutral-200 bg-white p-0 align-top">
+                        <td className="border-b border-r border-border bg-card p-0 align-top">
                           <Input
                             className={cn(
                               'h-8 rounded-none border-0 bg-transparent px-1.5 py-0 text-right text-[13px] tabular-nums text-neutral-800 shadow-none',
-                              'focus:bg-[#fafbfc] focus:ring-1 focus:ring-inset focus:ring-primary/25',
+                              'focus:bg-muted focus:ring-1 focus:ring-inset focus:ring-primary/25',
                             )}
                             min={0}
                             onChange={(e) =>
@@ -559,11 +558,11 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                             value={b.bidUnitValue ?? ''}
                           />
                         </td>
-                        <td className="border-b border-neutral-200 bg-white p-0 align-top">
+                        <td className="border-b border-border bg-card p-0 align-top">
                           <Input
                             className={cn(
                               'h-8 rounded-none border-0 bg-transparent px-1.5 py-0 text-right text-[13px] tabular-nums text-neutral-800 shadow-none',
-                              'focus:bg-[#fafbfc] focus:ring-1 focus:ring-inset focus:ring-primary/25',
+                              'focus:bg-muted focus:ring-1 focus:ring-inset focus:ring-primary/25',
                             )}
                             min={0}
                             onChange={(e) =>
@@ -594,9 +593,9 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
           )}
           {budgetItems.length > 0 ? (
             <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
-              <span className="font-medium text-neutral-600">Legenda:</span> S7 = seção 7 · S8 = lista com traço (EPI) ·
+              <span className="font-medium text-muted-foreground">Legenda:</span> S7 = seção 7 · S8 = lista com traço (EPI) ·
               Mapa = implantação · Parágrafos 8.7.x só normativos (sem rubrica) não entram nesta lista ·{' '}
-              <span className="text-neutral-600">Vlr unit. / total rubrica</span> = conforme o edital. Arraste entre
+              <span className="text-muted-foreground">Vlr unit. / total rubrica</span> = conforme o edital. Arraste entre
               colunas no cabeçalho para ajustar larguras (preferência salva no navegador). Passe o cursor na linha para
               ver trecho do PDF.
             </p>
