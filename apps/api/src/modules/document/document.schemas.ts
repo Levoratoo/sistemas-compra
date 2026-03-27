@@ -38,6 +38,7 @@ export const createDocumentFolderBodySchema = z.object({
   name: z.string().trim().min(1),
   parentId: z.string().min(1).optional().nullable(),
   colorHex: folderColorHexSchema.optional(),
+  colorHex2: folderColorHexSchema.optional(),
   iconEmoji: z.union([folderWorkEmojiSchema, z.null()]).optional(),
   surfaceStyle: folderSurfaceStyleSchema.optional(),
 });
@@ -47,6 +48,7 @@ export const updateDocumentFolderBodySchema = z
     name: z.string().trim().min(1).optional(),
     parentId: z.union([z.string().min(1), z.null()]).optional(),
     colorHex: folderColorHexSchema.optional(),
+    colorHex2: folderColorHexSchema.optional(),
     iconEmoji: z.union([folderWorkEmojiSchema, z.null()]).optional(),
     surfaceStyle: folderSurfaceStyleSchema.optional(),
   })
@@ -55,6 +57,7 @@ export const updateDocumentFolderBodySchema = z
       data.name !== undefined ||
       data.parentId !== undefined ||
       data.colorHex !== undefined ||
+      data.colorHex2 !== undefined ||
       data.iconEmoji !== undefined ||
       data.surfaceStyle !== undefined,
     { message: 'Informe pelo menos um campo para atualizar.' },

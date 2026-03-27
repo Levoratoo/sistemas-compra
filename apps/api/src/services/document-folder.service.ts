@@ -41,6 +41,7 @@ class DocumentFolderService {
       name: string;
       parentId?: string | null;
       colorHex?: string;
+      colorHex2?: string;
       iconEmoji?: string | null;
       surfaceStyle?: FolderSurfaceStyle;
     },
@@ -71,6 +72,7 @@ class DocumentFolderService {
       parentId,
       name,
       colorHex: input.colorHex,
+      colorHex2: input.colorHex2,
       iconEmoji: input.iconEmoji,
       surfaceStyle: input.surfaceStyle,
     });
@@ -84,6 +86,7 @@ class DocumentFolderService {
       name?: string;
       parentId?: string | null;
       colorHex?: string;
+      colorHex2?: string;
       iconEmoji?: string | null;
       surfaceStyle?: FolderSurfaceStyle;
     },
@@ -130,6 +133,7 @@ class DocumentFolderService {
       name: input.name !== undefined ? nextName : undefined,
       parentId: input.parentId !== undefined ? nextParentId : undefined,
       ...(input.colorHex !== undefined ? { colorHex: input.colorHex } : {}),
+      ...(input.colorHex2 !== undefined ? { colorHex2: input.colorHex2 } : {}),
       ...(input.iconEmoji !== undefined ? { iconEmoji: input.iconEmoji } : {}),
       ...(input.surfaceStyle !== undefined ? { surfaceStyle: input.surfaceStyle } : {}),
     });

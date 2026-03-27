@@ -178,6 +178,8 @@ model ProjectDocumentFolder {
   sortOrder Int      @default(0)
   /// Cor do ícone/borda (#RRGGBB)
   colorHex  String   @default("#14b8a6")
+  /// Segunda cor do degradê / radial (#RRGGBB)
+  colorHex2 String   @default("#0ea5e9")
   /// Emoji opcional como “favicon” da pasta
   iconEmoji String?
   /// Aparência do cartão: sólido, degradê linear ou degradê radial

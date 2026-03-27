@@ -139,6 +139,8 @@ export interface ProjectDocumentFolder extends EntityTimestamps {
   sortOrder: number;
   /** Cor do destaque da pasta (#RRGGBB) */
   colorHex: string;
+  /** Segunda cor para degradê / radial (#RRGGBB) */
+  colorHex2?: string;
   /** Emoji opcional como ícone */
   iconEmoji: string | null;
   /** Aparência do cartão (sólido / degradê / radial) */

@@ -42,6 +42,9 @@ export const FOLDER_WORK_EMOJIS = [
 
 export const DEFAULT_FOLDER_COLOR_HEX = '#14b8a6';
 
+/** Segunda cor (degradê / radial); padrão sky para contrastar com o teal. */
+export const DEFAULT_FOLDER_COLOR_HEX_2 = '#0ea5e9';
+
 /** Como o cartão da pasta usa a cor (API + banco). */
 export type FolderSurfaceStyle = 'SOLID' | 'GRADIENT' | 'RADIAL';
 
@@ -94,18 +97,22 @@ function hexToRgb(hex: string): { b: number; g: number; r: number } | null {
 }
 
 /**
- * Fundo do cartão conforme estilo: sólido, degradê linear (paleta do site) ou degradê radial.
+ * Fundo do cartão: sólido (uma cor); degradê ou radial (duas cores + tema).
  */
 export function folderCardSurfaceStyle(
   accentHex: string,
   surfaceStyle: FolderSurfaceStyle = DEFAULT_FOLDER_SURFACE_STYLE,
+  accentHex2?: string,
 ): CSSProperties {
   const n = normalizeFolderHex(accentHex);
+  const n2 = normalizeFolderHex(accentHex2 ?? DEFAULT_FOLDER_COLOR_HEX_2);
   const rgb = hexToRgb(n);
-  if (!rgb) {
+  const rgb2 = hexToRgb(n2) ?? hexToRgb(DEFAULT_FOLDER_COLOR_HEX_2);
+  if (!rgb || !rgb2) {
     return { background: 'hsl(var(--card))' };
   }
   const { r, g, b } = rgb;
+  const { r: r2, g: g2, b: b2 } = rgb2;
   switch (surfaceStyle) {
     case 'SOLID':
       return {
@@ -114,14 +121,14 @@ export function folderCardSurfaceStyle(
       };
     case 'RADIAL':
       return {
-        background: `radial-gradient(ellipse 110% 95% at 100% 0%, rgba(${r},${g},${b},0.52) 0%, hsl(var(--card) / 0.93) 50%, hsl(var(--primary) / 0.26) 100%)`,
-        boxShadow: `inset 0 1px 0 0 rgba(${r},${g},${b},0.16)`,
+        background: `radial-gradient(ellipse 110% 95% at 100% 0%, rgba(${r},${g},${b},0.55) 0%, rgba(${r2},${g2},${b2},0.38) 58%, hsl(var(--card) / 0.93) 100%)`,
+        boxShadow: `inset 0 1px 0 0 rgba(${r},${g},${b},0.14)`,
       };
     case 'GRADIENT':
     default:
       return {
-        background: `linear-gradient(145deg, rgba(${r},${g},${b},0.48) 0%, hsl(var(--card) / 0.94) 44%, hsl(var(--primary) / 0.24) 100%)`,
-        boxShadow: `inset 0 1px 0 0 rgba(${r},${g},${b},0.18)`,
+        background: `linear-gradient(145deg, rgba(${r},${g},${b},0.5) 0%, hsl(var(--card) / 0.92) 46%, rgba(${r2},${g2},${b2},0.42) 100%)`,
+        boxShadow: `inset 0 1px 0 0 rgba(${r},${g},${b},0.16)`,
       };
   }
 }

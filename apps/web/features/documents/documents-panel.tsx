@@ -38,6 +38,7 @@ import {
 import { getDocumentTypeLabel } from '@/lib/constants';
 import {
   DEFAULT_FOLDER_COLOR_HEX,
+  DEFAULT_FOLDER_COLOR_HEX_2,
   DEFAULT_FOLDER_SURFACE_STYLE,
   FOLDER_COLOR_SWATCHES,
   FOLDER_SURFACE_OPTIONS,
@@ -107,23 +108,29 @@ function FolderGlyph({
 
 function FolderAppearanceFields({
   colorHex,
+  colorHex2,
   iconEmoji,
   surfaceStyle,
   onColorChange,
+  onColorChange2,
   onEmojiChange,
   onSurfaceStyleChange,
   idPrefix,
 }: {
   colorHex: string;
+  colorHex2: string;
   iconEmoji: string | null;
   surfaceStyle: FolderSurfaceStyle;
   onColorChange: (hex: string) => void;
+  onColorChange2: (hex: string) => void;
   onEmojiChange: (emoji: string | null) => void;
   onSurfaceStyleChange: (style: FolderSurfaceStyle) => void;
   idPrefix: string;
 }) {
   const normalized = normalizeFolderHex(colorHex);
+  const normalized2 = normalizeFolderHex(colorHex2);
   const style = parseFolderSurfaceStyle(surfaceStyle);
+  const showSecondColor = style === 'GRADIENT' || style === 'RADIAL';
   return (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -150,7 +157,7 @@ function FolderAppearanceFields({
         </div>
       </div>
       <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-color`}>Cor da pasta</Label>
+        <Label htmlFor={`${idPrefix}-color`}>{showSecondColor ? 'Primeira cor' : 'Cor da pasta'}</Label>
         <div className="flex flex-wrap gap-2">
           {FOLDER_COLOR_SWATCHES.map((hex) => (
             <button
@@ -168,7 +175,7 @@ function FolderAppearanceFields({
         </div>
         <div className="flex items-center gap-3 pt-1">
           <input
-            aria-label="Cor personalizada"
+            aria-label={showSecondColor ? 'Primeira cor personalizada' : 'Cor personalizada'}
             className="h-11 w-16 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-border bg-transparent p-0 shadow-inner"
             id={`${idPrefix}-color`}
             onChange={(e) => onColorChange(normalizeFolderHex(e.target.value))}
@@ -178,9 +185,40 @@ function FolderAppearanceFields({
           <span className="font-mono text-xs text-muted-foreground">{normalized}</span>
         </div>
       </div>
+      {showSecondColor ? (
+        <div className="space-y-2">
+          <Label htmlFor={`${idPrefix}-color2`}>Segunda cor</Label>
+          <div className="flex flex-wrap gap-2">
+            {FOLDER_COLOR_SWATCHES.map((hex) => (
+              <button
+                aria-label={`Segunda cor ${hex}`}
+                className={cn(
+                  'size-8 shrink-0 rounded-full border-2 border-transparent shadow-sm ring-offset-2 ring-offset-background transition hover:scale-110',
+                  normalized2 === hex && 'ring-2 ring-primary',
+                )}
+                key={`2-${hex}`}
+                onClick={() => onColorChange2(normalizeFolderHex(hex))}
+                style={{ backgroundColor: hex }}
+                type="button"
+              />
+            ))}
+          </div>
+          <div className="flex items-center gap-3 pt-1">
+            <input
+              aria-label="Segunda cor personalizada"
+              className="h-11 w-16 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-border bg-transparent p-0 shadow-inner"
+              id={`${idPrefix}-color2`}
+              onChange={(e) => onColorChange2(normalizeFolderHex(e.target.value))}
+              type="color"
+              value={normalized2}
+            />
+            <span className="font-mono text-xs text-muted-foreground">{normalized2}</span>
+          </div>
+        </div>
+      ) : null}
       <div
         className="rounded-xl border border-border/60 p-4 shadow-sm transition duration-200 ease-out hover:scale-[1.02] hover:shadow-md hover:shadow-black/10"
-        style={folderCardSurfaceStyle(normalized, style)}
+        style={folderCardSurfaceStyle(normalized, style, normalized2)}
       >
         <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Pré-visualização</p>
         <div className="flex flex-wrap items-center gap-3">
@@ -368,6 +406,7 @@ function NewFolderDialog({
 }) {
   const [name, setName] = useState('');
   const [colorHex, setColorHex] = useState(DEFAULT_FOLDER_COLOR_HEX);
+  const [colorHex2, setColorHex2] = useState(DEFAULT_FOLDER_COLOR_HEX_2);
   const [surfaceStyle, setSurfaceStyle] = useState<FolderSurfaceStyle>(DEFAULT_FOLDER_SURFACE_STYLE);
   const [iconEmoji, setIconEmoji] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -385,12 +424,14 @@ function NewFolderDialog({
         name: trimmed,
         parentId,
         colorHex: normalizeFolderHex(colorHex),
+        colorHex2: normalizeFolderHex(colorHex2),
         iconEmoji,
         surfaceStyle,
       });
       toast.success('Pasta criada.');
       setName('');
       setColorHex(DEFAULT_FOLDER_COLOR_HEX);
+      setColorHex2(DEFAULT_FOLDER_COLOR_HEX_2);
       setSurfaceStyle(DEFAULT_FOLDER_SURFACE_STYLE);
       setIconEmoji(null);
       onOpenChange(false);
@@ -409,6 +450,7 @@ function NewFolderDialog({
         if (!next) {
           setName('');
           setColorHex(DEFAULT_FOLDER_COLOR_HEX);
+          setColorHex2(DEFAULT_FOLDER_COLOR_HEX_2);
           setSurfaceStyle(DEFAULT_FOLDER_SURFACE_STYLE);
           setIconEmoji(null);
         }
@@ -434,9 +476,11 @@ function NewFolderDialog({
           </div>
           <FolderAppearanceFields
             colorHex={colorHex}
+            colorHex2={colorHex2}
             iconEmoji={iconEmoji}
             idPrefix="new-folder"
             onColorChange={setColorHex}
+            onColorChange2={setColorHex2}
             onEmojiChange={setIconEmoji}
             onSurfaceStyleChange={setSurfaceStyle}
             surfaceStyle={surfaceStyle}
@@ -463,6 +507,7 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
   const [renameFolder, setRenameFolder] = useState<ProjectDocumentFolder | null>(null);
   const [renameName, setRenameName] = useState('');
   const [renameColor, setRenameColor] = useState(DEFAULT_FOLDER_COLOR_HEX);
+  const [renameColor2, setRenameColor2] = useState(DEFAULT_FOLDER_COLOR_HEX_2);
   const [renameSurfaceStyle, setRenameSurfaceStyle] = useState<FolderSurfaceStyle>(DEFAULT_FOLDER_SURFACE_STYLE);
   const [renameEmoji, setRenameEmoji] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<'root' | string | null>(null);
@@ -532,6 +577,7 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
       await updateProjectDocumentFolder(projectId, renameFolder.id, {
         name: trimmed,
         colorHex: normalizeFolderHex(renameColor),
+        colorHex2: normalizeFolderHex(renameColor2),
         iconEmoji: renameEmoji,
         surfaceStyle: renameSurfaceStyle,
       });
@@ -704,6 +750,7 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                     style={folderCardSurfaceStyle(
                       folder.colorHex ?? DEFAULT_FOLDER_COLOR_HEX,
                       parseFolderSurfaceStyle(folder.surfaceStyle),
+                      normalizeFolderHex(folder.colorHex2 ?? DEFAULT_FOLDER_COLOR_HEX_2),
                     )}
                     onDragLeave={(e) =>
                       dragLeaveUnlessEnteringChild(e, () => {
@@ -742,6 +789,7 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                           setRenameFolder(folder);
                           setRenameName(folder.name);
                           setRenameColor(normalizeFolderHex(folder.colorHex ?? DEFAULT_FOLDER_COLOR_HEX));
+                          setRenameColor2(normalizeFolderHex(folder.colorHex2 ?? DEFAULT_FOLDER_COLOR_HEX_2));
                           setRenameSurfaceStyle(parseFolderSurfaceStyle(folder.surfaceStyle));
                           setRenameEmoji(folder.iconEmoji);
                         }}
@@ -903,9 +951,11 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
             {renameFolder ? (
               <FolderAppearanceFields
                 colorHex={renameColor}
+                colorHex2={renameColor2}
                 iconEmoji={renameEmoji}
                 idPrefix="edit-folder"
                 onColorChange={setRenameColor}
+                onColorChange2={setRenameColor2}
                 onEmojiChange={setRenameEmoji}
                 onSurfaceStyleChange={setRenameSurfaceStyle}
                 surfaceStyle={renameSurfaceStyle}

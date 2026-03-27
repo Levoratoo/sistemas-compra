@@ -49,6 +49,7 @@ export function createProjectDocumentFolder(
     name: string;
     parentId?: string | null;
     colorHex?: string;
+    colorHex2?: string;
     iconEmoji?: string | null;
     surfaceStyle?: FolderSurfaceStyle;
   },
@@ -66,6 +67,7 @@ export function updateProjectDocumentFolder(
     name?: string;
     parentId?: string | null;
     colorHex?: string;
+    colorHex2?: string;
     iconEmoji?: string | null;
     surfaceStyle?: FolderSurfaceStyle;
   },

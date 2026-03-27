@@ -41,3 +41,5 @@ export const FOLDER_WORK_EMOJIS = [
 export type FolderWorkEmoji = (typeof FOLDER_WORK_EMOJIS)[number];
 
 export const DEFAULT_FOLDER_COLOR_HEX = '#14b8a6';
+
+export const DEFAULT_FOLDER_COLOR_HEX_2 = '#0ea5e9';
