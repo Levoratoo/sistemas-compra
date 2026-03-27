@@ -12,7 +12,7 @@ export function createApp() {
 
   app.use(
     cors({
-      origin: env.CORS_ORIGIN.split(',').map((origin) => origin.trim()),
+      origin: env.CORS_ORIGIN.split(',').map((origin) => origin.trim().replace(/\/+$/, '')),
     }),
   );
   app.use(morgan('dev'));
