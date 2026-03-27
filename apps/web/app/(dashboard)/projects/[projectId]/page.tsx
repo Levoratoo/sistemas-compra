@@ -1,5 +1,15 @@
-import { ProjectOverview } from '@/features/projects/project-overview';
+import dynamic from 'next/dynamic';
+
+import { ProjectModuleSkeleton } from '@/components/common/project-module-skeleton';
 import { STATIC_EXPORT_PROJECT_ID } from '@/lib/static-export-placeholders';
+
+const ProjectOverview = dynamic(
+  () =>
+    import('@/features/projects/project-overview').then((m) => ({
+      default: m.ProjectOverview,
+    })),
+  { loading: () => <ProjectModuleSkeleton /> },
+);
 
 export async function generateStaticParams() {
   return [{ projectId: STATIC_EXPORT_PROJECT_ID }];

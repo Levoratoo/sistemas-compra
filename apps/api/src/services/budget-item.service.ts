@@ -4,7 +4,7 @@ import { documentRepository } from '../repositories/document.repository.js';
 import { projectRepository } from '../repositories/project.repository.js';
 import { AppError } from '../utils/app-error.js';
 import { parseOptionalDate } from '../utils/date.js';
-import { decimalToNumber, toDecimal } from '../utils/decimal.js';
+import { decimalToNumber, optionalToDecimal, toDecimal } from '../utils/decimal.js';
 import {
   serializeBudgetItem,
   serializeProjectDocument,
@@ -180,10 +180,10 @@ class BudgetItemService {
       requiresCa: input.requiresCa,
       roleReference: input.roleReference,
       allocationSector: input.allocationSector,
-      plannedQuantity: toDecimal(input.plannedQuantity),
-      bidUnitValue: toDecimal(input.bidUnitValue),
-      rubricMaxValue: toDecimal(input.rubricMaxValue),
-      purchasedValue: toDecimal(input.purchasedValue),
+      plannedQuantity: optionalToDecimal(input.plannedQuantity),
+      bidUnitValue: optionalToDecimal(input.bidUnitValue),
+      rubricMaxValue: optionalToDecimal(input.rubricMaxValue),
+      purchasedValue: optionalToDecimal(input.purchasedValue),
       hasBidReference: input.hasBidReference,
       contextOnly: input.contextOnly,
       sourceType: input.sourceType,
@@ -219,8 +219,8 @@ class BudgetItemService {
           : undefined,
       replenishmentStateLabel: input.replenishmentStateLabel,
       competenceLabel: input.competenceLabel,
-      administrativeFeePercent: toDecimal(input.administrativeFeePercent),
-      actualUnitValue: toDecimal(input.actualUnitValue),
+      administrativeFeePercent: optionalToDecimal(input.administrativeFeePercent),
+      actualUnitValue: optionalToDecimal(input.actualUnitValue),
     });
 
     return buildBudgetItemResponse(item);

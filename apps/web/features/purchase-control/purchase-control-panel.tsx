@@ -1,9 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { Dices } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { EmptyState } from '@/components/common/empty-state';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getItemCategoryLabel } from '@/lib/constants';
@@ -26,13 +28,13 @@ const th =
  * Fase 2 = colunas operacionais (ordem fixa do modelo “Projetos - Controles”).
  */
 const FASE1_COL_COUNT = 6;
-const FASE2_COL_COUNT = 23;
+const FASE2_COL_COUNT = 22;
 const PURCHASE_CONTROL_COL_COUNT = FASE1_COL_COUNT + FASE2_COL_COUNT;
 
-/** Default column widths (px); must match column order in thead / tbody. */
+/** Default column widths (px); must match column order in thead / tbody. Tam. é mais larga para textos multilinha. */
 const DEFAULT_COL_WIDTHS: number[] = [
-  168, 84, 148, 120, 64, 72,
-  132, 64, 72, 96, 72, 100, 96, 72, 72, 88, 88, 120, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 140,
+  168, 84, 148, 120, 104, 72,
+  132, 64, 72, 96, 100, 96, 72, 72, 88, 88, 120, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 140,
 ];
 
 const FASE1_HEADERS: string[] = ['Órgão', 'Classif.', 'Descrição', 'Especificação', 'Tam.', 'Req. CA'];
@@ -43,7 +45,6 @@ const FASE2_HEADERS: string[] = [
   'Nº Pessoas',
   'Quantidade a ser comprada',
   'Rubrica (R$ valor na Licitação)',
-  'Requer CA (Certificado de Aprovação)',
   'Status Compras',
   'Data da assinatura do contrato',
   'Prazo Edital (para entrega)',
@@ -66,7 +67,7 @@ const FASE2_HEADERS: string[] = [
 
 const PURCHASE_CONTROL_HEADERS: string[] = [...FASE1_HEADERS, ...FASE2_HEADERS];
 
-const COL_WIDTH_STORAGE_KEY = (projectId: string) => `purchase-control-col-widths:v3:${projectId}`;
+const COL_WIDTH_STORAGE_KEY = (projectId: string) => `purchase-control-col-widths:v5:${projectId}`;
 const COL_MIN = 48;
 const COL_MAX = 560;
 
@@ -101,6 +102,14 @@ function numOrNull(v: string): number | null {
 function intOrNull(v: string): number | null {
   const n = parseInt(v, 10);
   return v === '' || Number.isNaN(n) ? null : n;
+}
+
+/** Enter confirma (blur); Shift+Enter insere quebra de linha — alinhado ao uso em planilha. */
+function sizeLabelKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+  if (e.key !== 'Enter' || e.shiftKey) return;
+  if (e.nativeEvent.isComposing) return;
+  e.preventDefault();
+  e.currentTarget.blur();
 }
 
 function dateToIsoMidday(v: string): string | null {
@@ -191,11 +200,39 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
     [projectId],
   );
 
+  const [randomFillBusy, setRandomFillBusy] = useState(false);
+
   async function patch(id: string, payload: Partial<BudgetItemPayload>) {
     try {
       await updateItem.mutateAsync({ id, payload });
     } catch {
       toast.error('Não foi possível salvar a célula.');
+    }
+  }
+
+  /** Preenche Quantidade a ser comprada + Rubrica (Fase 2) com valores aleatórios — só para testes. */
+  async function fillRandomQuantityAndRubric() {
+    const rows = itemsQuery.data ?? [];
+    const targets = rows.filter((r) => !(r.contextOnly ?? false));
+    if (targets.length === 0) {
+      toast.message('Nenhuma linha editável (itens só de contexto estão excluídos).');
+      return;
+    }
+    setRandomFillBusy(true);
+    try {
+      for (const row of targets) {
+        const plannedQuantity = Math.floor(Math.random() * 40) + 1;
+        const rubricMaxValue = Math.round((Math.random() * 8000 + 500) * 100) / 100;
+        await updateItem.mutateAsync({
+          id: row.id,
+          payload: { plannedQuantity, rubricMaxValue },
+        });
+      }
+      toast.success(`Preenchidos ${targets.length} itens (quantidade + rubrica).`);
+    } catch {
+      toast.error('Falha ao aplicar valores aleatórios.');
+    } finally {
+      setRandomFillBusy(false);
     }
   }
 
@@ -223,8 +260,13 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
         <CardHeader>
           <CardTitle>Controle de compras</CardTitle>
           <CardDescription>
-            Fase 1: texto do edital (6 colunas — sem duplicar dados já na Fase 2). Fase 2: operação (23 colunas).
-            Alterações ao sair de cada campo. Arraste a borda entre colunas para redimensionar.
+            Fase 1: texto do edital (6 colunas — Req. CA único; sem duplicar na Fase 2). Fase 2: operação (22 colunas).
+            Alterações ao sair de cada campo. Em <strong className="font-medium text-foreground">Tam.</strong>,{' '}
+            <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">Shift</kbd>
+            {' + '}
+            <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">Enter</kbd>{' '}
+            insere nova linha; Enter confirma. Arraste a borda entre colunas para redimensionar. Em telas menores, role a
+            tabela na horizontal.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -237,9 +279,9 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
           title="Nenhum item neste projeto"
         />
       ) : (
-        <Card className="overflow-hidden border-border/80 shadow-sm">
-          <CardContent className="p-0">
-            <div className="max-h-[min(78vh,920px)] w-full overflow-auto">
+        <Card className="min-w-0 overflow-hidden border-border/80 shadow-sm">
+          <CardContent className="min-w-0 p-0">
+            <div className="max-h-[min(78vh,920px)] w-full min-w-0 overflow-x-auto overflow-y-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
               <table
                 className="w-max min-w-full border-collapse text-[11px] antialiased"
                 style={{ tableLayout: 'fixed' }}
@@ -255,7 +297,21 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
                       className="border-b border-border px-2 py-2 text-center text-[10px] font-bold uppercase tracking-wider text-primary"
                       colSpan={FASE1_COL_COUNT}
                     >
-                      Fase 1 — Referência do edital
+                      <div className="flex flex-col items-stretch justify-center gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                        <span className="min-w-0 shrink">Fase 1 — Referência do edital</span>
+                        <Button
+                          className="h-auto min-h-7 max-w-[min(100%,16rem)] shrink-0 gap-1.5 whitespace-normal px-2 py-1 text-center text-[10px] font-semibold leading-tight normal-case"
+                          disabled={randomFillBusy || updateItem.isPending}
+                          onClick={() => void fillRandomQuantityAndRubric()}
+                          size="sm"
+                          title="Preenche na Fase 2: Quantidade a ser comprada e Rubrica (valor na licitação) com números aleatórios para testes."
+                          type="button"
+                          variant="secondary"
+                        >
+                          <Dices className="size-3.5 shrink-0" />
+                          Gerar informações aleatórias
+                        </Button>
+                      </div>
                     </th>
                     <th
                       className="border-b border-border px-2 py-2 text-center text-[10px] font-bold uppercase tracking-wider text-primary"
@@ -282,7 +338,7 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
                 <tbody>
                   {items.map((row) => (
                     <PurchaseControlRow
-                      key={row.id}
+                      key={`${row.id}-${row.updatedAt}-${String(row.plannedQuantity)}-${String(row.rubricMaxValue)}`}
                       item={row}
                       onPatch={patch}
                       orgName={project.organizationName}
@@ -314,7 +370,8 @@ function PurchaseControlRow({
   plannedSignatureDate: string | null;
 }) {
   const ctx = item.contextOnly ?? false;
-  const rk = `${item.id}-${item.updatedAt}`;
+  /** Inclui campos que a API atualiza sem garantir `updatedAt` novo — evita inputs com defaultValue presos ao valor antigo. */
+  const rk = `${item.id}-${item.updatedAt}-pq${String(item.plannedQuantity)}-rub${String(item.rubricMaxValue)}`;
   const valorTotalFase2 =
     item.plannedQuantity != null && item.actualUnitValue != null
       ? item.plannedQuantity * item.actualUnitValue
@@ -361,11 +418,21 @@ function PurchaseControlRow({
         />
       </td>
       <td className={cell}>
-        <input
+        <textarea
           key={`${rk}-size`}
-          className={inp}
+          className={cn(
+            inp,
+            'min-h-[4.5rem] resize-y whitespace-pre-wrap text-center leading-snug [field-sizing:content]',
+          )}
           defaultValue={item.sizeLabel ?? ''}
-          onBlur={(e) => onPatch(item.id, { sizeLabel: e.target.value || null })}
+          rows={4}
+          spellCheck={false}
+          title="Shift+Enter: nova linha. Enter: salvar."
+          onBlur={(e) => {
+            const v = e.target.value;
+            onPatch(item.id, { sizeLabel: v.trim() ? v : null });
+          }}
+          onKeyDown={sizeLabelKeyDown}
         />
       </td>
       <td className={cell}>
@@ -385,7 +452,7 @@ function PurchaseControlRow({
         </select>
       </td>
 
-      {/* Fase 2 — ordem fixa (23 colunas) */}
+      {/* Fase 2 — ordem fixa (22 colunas); CA só na Fase 1 */}
       <td className={cell}>
         <input
           key={`${rk}-f2-role`}
@@ -422,22 +489,6 @@ function PurchaseControlRow({
           inputMode="decimal"
           onBlur={(e) => onPatch(item.id, { rubricMaxValue: numOrNull(e.target.value) })}
         />
-      </td>
-      <td className={cell}>
-        <select
-          key={`${rk}-f2-ca`}
-          className={cn(inp, 'cursor-pointer')}
-          defaultValue={item.requiresCa === true ? 'yes' : item.requiresCa === false ? 'no' : ''}
-          onChange={(e) =>
-            onPatch(item.id, {
-              requiresCa: e.target.value === 'yes' ? true : e.target.value === 'no' ? false : null,
-            })
-          }
-        >
-          <option value="">—</option>
-          <option value="yes">Sim</option>
-          <option value="no">Não</option>
-        </select>
       </td>
       <td className={cell}>
         <input

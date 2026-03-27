@@ -457,11 +457,12 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
               Checklist de compras
             </h3>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              Itens com compra prevista no projeto (referências só de edital não aparecem aqui).
+              Itens com compra prevista no projeto (referências só de edital não aparecem aqui). O tamanho vem do campo{' '}
+              <strong className="font-medium text-foreground">Tam.</strong> em Controle de compras.
             </p>
           </div>
           <Button asChild size="sm" variant="secondary">
-            <Link href={`/projects/${projectId}/budget-items`}>Itens orçados</Link>
+            <Link href={`/projects/${projectId}/purchase-control`}>Controle de compras</Link>
           </Button>
         </div>
 
@@ -500,6 +501,7 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
                   <TableRow variant="header">
                     <TableHead className="w-10 text-center">Ok</TableHead>
                     <TableHead>Item</TableHead>
+                    <TableHead className="min-w-[120px] max-w-[200px]">Tamanho</TableHead>
                     <TableHead className="w-[72px] text-right">Qtd</TableHead>
                     <TableHead className="w-[120px] text-right">Rubrica (R$)</TableHead>
                     <TableHead className="w-[100px]">Categoria</TableHead>
@@ -512,7 +514,7 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
                 <TableBody>
                   {purchasableBudgetItems.length === 0 ? (
                     <TableRow>
-                      <TableCell className="text-muted-foreground" colSpan={7}>
+                      <TableCell className="text-muted-foreground" colSpan={8}>
                         Nenhum item com compra prevista — apenas referências normativas no edital.
                       </TableCell>
                     </TableRow>
@@ -543,6 +545,15 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
                             {item.description ? (
                               <p className="line-clamp-2 text-xs text-muted-foreground">{item.description}</p>
                             ) : null}
+                          </TableCell>
+                          <TableCell className="align-top text-sm text-foreground">
+                            {item.sizeLabel?.trim() ? (
+                              <p className="max-h-40 overflow-y-auto whitespace-pre-wrap text-center leading-snug">
+                                {item.sizeLabel}
+                              </p>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-right tabular-nums text-sm text-foreground">
                             {item.plannedQuantity != null ? formatNumber(item.plannedQuantity) : '—'}
@@ -627,9 +638,9 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
                     </Link>
                     , conclua a <strong className="font-medium text-foreground">revisão da extração</strong> e clique em{' '}
                     <strong className="font-medium text-foreground">Aplicar ao projeto</strong>. Também é possível
-                    cadastrar itens manualmente em{' '}
-                    <Link className="font-semibold text-primary underline-offset-4 hover:underline" href={`/projects/${projectId}/budget-items`}>
-                      Itens orçados
+                    ajustar linhas em{' '}
+                    <Link className="font-semibold text-primary underline-offset-4 hover:underline" href={`/projects/${projectId}/purchase-control`}>
+                      Controle de compras
                     </Link>
                     .
                   </p>

@@ -2,14 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { cn } from '@/lib/utils';
+import { prefetchProjectModuleQueries } from '@/lib/prefetch-project-module-queries';
 
 const tabs = [
   { href: '', label: 'Visão Geral' },
   { href: '/documents', label: 'Documentos' },
-  { href: '/roles', label: 'Cargos' },
-  { href: '/budget-items', label: 'Itens Orçados' },
   { href: '/purchase-control', label: 'Controle de compras' },
   { href: '/purchases', label: 'Compras' },
   { href: '/replenishments', label: 'Reposições' },
@@ -17,6 +17,7 @@ const tabs = [
 
 export function ProjectNav({ projectId }: { projectId: string }) {
   const pathname = usePathname();
+  const queryClient = useQueryClient();
 
   return (
     <div className="-mx-1 border-t border-border/80 pt-6">
@@ -37,6 +38,8 @@ export function ProjectNav({ projectId }: { projectId: string }) {
               )}
               href={href}
               aria-current={active ? 'page' : undefined}
+              onFocus={() => void prefetchProjectModuleQueries(queryClient, projectId, tab.href)}
+              onMouseEnter={() => void prefetchProjectModuleQueries(queryClient, projectId, tab.href)}
             >
               {tab.label}
             </Link>

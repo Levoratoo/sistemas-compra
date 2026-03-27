@@ -26,14 +26,6 @@ function derivePageCopy(pathname: string) {
     return { title: 'Documentos do Projeto', description: 'Anexos, processamento e revisão dos dados extraídos.' };
   }
 
-  if (pathname.startsWith('/projects/') && pathname.includes('/roles')) {
-    return { title: 'Cargos do Projeto', description: 'Postos, jornadas e quantitativos planejados.' };
-  }
-
-  if (pathname.startsWith('/projects/') && pathname.includes('/budget-items')) {
-    return { title: 'Itens Orçados', description: 'Rubricas, quantidades previstas e origem dos itens.' };
-  }
-
   if (pathname.startsWith('/projects/') && pathname.includes('/purchase-control')) {
     return {
       title: 'Controle de compras',
@@ -43,6 +35,17 @@ function derivePageCopy(pathname: string) {
 
   if (pathname.startsWith('/projects/') && pathname.includes('/purchases')) {
     return { title: 'Compras Reais', description: 'Pedidos, fornecedores, itens e comparação com a rubrica.' };
+  }
+
+  if (
+    pathname.startsWith('/projects/') &&
+    pathname.includes('/replenishments/') &&
+    /^\/projects\/[^/]+\/replenishments\/[^/]+$/.test(pathname)
+  ) {
+    return {
+      title: 'Detalhe da reposição',
+      description: 'Dados do controle de compras deste item para apoiar a reposição.',
+    };
   }
 
   if (pathname.startsWith('/projects/') && pathname.includes('/replenishments')) {

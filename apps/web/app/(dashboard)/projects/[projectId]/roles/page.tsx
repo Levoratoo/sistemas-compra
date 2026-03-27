@@ -1,4 +1,5 @@
-import { RolesPanel } from '@/features/roles/roles-panel';
+import { redirect } from 'next/navigation';
+
 import { STATIC_EXPORT_PROJECT_ID } from '@/lib/static-export-placeholders';
 
 export async function generateStaticParams() {
@@ -9,8 +10,8 @@ type ProjectPageProps = {
   params: Promise<{ projectId: string }>;
 };
 
-export default async function ProjectRolesPage({ params }: ProjectPageProps) {
+/** Módulo removido da navegação; URL antiga redireciona para a visão geral do projeto. */
+export default async function ProjectRolesRedirect({ params }: ProjectPageProps) {
   const { projectId } = await params;
-
-  return <RolesPanel projectId={projectId} />;
+  redirect(`/projects/${projectId}`);
 }

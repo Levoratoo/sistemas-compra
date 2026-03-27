@@ -38,11 +38,11 @@ export function ProjectShell({
 }) {
   const pathname = usePathname();
   const isExtractionReview = /\/documents\/[^/]+\/review\/?$/.test(pathname);
-  const { data: project, isLoading, isError } = useProjectQuery(projectId);
+  const { data: project, isPending, isError } = useProjectQuery(projectId);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [objectSummaryOpen, setObjectSummaryOpen] = useState(false);
 
-  if (isLoading) {
+  if (isPending && !project) {
     return (
       <div className="page-sections">
         <Card>
@@ -184,13 +184,13 @@ export function ProjectShell({
               value={formatDate(project.plannedStartDate)}
             />
             <StatCard
-              helper={`${formatNumber(project.roles.length)} cargos planejados`}
+              helper={`${formatNumber(project.counts.purchaseOrders)} pedidos registrados`}
               icon={Wallet}
               title="Valor mensal do contrato"
               value={formatCurrency(project.monthlyContractValue)}
             />
             <StatCard
-              helper={`${formatNumber(project.counts.purchaseOrders)} pedidos registrados`}
+              helper={`${formatNumber(project.roles.length)} cargos planejados`}
               icon={Users}
               title="Headcount planejado"
               value={formatNumber(totalHeadcount)}

@@ -1,4 +1,5 @@
-import { BudgetItemsPanel } from '@/features/budget-items/budget-items-panel';
+import { redirect } from 'next/navigation';
+
 import { STATIC_EXPORT_PROJECT_ID } from '@/lib/static-export-placeholders';
 
 export async function generateStaticParams() {
@@ -9,8 +10,8 @@ type ProjectPageProps = {
   params: Promise<{ projectId: string }>;
 };
 
-export default async function ProjectBudgetItemsPage({ params }: ProjectPageProps) {
+/** Módulo removido da navegação; URL antiga redireciona para Controle de compras. */
+export default async function ProjectBudgetItemsRedirect({ params }: ProjectPageProps) {
   const { projectId } = await params;
-
-  return <BudgetItemsPanel projectId={projectId} />;
+  redirect(`/projects/${projectId}/purchase-control`);
 }

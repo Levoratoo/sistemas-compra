@@ -9,6 +9,7 @@ import {
   type BudgetItemPayload,
   updateBudgetItem,
 } from '@/services/budget-items-service';
+import type { BudgetItem } from '@/types/api';
 
 export function useBudgetItemsQuery(projectId: string) {
   return useQuery({
@@ -38,7 +39,12 @@ export function useBudgetItemsMutations(projectId: string) {
     updateItem: useMutation({
       mutationFn: ({ id, payload }: { id: string; payload: Partial<BudgetItemPayload> }) =>
         updateBudgetItem(id, payload),
-      onSuccess: invalidate,
+      onSuccess: async (data, variables) => {
+        queryClient.setQueryData<BudgetItem[]>(['budget-items', projectId], (old) =>
+          old?.map((it) => (it.id === variables.id ? ({ ...it, ...data } as BudgetItem) : it)) ?? old,
+        );
+        await invalidate();
+      },
     }),
     deleteItem: useMutation({
       mutationFn: (id: string) => deleteBudgetItem(id),

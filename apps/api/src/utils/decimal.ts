@@ -8,6 +8,12 @@ export function toDecimal(value: number | string | Prisma.Decimal | null | undef
   return new Prisma.Decimal(value);
 }
 
+/** Para PATCH parcial: `undefined` não altera o campo; `null` zera. */
+export function optionalToDecimal(value: number | null | undefined): Prisma.Decimal | null | undefined {
+  if (value === undefined) return undefined;
+  return toDecimal(value);
+}
+
 export function decimalToNumber(value: Prisma.Decimal | number | string | null | undefined) {
   if (value === null || value === undefined) {
     return null;
