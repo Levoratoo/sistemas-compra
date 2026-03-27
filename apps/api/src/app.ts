@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import { env } from './config/env.js';
 import { errorHandler } from './middlewares/error-handler.js';
 import { notFoundHandler } from './middlewares/not-found.js';
+import { ocrRouter } from './modules/ocr/ocr.routes.js';
 import { apiRouter } from './routes/index.js';
 
 export function createApp() {
@@ -19,6 +20,13 @@ export function createApp() {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   app.use('/uploads', express.static(env.UPLOADS_DIR_ABSOLUTE));
+
+  /**
+   * OCR de imagem: registrado aqui (antes do apiRouter) para garantir as rotas em qualquer deploy
+   * e evitar 404 se a ordem de `use` dentro do apiRouter mudar.
+   */
+  app.use(ocrRouter);
+  app.use('/api', ocrRouter);
 
   app.use(apiRouter);
   app.use('/api', apiRouter);

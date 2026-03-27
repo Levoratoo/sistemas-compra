@@ -6,6 +6,11 @@ import { asyncHandler } from '../../utils/async-handler.js';
 
 export const ocrRouter = Router();
 
+/** Confirma que o módulo OCR está no deploy (útil após novo build da API). */
+ocrRouter.get('/ocr/status', (_request, response) => {
+  response.json({ ok: true, service: 'ocr', engine: 'tesseract' });
+});
+
 const uploadImage = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024 },
