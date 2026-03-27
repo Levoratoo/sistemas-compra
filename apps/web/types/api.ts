@@ -133,6 +133,10 @@ export interface ProjectDocumentFolder extends EntityTimestamps {
   parentId: string | null;
   name: string;
   sortOrder: number;
+  /** Cor do destaque da pasta (#RRGGBB) */
+  colorHex: string;
+  /** Emoji opcional como ícone */
+  iconEmoji: string | null;
 }
 
 export interface ProjectDocument extends EntityTimestamps {

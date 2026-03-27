@@ -1,4 +1,5 @@
 import { prisma } from '../config/prisma.js';
+import { DEFAULT_FOLDER_COLOR_HEX } from '../constants/folder-appearance.js';
 
 class DocumentFolderRepository {
   listByProject(projectId: string) {
@@ -26,21 +27,46 @@ class DocumentFolderRepository {
     });
   }
 
-  create(data: { projectId: string; parentId: string | null; name: string; sortOrder?: number }) {
+  create(data: {
+    projectId: string;
+    parentId: string | null;
+    name: string;
+    sortOrder?: number;
+    colorHex?: string;
+    iconEmoji?: string | null;
+  }) {
     return prisma.projectDocumentFolder.create({
       data: {
         projectId: data.projectId,
         parentId: data.parentId,
         name: data.name.trim(),
         sortOrder: data.sortOrder ?? 0,
+        colorHex: data.colorHex ?? DEFAULT_FOLDER_COLOR_HEX,
+        iconEmoji: data.iconEmoji ?? null,
       },
     });
   }
 
-  update(id: string, data: { name?: string; parentId?: string | null; sortOrder?: number }) {
+  update(
+    id: string,
+    data: {
+      name?: string;
+      parentId?: string | null;
+      sortOrder?: number;
+      colorHex?: string;
+      iconEmoji?: string | null;
+    },
+  ) {
+    const { name, parentId, sortOrder, colorHex, iconEmoji } = data;
     return prisma.projectDocumentFolder.update({
       where: { id },
-      data,
+      data: {
+        ...(name !== undefined && { name }),
+        ...(parentId !== undefined && { parentId }),
+        ...(sortOrder !== undefined && { sortOrder }),
+        ...(colorHex !== undefined && { colorHex }),
+        ...(iconEmoji !== undefined && { iconEmoji }),
+      },
     });
   }
 

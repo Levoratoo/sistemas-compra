@@ -1,0 +1,43 @@
+/** Emojis permitidos como “favicon” de pastas (trabalho / escritório). */
+export const FOLDER_WORK_EMOJIS = [
+  '📁',
+  '📂',
+  '🗂️',
+  '📋',
+  '📄',
+  '📑',
+  '📊',
+  '📈',
+  '📉',
+  '🗃️',
+  '🗄️',
+  '💼',
+  '🏢',
+  '🤝',
+  '✅',
+  '⏰',
+  '📌',
+  '📎',
+  '✏️',
+  '📐',
+  '🔒',
+  '🔑',
+  '⚖️',
+  '📜',
+  '📇',
+  '🗓️',
+  '✉️',
+  '📬',
+  '🖊️',
+  '💡',
+  '🔍',
+  '📞',
+  '☎️',
+  '🖥️',
+  '⚙️',
+  '📦',
+] as const;
+
+export type FolderWorkEmoji = (typeof FOLDER_WORK_EMOJIS)[number];
+
+export const DEFAULT_FOLDER_COLOR_HEX = '#14b8a6';

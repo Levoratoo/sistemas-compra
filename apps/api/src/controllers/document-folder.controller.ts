@@ -17,6 +17,8 @@ class DocumentFolderController {
     const result = await documentFolderService.createFolder(String(request.params.id), {
       name: body.name,
       parentId: body.parentId ?? null,
+      colorHex: body.colorHex,
+      iconEmoji: body.iconEmoji,
     });
     response.status(201).json(result);
   }
@@ -28,6 +30,8 @@ class DocumentFolderController {
     const result = await documentFolderService.updateFolder(projectId, folderId, {
       name: body.name,
       parentId: body.parentId,
+      colorHex: body.colorHex,
+      iconEmoji: body.iconEmoji,
     });
     response.json(result);
   }

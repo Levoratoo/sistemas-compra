@@ -35,7 +35,10 @@ class DocumentFolderService {
     return rows.map(serializeProjectDocumentFolder);
   }
 
-  async createFolder(projectId: string, input: { name: string; parentId?: string | null }) {
+  async createFolder(
+    projectId: string,
+    input: { name: string; parentId?: string | null; colorHex?: string; iconEmoji?: string | null },
+  ) {
     await ensureProjectExists(projectId);
     const name = input.name.trim();
     if (!name) {
@@ -61,6 +64,8 @@ class DocumentFolderService {
       projectId,
       parentId,
       name,
+      colorHex: input.colorHex,
+      iconEmoji: input.iconEmoji,
     });
     return serializeProjectDocumentFolder(created);
   }
@@ -68,7 +73,7 @@ class DocumentFolderService {
   async updateFolder(
     projectId: string,
     folderId: string,
-    input: { name?: string; parentId?: string | null },
+    input: { name?: string; parentId?: string | null; colorHex?: string; iconEmoji?: string | null },
   ) {
     await ensureProjectExists(projectId);
     const existing = await documentFolderRepository.findByIdInProject(folderId, projectId);
@@ -111,6 +116,8 @@ class DocumentFolderService {
     const updated = await documentFolderRepository.update(folderId, {
       name: input.name !== undefined ? nextName : undefined,
       parentId: input.parentId !== undefined ? nextParentId : undefined,
+      ...(input.colorHex !== undefined ? { colorHex: input.colorHex } : {}),
+      ...(input.iconEmoji !== undefined ? { iconEmoji: input.iconEmoji } : {}),
     });
     return serializeProjectDocumentFolder(updated);
   }

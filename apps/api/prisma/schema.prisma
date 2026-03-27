@@ -170,6 +170,10 @@ model ProjectDocumentFolder {
   parentId  String?
   name      String
   sortOrder Int      @default(0)
+  /// Cor do ícone/borda (#RRGGBB)
+  colorHex  String   @default("#14b8a6")
+  /// Emoji opcional como “favicon” da pasta
+  iconEmoji String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -7,6 +7,14 @@ import {
 } from '@prisma/client';
 import { z } from 'zod';
 
+import { FOLDER_WORK_EMOJIS } from '../../constants/folder-appearance.js';
+
+const folderWorkEmojiSchema = z.enum(FOLDER_WORK_EMOJIS as unknown as [string, ...string[]]);
+
+const folderColorHexSchema = z
+  .string()
+  .regex(/^#[0-9A-Fa-f]{6}$/, 'Use uma cor no formato #RRGGBB.');
+
 export const projectDocumentParamsSchema = z.object({
   id: z.string().min(1),
 });
@@ -27,16 +35,25 @@ export const moveProjectDocumentBodySchema = z.object({
 export const createDocumentFolderBodySchema = z.object({
   name: z.string().trim().min(1),
   parentId: z.string().min(1).optional().nullable(),
+  colorHex: folderColorHexSchema.optional(),
+  iconEmoji: z.union([folderWorkEmojiSchema, z.null()]).optional(),
 });
 
 export const updateDocumentFolderBodySchema = z
   .object({
     name: z.string().trim().min(1).optional(),
     parentId: z.union([z.string().min(1), z.null()]).optional(),
+    colorHex: folderColorHexSchema.optional(),
+    iconEmoji: z.union([folderWorkEmojiSchema, z.null()]).optional(),
   })
-  .refine((data) => data.name !== undefined || data.parentId !== undefined, {
-    message: 'Informe nome ou pasta pai.',
-  });
+  .refine(
+    (data) =>
+      data.name !== undefined ||
+      data.parentId !== undefined ||
+      data.colorHex !== undefined ||
+      data.iconEmoji !== undefined,
+    { message: 'Informe pelo menos um campo para atualizar.' },
+  );
 
 export const documentFolderParamsSchema = z.object({
   id: z.string().min(1),

@@ -36,6 +36,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { getDocumentTypeLabel } from '@/lib/constants';
+import {
+  DEFAULT_FOLDER_COLOR_HEX,
+  FOLDER_COLOR_SWATCHES,
+  FOLDER_WORK_EMOJIS,
+} from '@/lib/folder-appearance';
 import { formatDate, formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useProjectDocumentFoldersQuery, useProjectDocumentsQuery } from '@/hooks/use-documents';
@@ -62,6 +67,119 @@ function dragLeaveUnlessEnteringChild(e: DragEvent<HTMLElement>, onLeave: () => 
   const next = e.relatedTarget as Node | null;
   if (next && e.currentTarget.contains(next)) return;
   onLeave();
+}
+
+function FolderGlyph({
+  colorHex,
+  iconEmoji,
+  className,
+  size = 'md',
+}: {
+  colorHex: string;
+  iconEmoji: string | null;
+  className?: string;
+  size?: 'sm' | 'md';
+}) {
+  const emojiClass =
+    size === 'sm' ? 'min-w-[1.125rem] text-base leading-none' : 'min-w-[1.25rem] text-lg leading-none';
+  const iconClass = size === 'sm' ? 'size-4' : 'size-5';
+  if (iconEmoji) {
+    return (
+      <span aria-hidden className={cn('flex shrink-0 items-center justify-center', emojiClass, className)}>
+        {iconEmoji}
+      </span>
+    );
+  }
+  return <Folder aria-hidden className={cn(iconClass, 'shrink-0', className)} style={{ color: colorHex }} />;
+}
+
+function FolderAppearanceFields({
+  colorHex,
+  iconEmoji,
+  onColorChange,
+  onEmojiChange,
+  idPrefix,
+}: {
+  colorHex: string;
+  iconEmoji: string | null;
+  onColorChange: (hex: string) => void;
+  onEmojiChange: (emoji: string | null) => void;
+  idPrefix: string;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-color`}>Cor da pasta</Label>
+        <div className="flex flex-wrap gap-2">
+          {FOLDER_COLOR_SWATCHES.map((hex) => (
+            <button
+              aria-label={`Cor ${hex}`}
+              className={cn(
+                'size-8 shrink-0 rounded-full border-2 border-transparent shadow-sm ring-offset-2 ring-offset-background transition hover:scale-105',
+                colorHex.toLowerCase() === hex.toLowerCase() && 'ring-2 ring-primary',
+              )}
+              key={hex}
+              onClick={() => onColorChange(hex)}
+              style={{ backgroundColor: hex }}
+              type="button"
+            />
+          ))}
+        </div>
+        <div className="flex items-center gap-3 pt-1">
+          <Input
+            className="h-10 w-20 cursor-pointer p-1"
+            id={`${idPrefix}-color`}
+            onChange={(e) => onColorChange(e.target.value)}
+            type="color"
+            value={colorHex}
+          />
+          <span className="font-mono text-xs text-muted-foreground">{colorHex}</span>
+        </div>
+      </div>
+      <div className="space-y-2">
+        <span className="text-sm font-medium leading-none" id={`${idPrefix}-emoji-label`}>
+          Ícone (emoji de trabalho)
+        </span>
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            aria-label="Sem emoji — usar ícone de pasta"
+            className={cn(
+              'rounded-lg border px-2 py-1.5 text-xs font-medium transition',
+              iconEmoji === null
+                ? 'border-primary bg-primary/10 text-foreground'
+                : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted',
+            )}
+            onClick={() => onEmojiChange(null)}
+            type="button"
+          >
+            Padrão
+          </button>
+        </div>
+        <div
+          aria-labelledby={`${idPrefix}-emoji-label`}
+          className="max-h-36 overflow-y-auto rounded-xl border border-border/80 bg-muted/20 p-2"
+          role="group"
+        >
+          <div className="flex flex-wrap gap-1">
+            {FOLDER_WORK_EMOJIS.map((emoji) => (
+              <button
+                aria-label={`Emoji ${emoji}`}
+                className={cn(
+                  'flex size-9 items-center justify-center rounded-lg text-lg transition hover:bg-background',
+                  iconEmoji === emoji && 'bg-primary/15 ring-2 ring-primary/40',
+                )}
+                key={emoji}
+                onClick={() => onEmojiChange(emoji)}
+                type="button"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function buildBreadcrumbPath(
@@ -197,6 +315,8 @@ function NewFolderDialog({
   onCreated: () => void;
 }) {
   const [name, setName] = useState('');
+  const [colorHex, setColorHex] = useState(DEFAULT_FOLDER_COLOR_HEX);
+  const [iconEmoji, setIconEmoji] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
   async function onSubmit(e: FormEvent) {
@@ -208,9 +328,16 @@ function NewFolderDialog({
     }
     setPending(true);
     try {
-      await createProjectDocumentFolder(projectId, { name: trimmed, parentId });
+      await createProjectDocumentFolder(projectId, {
+        name: trimmed,
+        parentId,
+        colorHex,
+        iconEmoji,
+      });
       toast.success('Pasta criada.');
       setName('');
+      setColorHex(DEFAULT_FOLDER_COLOR_HEX);
+      setIconEmoji(null);
       onOpenChange(false);
       onCreated();
     } catch (error) {
@@ -224,12 +351,16 @@ function NewFolderDialog({
   return (
     <Dialog
       onOpenChange={(next) => {
-        if (!next) setName('');
+        if (!next) {
+          setName('');
+          setColorHex(DEFAULT_FOLDER_COLOR_HEX);
+          setIconEmoji(null);
+        }
         onOpenChange(next);
       }}
       open={open}
     >
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Nova pasta</DialogTitle>
           <DialogDescription>A pasta será criada no local em que você está navegando.</DialogDescription>
@@ -245,6 +376,13 @@ function NewFolderDialog({
               value={name}
             />
           </div>
+          <FolderAppearanceFields
+            colorHex={colorHex}
+            iconEmoji={iconEmoji}
+            idPrefix="new-folder"
+            onColorChange={setColorHex}
+            onEmojiChange={setIconEmoji}
+          />
           <DialogFooter>
             <Button onClick={() => onOpenChange(false)} type="button" variant="ghost">
               Cancelar
@@ -266,6 +404,8 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [renameFolder, setRenameFolder] = useState<ProjectDocumentFolder | null>(null);
   const [renameName, setRenameName] = useState('');
+  const [renameColor, setRenameColor] = useState(DEFAULT_FOLDER_COLOR_HEX);
+  const [renameEmoji, setRenameEmoji] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<'root' | string | null>(null);
 
   function openNewFolder() {
@@ -330,8 +470,12 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
       return;
     }
     try {
-      await updateProjectDocumentFolder(projectId, renameFolder.id, { name: trimmed });
-      toast.success('Pasta renomeada.');
+      await updateProjectDocumentFolder(projectId, renameFolder.id, {
+        name: trimmed,
+        colorHex: renameColor,
+        iconEmoji: renameEmoji,
+      });
+      toast.success('Pasta atualizada.');
       setRenameFolder(null);
       await refreshAll();
     } catch (error) {
@@ -446,7 +590,14 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
               onDrop={(e) => handleDropDocument(e, segment.id)}
               type="button"
             >
-              {segment.name}
+              <span className="inline-flex min-w-0 items-center gap-2">
+                <FolderGlyph
+                  colorHex={segment.colorHex ?? DEFAULT_FOLDER_COLOR_HEX}
+                  iconEmoji={segment.iconEmoji}
+                  size="sm"
+                />
+                <span className="truncate">{segment.name}</span>
+              </span>
             </button>
           </span>
         ))}
@@ -487,6 +638,7 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                       dropTarget === folder.id && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
                     )}
                     key={folder.id}
+                    style={{ borderLeftWidth: 4, borderLeftColor: folder.colorHex ?? DEFAULT_FOLDER_COLOR_HEX }}
                     onDragLeave={(e) =>
                       dragLeaveUnlessEnteringChild(e, () => {
                         setDropTarget(null);
@@ -500,7 +652,7 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                     onDrop={(e) => handleDropDocument(e, folder.id)}
                   >
                     <button
-                      className="flex min-w-0 flex-1 items-center gap-2 text-left font-medium text-foreground transition hover:text-primary"
+                      className="flex min-w-0 flex-1 items-center gap-2.5 text-left font-medium text-foreground transition hover:text-primary"
                       onClick={() => setCurrentFolderId(folder.id)}
                       onDragOver={(e) => {
                         e.preventDefault();
@@ -510,7 +662,10 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                       onDrop={(e) => handleDropDocument(e, folder.id)}
                       type="button"
                     >
-                      <Folder className="size-5 shrink-0 text-primary" />
+                      <FolderGlyph
+                        colorHex={folder.colorHex ?? DEFAULT_FOLDER_COLOR_HEX}
+                        iconEmoji={folder.iconEmoji}
+                      />
                       <span className="truncate">{folder.name}</span>
                     </button>
                     <div className="flex shrink-0 gap-1">
@@ -520,6 +675,8 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                         onClick={() => {
                           setRenameFolder(folder);
                           setRenameName(folder.name);
+                          setRenameColor(folder.colorHex ?? DEFAULT_FOLDER_COLOR_HEX);
+                          setRenameEmoji(folder.iconEmoji);
                         }}
                         onDragOver={(e) => {
                           e.preventDefault();
@@ -662,9 +819,10 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
         }}
         open={Boolean(renameFolder)}
       >
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Renomear pasta</DialogTitle>
+            <DialogTitle>Editar pasta</DialogTitle>
+            <DialogDescription>Nome, cor e ícone podem ser alterados a qualquer momento.</DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={(ev) => void submitRename(ev)}>
             <div className="space-y-2">
@@ -675,6 +833,15 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                 value={renameName}
               />
             </div>
+            {renameFolder ? (
+              <FolderAppearanceFields
+                colorHex={renameColor}
+                iconEmoji={renameEmoji}
+                idPrefix="edit-folder"
+                onColorChange={setRenameColor}
+                onEmojiChange={setRenameEmoji}
+              />
+            ) : null}
             <DialogFooter>
               <Button onClick={() => setRenameFolder(null)} type="button" variant="ghost">
                 Cancelar
