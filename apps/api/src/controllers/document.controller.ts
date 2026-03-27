@@ -37,6 +37,13 @@ class DocumentController {
     const result = await documentService.moveProjectDocument(projectId, documentId, folderId);
     response.json(result);
   }
+
+  async download(request: Request, response: Response) {
+    const projectId = String(request.params.id);
+    const documentId = String(request.params.documentId);
+    const file = await documentService.getDocumentFileForDownload(projectId, documentId);
+    response.download(file.absolutePath, file.downloadName);
+  }
 }
 
 export const documentController = new DocumentController();

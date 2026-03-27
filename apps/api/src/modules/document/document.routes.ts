@@ -17,6 +17,12 @@ import {
 
 export const documentRouter = Router();
 
+documentRouter.get(
+  '/projects/:id/documents/:documentId/download',
+  validateRequest({ params: projectDocumentIdParamsSchema }),
+  asyncHandler((request, response) => documentController.download(request, response)),
+);
+
 documentRouter.patch(
   '/projects/:id/documents/:documentId',
   validateRequest({

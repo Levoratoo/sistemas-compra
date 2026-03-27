@@ -80,6 +80,12 @@ export function moveProjectDocumentToFolder(
   });
 }
 
+/** URL da API para download do arquivo original (GET, `Content-Disposition: attachment`). */
+export function getProjectDocumentDownloadUrl(projectId: string, documentId: string) {
+  const base = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api').replace(/\/+$/, '');
+  return `${base}/projects/${projectId}/documents/${documentId}/download`;
+}
+
 export function createProjectDocument(projectId: string, payload: DocumentPayload) {
   return apiRequest<ProjectDocument>(`projects/${projectId}/documents`, {
     method: 'POST',

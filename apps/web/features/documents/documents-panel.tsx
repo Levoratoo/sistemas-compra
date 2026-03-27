@@ -1,15 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import type { FormEvent } from 'react';
+import type { DragEvent, FormEvent } from 'react';
 import { useMemo, useState } from 'react';
 import {
   ChevronRight,
+  Download,
   FileUp,
   Folder,
   FolderPlus,
+  GripVertical,
   Pencil,
   Sparkles,
   Trash2,
@@ -34,18 +35,28 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { documentTypeOptions, getDocumentTypeLabel } from '@/lib/constants';
+import { getDocumentTypeLabel } from '@/lib/constants';
 import { formatDate, formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useProjectDocumentFoldersQuery, useProjectDocumentsQuery } from '@/hooks/use-documents';
 import {
   createProjectDocumentFolder,
   deleteProjectDocumentFolder,
+  getProjectDocumentDownloadUrl,
   moveProjectDocumentToFolder,
   updateProjectDocumentFolder,
 } from '@/services/documents-service';
 import { importProjectDocumentFromUpload } from '@/services/projects-service';
-import type { DocumentType, ProjectDocument, ProjectDocumentFolder } from '@/types/api';
+import type { ProjectDocument, ProjectDocumentFolder } from '@/types/api';
+
+/** Data de postagem no fuso local (evita trocar o dia perto da meia-noite UTC). */
+function postingDateIsoLocal() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 function folderPathLabels(folders: ProjectDocumentFolder[]) {
   const byId = new Map(folders.map((f) => [f.id, f]));
@@ -60,6 +71,12 @@ function folderPathLabels(folders: ProjectDocumentFolder[]) {
     }
     return parts.join(' / ');
   };
+}
+
+function dragLeaveUnlessEnteringChild(e: DragEvent<HTMLElement>, onLeave: () => void) {
+  const next = e.relatedTarget as Node | null;
+  if (next && e.currentTarget.contains(next)) return;
+  onLeave();
 }
 
 function buildBreadcrumbPath(
@@ -90,21 +107,17 @@ function DocumentUploadDialog({
   projectId: string;
   folderId: string | null;
 }) {
-  const router = useRouter();
   const queryClient = useQueryClient();
-  const [documentType, setDocumentType] = useState<DocumentType>('NOTICE');
   const [file, setFile] = useState<File | null>(null);
-  const [documentDate, setDocumentDate] = useState('');
   const [notes, setNotes] = useState('');
-  const [storeOnly, setStoreOnly] = useState(false);
   const [pending, setPending] = useState(false);
 
+  const acceptExtensions =
+    '.pdf,.xlsx,.xls,.doc,.docx,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.webp,.txt,.csv,.zip,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*';
+
   function reset() {
-    setDocumentType('NOTICE');
     setFile(null);
-    setDocumentDate('');
     setNotes('');
-    setStoreOnly(false);
     setPending(false);
   }
 
@@ -117,11 +130,11 @@ function DocumentUploadDialog({
 
     setPending(true);
     try {
-      const { project, documentId } = await importProjectDocumentFromUpload(projectId, file, documentType, {
-        documentDate: documentDate.trim() || null,
+      await importProjectDocumentFromUpload(projectId, file, 'OTHER_ATTACHMENT', {
+        documentDate: postingDateIsoLocal(),
         notes: notes.trim() || null,
         folderId: folderId ?? null,
-        storeOnly,
+        storeOnly: true,
       });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['project-documents', projectId] }),
@@ -131,23 +144,14 @@ function DocumentUploadDialog({
       ]);
       onOpenChange(false);
       reset();
-      if (storeOnly) {
-        toast.success('Arquivo guardado no repositório do projeto.');
-        return;
-      }
-      toast.success('Documento processado. Abrindo a revisão dos dados extraídos…');
-      router.push(`/projects/${project.id}/documents/${documentId}/review`);
+      toast.success('Arquivo guardado no repositório do projeto.');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Não foi possível processar o documento.';
+      const message = error instanceof Error ? error.message : 'Não foi possível enviar o arquivo.';
       toast.error(message);
     } finally {
       setPending(false);
     }
   }
-
-  const acceptExtensions = storeOnly
-    ? '.pdf,.xlsx,.xls,.doc,.docx,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.webp,.txt,.csv,.zip,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*'
-    : '.pdf,.xlsx,.xls,application/pdf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -155,50 +159,12 @@ function DocumentUploadDialog({
         <DialogHeader>
           <DialogTitle>Enviar documento</DialogTitle>
           <DialogDescription>
-            {storeOnly ? (
-              <>
-                O arquivo é guardado na pasta atual <strong>sem leitura automática</strong> (ideal para anexos gerais,
-                contratos escaneados, imagens, etc.).
-              </>
-            ) : (
-              <>
-                O arquivo é enviado ao servidor e <strong>lido de verdade</strong> (PDF/Excel): em <strong>Edital</strong>,
-                a seção 7 é localizada quando existir; em <strong>Mapa de implantação</strong>, usa-se o fluxo do mapa.
-              </>
-            )}
+            Armazenamento na pasta atual, <strong>sem extração automática</strong>. A data do registro é a data de
+            envio. Formatos: PDF, Office, imagens, CSV, TXT, ZIP.
           </DialogDescription>
         </DialogHeader>
 
         <form className="space-y-4" onSubmit={(ev) => void onSubmit(ev)}>
-          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-card/50 p-3">
-            <input
-              checked={storeOnly}
-              className="mt-1 size-4 rounded border-input"
-              onChange={(e) => setStoreOnly(e.target.checked)}
-              type="checkbox"
-            />
-            <span className="text-sm leading-snug">
-              <span className="font-semibold text-foreground">Apenas armazenar</span>
-              <span className="block text-muted-foreground">
-                Sem extração de campos (repositório geral). Tipos: PDF, Office, imagens, CSV, TXT, ZIP.
-              </span>
-            </span>
-          </label>
-
-          <div className="space-y-2">
-            <Label htmlFor="documentType">Tipo do documento</Label>
-            <Select
-              id="documentType"
-              onChange={(e) => setDocumentType(e.target.value as DocumentType)}
-              value={documentType}
-            >
-              {documentTypeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          </div>
           <div className="space-y-2">
             <Label htmlFor="file">Arquivo</Label>
             <Input
@@ -214,15 +180,6 @@ function DocumentUploadDialog({
             {file ? <p className="text-xs text-muted-foreground">{file.name}</p> : null}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="documentDate">Data do documento (opcional)</Label>
-            <Input
-              id="documentDate"
-              onChange={(e) => setDocumentDate(e.target.value)}
-              type="date"
-              value={documentDate}
-            />
-          </div>
-          <div className="space-y-2">
             <Label htmlFor="notes">Observações (opcional)</Label>
             <Textarea id="notes" onChange={(e) => setNotes(e.target.value)} value={notes} />
           </div>
@@ -232,7 +189,7 @@ function DocumentUploadDialog({
               Cancelar
             </Button>
             <Button disabled={pending} type="submit">
-              {pending ? 'Enviando…' : storeOnly ? 'Guardar arquivo' : 'Processar e revisar extração'}
+              {pending ? 'Enviando…' : 'Guardar arquivo'}
             </Button>
           </DialogFooter>
         </form>
@@ -324,6 +281,17 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [renameFolder, setRenameFolder] = useState<ProjectDocumentFolder | null>(null);
   const [renameName, setRenameName] = useState('');
+  const [dropTarget, setDropTarget] = useState<'root' | string | null>(null);
+
+  function openNewFolder() {
+    setUploadOpen(false);
+    setNewFolderOpen(true);
+  }
+
+  function openUpload() {
+    setNewFolderOpen(false);
+    setUploadOpen(true);
+  }
 
   const folderScope = currentFolderId === null ? 'root' : currentFolderId;
   const { data: documents, isLoading: loadingDocs, isError: errorDocs } = useProjectDocumentsQuery(
@@ -401,6 +369,16 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
     }
   }
 
+  function handleDropDocument(ev: DragEvent, targetFolderId: string | null) {
+    ev.preventDefault();
+    setDropTarget(null);
+    const docId = ev.dataTransfer.getData('text/plain');
+    if (!docId || !documents) return;
+    const doc = documents.find((d) => d.id === docId);
+    if (!doc) return;
+    void handleMoveDocument(doc, targetFolderId);
+  }
+
   const hasContent =
     (documents && documents.length > 0) || (subfolders && subfolders.length > 0);
 
@@ -411,16 +389,16 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
           <div>
             <CardTitle>Documentos do projeto</CardTitle>
             <CardDescription>
-              Repositório central do contrato: organize em pastas, guarde anexos gerais ou envie PDF/Excel para extração
-              automática de dados.
+              Repositório central do contrato: organize em pastas, baixe o arquivo original e arraste pelo ícone de alça
+              para soltar em outra pasta (ou na trilha). Os envios são armazenados com a data do dia.
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => setNewFolderOpen(true)} variant="secondary">
+            <Button onClick={openNewFolder} type="button" variant="secondary">
               <FolderPlus className="size-4" />
               Nova pasta
             </Button>
-            <Button onClick={() => setUploadOpen(true)}>
+            <Button onClick={openUpload} type="button">
               <FileUp className="size-4" />
               Enviar documento
             </Button>
@@ -433,8 +411,20 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
           className={cn(
             'rounded-md px-2 py-1 font-medium text-primary transition hover:bg-primary/10',
             !currentFolderId && 'pointer-events-none text-foreground',
+            dropTarget === 'root' && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
           )}
           onClick={() => setCurrentFolderId(null)}
+          onDragLeave={(e) =>
+            dragLeaveUnlessEnteringChild(e, () => {
+              setDropTarget(null);
+            })
+          }
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            setDropTarget('root');
+          }}
+          onDrop={(e) => handleDropDocument(e, null)}
           type="button"
         >
           Raiz
@@ -446,8 +436,20 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
               className={cn(
                 'rounded-md px-2 py-1 font-medium text-primary transition hover:bg-primary/10',
                 currentFolderId === segment.id && 'pointer-events-none text-foreground',
+                dropTarget === segment.id && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
               )}
               onClick={() => setCurrentFolderId(segment.id)}
+              onDragLeave={(e) =>
+                dragLeaveUnlessEnteringChild(e, () => {
+                  setDropTarget(null);
+                })
+              }
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                setDropTarget(segment.id);
+              }}
+              onDrop={(e) => handleDropDocument(e, segment.id)}
               type="button"
             >
               {segment.name}
@@ -469,9 +471,11 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
         />
       ) : !hasContent ? (
         <EmptyState
-          actionLabel="Enviar documento"
-          description="Crie pastas para organizar por tema ou envie arquivos para armazenamento ou extração de dados."
-          onAction={() => setUploadOpen(true)}
+          actionLabel="Nova pasta"
+          description="Crie uma pasta para organizar por tema ou envie arquivos para armazenamento (sem extração automática)."
+          onAction={openNewFolder}
+          onSecondaryAction={openUpload}
+          secondaryActionLabel="Enviar documento"
           title="Esta pasta está vazia"
         />
       ) : (
@@ -484,12 +488,32 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
               <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {subfolders.map((folder) => (
                   <div
-                    className="flex items-center justify-between gap-2 rounded-xl border border-border bg-card/60 px-3 py-3"
+                    className={cn(
+                      'flex items-center justify-between gap-2 rounded-xl border border-border bg-card/60 px-3 py-3 transition',
+                      dropTarget === folder.id && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
+                    )}
                     key={folder.id}
+                    onDragLeave={(e) =>
+                      dragLeaveUnlessEnteringChild(e, () => {
+                        setDropTarget(null);
+                      })
+                    }
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      setDropTarget(folder.id);
+                    }}
+                    onDrop={(e) => handleDropDocument(e, folder.id)}
                   >
                     <button
                       className="flex min-w-0 flex-1 items-center gap-2 text-left font-medium text-foreground transition hover:text-primary"
                       onClick={() => setCurrentFolderId(folder.id)}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        setDropTarget(folder.id);
+                      }}
+                      onDrop={(e) => handleDropDocument(e, folder.id)}
                       type="button"
                     >
                       <Folder className="size-5 shrink-0 text-primary" />
@@ -503,6 +527,12 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                           setRenameFolder(folder);
                           setRenameName(folder.name);
                         }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                          setDropTarget(folder.id);
+                        }}
+                        onDrop={(e) => handleDropDocument(e, folder.id)}
                         size="sm"
                         type="button"
                         variant="ghost"
@@ -513,6 +543,12 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                         aria-label="Excluir pasta"
                         className="size-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => void handleDeleteFolder(folder)}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                          setDropTarget(folder.id);
+                        }}
+                        onDrop={(e) => handleDropDocument(e, folder.id)}
                         size="sm"
                         type="button"
                         variant="ghost"
@@ -532,6 +568,7 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                 <Table>
                   <TableHeader>
                     <TableRow variant="header">
+                      <TableHead className="w-12 pr-0" />
                       <TableHead>Tipo</TableHead>
                       <TableHead>Arquivo</TableHead>
                       <TableHead>Documento</TableHead>
@@ -544,19 +581,44 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                   <TableBody>
                     {documents.map((document) => (
                       <TableRow key={document.id}>
+                        <TableCell className="w-12 pr-0 align-middle">
+                          <span
+                            className="inline-flex cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
+                            draggable
+                            onDragEnd={() => setDropTarget(null)}
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('text/plain', document.id);
+                              e.dataTransfer.effectAllowed = 'move';
+                            }}
+                            title="Arrastar para mover para outra pasta"
+                          >
+                            <GripVertical className="size-5" />
+                          </span>
+                        </TableCell>
                         <TableCell>{getDocumentTypeLabel(document.documentType)}</TableCell>
                         <TableCell>
                           <div>
                             <p className="font-semibold">{document.originalFileName}</p>
                             <p className="text-xs text-muted-foreground">{document.mimeType || 'Tipo não informado'}</p>
-                            {document.extractedFields.length > 0 ? (
-                              <Link
-                                className="mt-2 inline-block text-xs font-medium text-primary underline-offset-4 hover:underline"
-                                href={`/projects/${projectId}/documents/${document.id}/review`}
+                            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                              <a
+                                className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline"
+                                href={getProjectDocumentDownloadUrl(projectId, document.id)}
+                                rel="noopener noreferrer"
+                                target="_blank"
                               >
-                                Abrir revisão da extração
-                              </Link>
-                            ) : null}
+                                <Download className="size-3.5" />
+                                Baixar original
+                              </a>
+                              {document.extractedFields.length > 0 ? (
+                                <Link
+                                  className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                                  href={`/projects/${projectId}/documents/${document.id}/review`}
+                                >
+                                  Revisão da extração
+                                </Link>
+                              ) : null}
+                            </div>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -605,20 +667,30 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      <DocumentUploadDialog
-        folderId={currentFolderId}
-        onOpenChange={setUploadOpen}
-        open={uploadOpen}
-        projectId={projectId}
-      />
+      {uploadOpen ? (
+        <DocumentUploadDialog
+          folderId={currentFolderId}
+          onOpenChange={(next) => {
+            setUploadOpen(next);
+            if (next) setNewFolderOpen(false);
+          }}
+          open={uploadOpen}
+          projectId={projectId}
+        />
+      ) : null}
 
-      <NewFolderDialog
-        onCreated={() => void refreshAll()}
-        onOpenChange={setNewFolderOpen}
-        open={newFolderOpen}
-        parentId={currentFolderId}
-        projectId={projectId}
-      />
+      {newFolderOpen ? (
+        <NewFolderDialog
+          onCreated={() => void refreshAll()}
+          onOpenChange={(next) => {
+            setNewFolderOpen(next);
+            if (next) setUploadOpen(false);
+          }}
+          open={newFolderOpen}
+          parentId={currentFolderId}
+          projectId={projectId}
+        />
+      ) : null}
 
       <Dialog
         onOpenChange={(open) => {

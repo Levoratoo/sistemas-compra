@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { Prisma } from '@prisma/client';
@@ -166,6 +166,40 @@ class DocumentService {
     return {
       ...serializeProjectDocument(updated),
       extractedFields: updated.extractedFields.map(serializeExtractedField),
+    };
+  }
+
+  /**
+   * Resolve o arquivo no disco (somente sob o diretório de uploads) para download autenticado pelo vínculo projeto/documento.
+   */
+  async getDocumentFileForDownload(projectId: string, documentId: string) {
+    await ensureProjectExists(projectId);
+    const doc = await documentRepository.findById(documentId);
+    if (!doc || doc.projectId !== projectId) {
+      throw new AppError('Document not found', 404);
+    }
+
+    const relative = ensureRelativeStoragePath(doc.storagePath);
+    const absolute = path.resolve(env.APP_ROOT, relative);
+    const uploadsRoot = path.resolve(env.UPLOADS_DIR_ABSOLUTE);
+    const rel = path.relative(uploadsRoot, absolute);
+    if (rel.startsWith('..') || path.isAbsolute(rel)) {
+      throw new AppError('Arquivo não disponível.', 404);
+    }
+
+    try {
+      const st = await stat(absolute);
+      if (!st.isFile()) {
+        throw new AppError('Arquivo não encontrado no servidor.', 404);
+      }
+    } catch (e) {
+      if (e instanceof AppError) throw e;
+      throw new AppError('Arquivo não encontrado no servidor.', 404);
+    }
+
+    return {
+      absolutePath: absolute,
+      downloadName: doc.originalFileName,
     };
   }
 }
