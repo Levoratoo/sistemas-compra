@@ -4,7 +4,6 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "postinstall": "node scripts/prisma-generate.mjs",
     "dev": "tsx watch src/server.ts",
     "build": "node scripts/clean-dist.mjs && tsc -p tsconfig.json",
     "start": "node scripts/start.mjs",
