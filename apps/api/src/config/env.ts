@@ -71,6 +71,14 @@ function resolvePort(parsed: z.infer<typeof envSchema>): number {
     return httpPort;
   }
   if (process.env.NODE_ENV === 'production') {
+    // Último recurso no Render: em alguns deploys PORT não chega ao processo Node; a doc usa 10000 como exemplo.
+    // Com Web Service, definir PORT=10000 no painel é preferível — isto evita crash se a injeção falhar.
+    if (process.env.RENDER === 'true' || Boolean(process.env.RENDER_SERVICE_NAME)) {
+      console.warn(
+        '[env] PORT ausente ou inválido; a escutar em 10000. No Render: Environment → PORT=10000 ou remova PORT vazio.',
+      );
+      return 10000;
+    }
     throw new Error(
       'PORT is missing or invalid (empty, zero or out of range). In production set PORT to 1–65535. On Render, use a Web Service (PORT is injected automatically); remove PORT from Environment if set to empty. You can set HTTP_PORT as an alternative.',
     );
