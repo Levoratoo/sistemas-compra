@@ -38,10 +38,14 @@ import {
 import { getDocumentTypeLabel } from '@/lib/constants';
 import {
   DEFAULT_FOLDER_COLOR_HEX,
+  DEFAULT_FOLDER_SURFACE_STYLE,
   FOLDER_COLOR_SWATCHES,
+  FOLDER_SURFACE_OPTIONS,
   FOLDER_WORK_EMOJIS,
+  type FolderSurfaceStyle,
   folderCardSurfaceStyle,
   normalizeFolderHex,
+  parseFolderSurfaceStyle,
 } from '@/lib/folder-appearance';
 import { formatDate, formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -104,27 +108,45 @@ function FolderGlyph({
 function FolderAppearanceFields({
   colorHex,
   iconEmoji,
+  surfaceStyle,
   onColorChange,
   onEmojiChange,
+  onSurfaceStyleChange,
   idPrefix,
 }: {
   colorHex: string;
   iconEmoji: string | null;
+  surfaceStyle: FolderSurfaceStyle;
   onColorChange: (hex: string) => void;
   onEmojiChange: (emoji: string | null) => void;
+  onSurfaceStyleChange: (style: FolderSurfaceStyle) => void;
   idPrefix: string;
 }) {
   const normalized = normalizeFolderHex(colorHex);
+  const style = parseFolderSurfaceStyle(surfaceStyle);
   return (
     <div className="space-y-4">
-      <div
-        className="rounded-xl border border-border/60 p-4 shadow-sm transition duration-200 ease-out hover:scale-[1.02] hover:shadow-md hover:shadow-black/10"
-        style={folderCardSurfaceStyle(normalized)}
-      >
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Pré-visualização</p>
-        <div className="flex flex-wrap items-center gap-3">
-          <FolderGlyph colorHex={normalized} iconEmoji={iconEmoji} />
-          <span className="font-medium text-foreground">Assim ficará o cartão da pasta</span>
+      <div className="space-y-2">
+        <span className="text-sm font-medium leading-none" id={`${idPrefix}-surface-label`}>
+          Estilo do fundo
+        </span>
+        <div className="grid gap-2 sm:grid-cols-3" role="group" aria-labelledby={`${idPrefix}-surface-label`}>
+          {FOLDER_SURFACE_OPTIONS.map((opt) => (
+            <button
+              className={cn(
+                'flex flex-col gap-1 rounded-xl border px-3 py-2.5 text-left text-sm transition hover:scale-[1.02] hover:shadow-sm',
+                style === opt.value
+                  ? 'border-primary bg-primary/10 text-foreground'
+                  : 'border-border bg-muted/30 text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+              )}
+              key={opt.value}
+              onClick={() => onSurfaceStyleChange(opt.value)}
+              type="button"
+            >
+              <span className="font-semibold">{opt.label}</span>
+              <span className="text-xs leading-snug opacity-90">{opt.description}</span>
+            </button>
+          ))}
         </div>
       </div>
       <div className="space-y-2">
@@ -154,6 +176,16 @@ function FolderAppearanceFields({
             value={normalized}
           />
           <span className="font-mono text-xs text-muted-foreground">{normalized}</span>
+        </div>
+      </div>
+      <div
+        className="rounded-xl border border-border/60 p-4 shadow-sm transition duration-200 ease-out hover:scale-[1.02] hover:shadow-md hover:shadow-black/10"
+        style={folderCardSurfaceStyle(normalized, style)}
+      >
+        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Pré-visualização</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <FolderGlyph colorHex={normalized} iconEmoji={iconEmoji} />
+          <span className="font-medium text-foreground">Assim ficará o cartão da pasta</span>
         </div>
       </div>
       <div className="space-y-2">
@@ -336,6 +368,7 @@ function NewFolderDialog({
 }) {
   const [name, setName] = useState('');
   const [colorHex, setColorHex] = useState(DEFAULT_FOLDER_COLOR_HEX);
+  const [surfaceStyle, setSurfaceStyle] = useState<FolderSurfaceStyle>(DEFAULT_FOLDER_SURFACE_STYLE);
   const [iconEmoji, setIconEmoji] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -353,10 +386,12 @@ function NewFolderDialog({
         parentId,
         colorHex: normalizeFolderHex(colorHex),
         iconEmoji,
+        surfaceStyle,
       });
       toast.success('Pasta criada.');
       setName('');
       setColorHex(DEFAULT_FOLDER_COLOR_HEX);
+      setSurfaceStyle(DEFAULT_FOLDER_SURFACE_STYLE);
       setIconEmoji(null);
       onOpenChange(false);
       onCreated();
@@ -374,6 +409,7 @@ function NewFolderDialog({
         if (!next) {
           setName('');
           setColorHex(DEFAULT_FOLDER_COLOR_HEX);
+          setSurfaceStyle(DEFAULT_FOLDER_SURFACE_STYLE);
           setIconEmoji(null);
         }
         onOpenChange(next);
@@ -402,6 +438,8 @@ function NewFolderDialog({
             idPrefix="new-folder"
             onColorChange={setColorHex}
             onEmojiChange={setIconEmoji}
+            onSurfaceStyleChange={setSurfaceStyle}
+            surfaceStyle={surfaceStyle}
           />
           <DialogFooter>
             <Button onClick={() => onOpenChange(false)} type="button" variant="ghost">
@@ -425,6 +463,7 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
   const [renameFolder, setRenameFolder] = useState<ProjectDocumentFolder | null>(null);
   const [renameName, setRenameName] = useState('');
   const [renameColor, setRenameColor] = useState(DEFAULT_FOLDER_COLOR_HEX);
+  const [renameSurfaceStyle, setRenameSurfaceStyle] = useState<FolderSurfaceStyle>(DEFAULT_FOLDER_SURFACE_STYLE);
   const [renameEmoji, setRenameEmoji] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<'root' | string | null>(null);
 
@@ -494,6 +533,7 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
         name: trimmed,
         colorHex: normalizeFolderHex(renameColor),
         iconEmoji: renameEmoji,
+        surfaceStyle: renameSurfaceStyle,
       });
       toast.success('Pasta atualizada.');
       setRenameFolder(null);
@@ -661,7 +701,10 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                       dropTarget === folder.id && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
                     )}
                     key={folder.id}
-                    style={folderCardSurfaceStyle(folder.colorHex ?? DEFAULT_FOLDER_COLOR_HEX)}
+                    style={folderCardSurfaceStyle(
+                      folder.colorHex ?? DEFAULT_FOLDER_COLOR_HEX,
+                      parseFolderSurfaceStyle(folder.surfaceStyle),
+                    )}
                     onDragLeave={(e) =>
                       dragLeaveUnlessEnteringChild(e, () => {
                         setDropTarget(null);
@@ -699,6 +742,7 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                           setRenameFolder(folder);
                           setRenameName(folder.name);
                           setRenameColor(normalizeFolderHex(folder.colorHex ?? DEFAULT_FOLDER_COLOR_HEX));
+                          setRenameSurfaceStyle(parseFolderSurfaceStyle(folder.surfaceStyle));
                           setRenameEmoji(folder.iconEmoji);
                         }}
                         onDragOver={(e) => {
@@ -845,7 +889,7 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Editar pasta</DialogTitle>
-            <DialogDescription>Nome, cor e ícone podem ser alterados a qualquer momento.</DialogDescription>
+            <DialogDescription>Nome, estilo do fundo, cor e ícone podem ser alterados a qualquer momento.</DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={(ev) => void submitRename(ev)}>
             <div className="space-y-2">
@@ -863,6 +907,8 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                 idPrefix="edit-folder"
                 onColorChange={setRenameColor}
                 onEmojiChange={setRenameEmoji}
+                onSurfaceStyleChange={setRenameSurfaceStyle}
+                surfaceStyle={renameSurfaceStyle}
               />
             ) : null}
             <DialogFooter>

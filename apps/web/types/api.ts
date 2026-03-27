@@ -1,3 +1,7 @@
+import type { FolderSurfaceStyle } from '@/lib/folder-appearance';
+
+export type { FolderSurfaceStyle };
+
 export type ProjectStatus = 'DRAFT' | 'PLANNED' | 'ACTIVE' | 'ON_HOLD' | 'CLOSED' | 'CANCELLED';
 export type ImplementationStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED';
 export type DocumentType =
@@ -137,6 +141,8 @@ export interface ProjectDocumentFolder extends EntityTimestamps {
   colorHex: string;
   /** Emoji opcional como ícone */
   iconEmoji: string | null;
+  /** Aparência do cartão (sólido / degradê / radial) */
+  surfaceStyle?: FolderSurfaceStyle;
 }
 
 export interface ProjectDocument extends EntityTimestamps {

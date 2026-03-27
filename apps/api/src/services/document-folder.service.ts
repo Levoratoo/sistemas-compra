@@ -1,4 +1,4 @@
-import type { ProjectDocumentFolder } from '@prisma/client';
+import type { FolderSurfaceStyle, ProjectDocumentFolder } from '@prisma/client';
 
 import { documentFolderRepository } from '../repositories/document-folder.repository.js';
 import { projectRepository } from '../repositories/project.repository.js';
@@ -37,7 +37,13 @@ class DocumentFolderService {
 
   async createFolder(
     projectId: string,
-    input: { name: string; parentId?: string | null; colorHex?: string; iconEmoji?: string | null },
+    input: {
+      name: string;
+      parentId?: string | null;
+      colorHex?: string;
+      iconEmoji?: string | null;
+      surfaceStyle?: FolderSurfaceStyle;
+    },
   ) {
     await ensureProjectExists(projectId);
     const name = input.name.trim();
@@ -66,6 +72,7 @@ class DocumentFolderService {
       name,
       colorHex: input.colorHex,
       iconEmoji: input.iconEmoji,
+      surfaceStyle: input.surfaceStyle,
     });
     return serializeProjectDocumentFolder(created);
   }
@@ -73,7 +80,13 @@ class DocumentFolderService {
   async updateFolder(
     projectId: string,
     folderId: string,
-    input: { name?: string; parentId?: string | null; colorHex?: string; iconEmoji?: string | null },
+    input: {
+      name?: string;
+      parentId?: string | null;
+      colorHex?: string;
+      iconEmoji?: string | null;
+      surfaceStyle?: FolderSurfaceStyle;
+    },
   ) {
     await ensureProjectExists(projectId);
     const existing = await documentFolderRepository.findByIdInProject(folderId, projectId);
@@ -118,6 +131,7 @@ class DocumentFolderService {
       parentId: input.parentId !== undefined ? nextParentId : undefined,
       ...(input.colorHex !== undefined ? { colorHex: input.colorHex } : {}),
       ...(input.iconEmoji !== undefined ? { iconEmoji: input.iconEmoji } : {}),
+      ...(input.surfaceStyle !== undefined ? { surfaceStyle: input.surfaceStyle } : {}),
     });
     return serializeProjectDocumentFolder(updated);
   }

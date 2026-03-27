@@ -126,6 +126,12 @@ enum TaskCategory {
   GENERAL
 }
 
+enum FolderSurfaceStyle {
+  SOLID
+  GRADIENT
+  RADIAL
+}
+
 model Project {
   id                       String               @id @default(cuid())
   code                     String               @unique
@@ -174,6 +180,8 @@ model ProjectDocumentFolder {
   colorHex  String   @default("#14b8a6")
   /// Emoji opcional como “favicon” da pasta
   iconEmoji String?
+  /// Aparência do cartão: sólido, degradê linear ou degradê radial
+  surfaceStyle FolderSurfaceStyle @default(GRADIENT)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

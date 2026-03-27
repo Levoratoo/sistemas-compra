@@ -1,3 +1,5 @@
+import type { FolderSurfaceStyle } from '@prisma/client';
+
 import { prisma } from '../config/prisma.js';
 import { DEFAULT_FOLDER_COLOR_HEX } from '../constants/folder-appearance.js';
 
@@ -34,6 +36,7 @@ class DocumentFolderRepository {
     sortOrder?: number;
     colorHex?: string;
     iconEmoji?: string | null;
+    surfaceStyle?: FolderSurfaceStyle;
   }) {
     return prisma.projectDocumentFolder.create({
       data: {
@@ -43,6 +46,7 @@ class DocumentFolderRepository {
         sortOrder: data.sortOrder ?? 0,
         colorHex: data.colorHex ?? DEFAULT_FOLDER_COLOR_HEX,
         iconEmoji: data.iconEmoji ?? null,
+        ...(data.surfaceStyle !== undefined && { surfaceStyle: data.surfaceStyle }),
       },
     });
   }
@@ -55,9 +59,10 @@ class DocumentFolderRepository {
       sortOrder?: number;
       colorHex?: string;
       iconEmoji?: string | null;
+      surfaceStyle?: FolderSurfaceStyle;
     },
   ) {
-    const { name, parentId, sortOrder, colorHex, iconEmoji } = data;
+    const { name, parentId, sortOrder, colorHex, iconEmoji, surfaceStyle } = data;
     return prisma.projectDocumentFolder.update({
       where: { id },
       data: {
@@ -66,6 +71,7 @@ class DocumentFolderRepository {
         ...(sortOrder !== undefined && { sortOrder }),
         ...(colorHex !== undefined && { colorHex }),
         ...(iconEmoji !== undefined && { iconEmoji }),
+        ...(surfaceStyle !== undefined && { surfaceStyle }),
       },
     });
   }

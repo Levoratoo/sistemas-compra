@@ -3,6 +3,7 @@ import type {
   DocumentType,
   ExtractedFieldReviewStatus,
   ExtractedTargetType,
+  FolderSurfaceStyle,
   ProjectDocument,
   ProjectDocumentFolder,
 } from '@/types/api';
@@ -44,7 +45,13 @@ export function listProjectDocumentFolders(projectId: string) {
 
 export function createProjectDocumentFolder(
   projectId: string,
-  payload: { name: string; parentId?: string | null; colorHex?: string; iconEmoji?: string | null },
+  payload: {
+    name: string;
+    parentId?: string | null;
+    colorHex?: string;
+    iconEmoji?: string | null;
+    surfaceStyle?: FolderSurfaceStyle;
+  },
 ) {
   return apiRequest<ProjectDocumentFolder>(`projects/${projectId}/document-folders`, {
     method: 'POST',
@@ -55,7 +62,13 @@ export function createProjectDocumentFolder(
 export function updateProjectDocumentFolder(
   projectId: string,
   folderId: string,
-  payload: { name?: string; parentId?: string | null; colorHex?: string; iconEmoji?: string | null },
+  payload: {
+    name?: string;
+    parentId?: string | null;
+    colorHex?: string;
+    iconEmoji?: string | null;
+    surfaceStyle?: FolderSurfaceStyle;
+  },
 ) {
   return apiRequest<ProjectDocumentFolder>(`projects/${projectId}/document-folders/${folderId}`, {
     method: 'PATCH',

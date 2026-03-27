@@ -15,6 +15,8 @@ const folderColorHexSchema = z
   .string()
   .regex(/^#[0-9A-Fa-f]{6}$/, 'Use uma cor no formato #RRGGBB.');
 
+export const folderSurfaceStyleSchema = z.enum(['SOLID', 'GRADIENT', 'RADIAL']);
+
 export const projectDocumentParamsSchema = z.object({
   id: z.string().min(1),
 });
@@ -37,6 +39,7 @@ export const createDocumentFolderBodySchema = z.object({
   parentId: z.string().min(1).optional().nullable(),
   colorHex: folderColorHexSchema.optional(),
   iconEmoji: z.union([folderWorkEmojiSchema, z.null()]).optional(),
+  surfaceStyle: folderSurfaceStyleSchema.optional(),
 });
 
 export const updateDocumentFolderBodySchema = z
@@ -45,13 +48,15 @@ export const updateDocumentFolderBodySchema = z
     parentId: z.union([z.string().min(1), z.null()]).optional(),
     colorHex: folderColorHexSchema.optional(),
     iconEmoji: z.union([folderWorkEmojiSchema, z.null()]).optional(),
+    surfaceStyle: folderSurfaceStyleSchema.optional(),
   })
   .refine(
     (data) =>
       data.name !== undefined ||
       data.parentId !== undefined ||
       data.colorHex !== undefined ||
-      data.iconEmoji !== undefined,
+      data.iconEmoji !== undefined ||
+      data.surfaceStyle !== undefined,
     { message: 'Informe pelo menos um campo para atualizar.' },
   );
 

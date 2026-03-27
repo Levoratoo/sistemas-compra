@@ -19,6 +19,7 @@ class DocumentFolderController {
       parentId: body.parentId ?? null,
       colorHex: body.colorHex,
       iconEmoji: body.iconEmoji,
+      surfaceStyle: body.surfaceStyle,
     });
     response.status(201).json(result);
   }
@@ -32,6 +33,7 @@ class DocumentFolderController {
       parentId: body.parentId,
       colorHex: body.colorHex,
       iconEmoji: body.iconEmoji,
+      surfaceStyle: body.surfaceStyle,
     });
     response.json(result);
   }

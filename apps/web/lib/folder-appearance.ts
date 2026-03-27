@@ -42,6 +42,38 @@ export const FOLDER_WORK_EMOJIS = [
 
 export const DEFAULT_FOLDER_COLOR_HEX = '#14b8a6';
 
+/** Como o cartão da pasta usa a cor (API + banco). */
+export type FolderSurfaceStyle = 'SOLID' | 'GRADIENT' | 'RADIAL';
+
+export const DEFAULT_FOLDER_SURFACE_STYLE: FolderSurfaceStyle = 'GRADIENT';
+
+export const FOLDER_SURFACE_OPTIONS: {
+  description: string;
+  label: string;
+  value: FolderSurfaceStyle;
+}[] = [
+  {
+    value: 'SOLID',
+    label: 'Cor sólida',
+    description: 'Preenchimento uniforme sobre o fundo do tema',
+  },
+  {
+    value: 'GRADIENT',
+    label: 'Degradê',
+    description: 'Transição em faixa com a paleta do site',
+  },
+  {
+    value: 'RADIAL',
+    label: 'Radial',
+    description: 'Clareamento a partir do canto, tipo holofote',
+  },
+];
+
+export function parseFolderSurfaceStyle(v: unknown): FolderSurfaceStyle {
+  if (v === 'SOLID' || v === 'GRADIENT' || v === 'RADIAL') return v;
+  return DEFAULT_FOLDER_SURFACE_STYLE;
+}
+
 /** Garante `#rrggbb` minúsculo (exigido pelo `<input type="color">` e pela API). */
 export function normalizeFolderHex(hex: string | undefined | null): string {
   if (hex == null || typeof hex !== 'string') return DEFAULT_FOLDER_COLOR_HEX;
@@ -62,19 +94,36 @@ function hexToRgb(hex: string): { b: number; g: number; r: number } | null {
 }
 
 /**
- * Fundo do cartão de pasta: degradê da cor escolhida → superfície do tema → tom primary (paleta do site).
+ * Fundo do cartão conforme estilo: sólido, degradê linear (paleta do site) ou degradê radial.
  */
-export function folderCardSurfaceStyle(accentHex: string): CSSProperties {
+export function folderCardSurfaceStyle(
+  accentHex: string,
+  surfaceStyle: FolderSurfaceStyle = DEFAULT_FOLDER_SURFACE_STYLE,
+): CSSProperties {
   const n = normalizeFolderHex(accentHex);
   const rgb = hexToRgb(n);
   if (!rgb) {
     return { background: 'hsl(var(--card))' };
   }
   const { r, g, b } = rgb;
-  return {
-    background: `linear-gradient(145deg, rgba(${r},${g},${b},0.48) 0%, hsl(var(--card) / 0.94) 44%, hsl(var(--primary) / 0.24) 100%)`,
-    boxShadow: `inset 0 1px 0 0 rgba(${r},${g},${b},0.18)`,
-  };
+  switch (surfaceStyle) {
+    case 'SOLID':
+      return {
+        background: `linear-gradient(0deg, rgba(${r},${g},${b},0.38), rgba(${r},${g},${b},0.38)), hsl(var(--card))`,
+        boxShadow: `inset 0 0 0 1px rgba(${r},${g},${b},0.22)`,
+      };
+    case 'RADIAL':
+      return {
+        background: `radial-gradient(ellipse 110% 95% at 100% 0%, rgba(${r},${g},${b},0.52) 0%, hsl(var(--card) / 0.93) 50%, hsl(var(--primary) / 0.26) 100%)`,
+        boxShadow: `inset 0 1px 0 0 rgba(${r},${g},${b},0.16)`,
+      };
+    case 'GRADIENT':
+    default:
+      return {
+        background: `linear-gradient(145deg, rgba(${r},${g},${b},0.48) 0%, hsl(var(--card) / 0.94) 44%, hsl(var(--primary) / 0.24) 100%)`,
+        boxShadow: `inset 0 1px 0 0 rgba(${r},${g},${b},0.18)`,
+      };
+  }
 }
 
 /** Paleta rápida + qualquer cor via seletor nativo (validada na API como #RRGGBB). */
