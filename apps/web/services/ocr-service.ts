@@ -1,7 +1,14 @@
 import { apiRequest, apiUploadJson } from '@/services/api-client';
 
+export type OcrTableRow = {
+  item: string;
+  quantity: string;
+  description: string;
+};
+
 export type OcrImageResponse = {
   text: string;
+  tableRows?: OcrTableRow[];
   mimeType?: string;
   bytes?: number;
 };

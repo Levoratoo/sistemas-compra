@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 
 import { extractTextFromImageBuffer } from '../utils/image-ocr.js';
+import { parseOcrSupplyTable } from '../utils/ocr-table-postprocess.js';
 import { AppError } from '../utils/app-error.js';
 
 const ALLOWED_MIME = /^image\/(png|jpe?g|gif|webp)$/i;
@@ -16,8 +17,10 @@ export const ocrController = {
     }
 
     const text = await extractTextFromImageBuffer(file.buffer);
+    const tableRows = parseOcrSupplyTable(text);
     response.json({
       text,
+      tableRows,
       mimeType: file.mimetype,
       bytes: file.buffer.length,
     });
@@ -50,8 +53,10 @@ export const ocrController = {
     }
 
     const text = await extractTextFromImageBuffer(buffer);
+    const tableRows = parseOcrSupplyTable(text);
     response.json({
       text,
+      tableRows,
       bytes: buffer.length,
     });
   },

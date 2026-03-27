@@ -14,7 +14,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { recognizeImageFile } from '@/services/ocr-service';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { recognizeImageFile, type OcrTableRow } from '@/services/ocr-service';
 import { cn } from '@/lib/utils';
 
 const ACCEPT = 'image/png,image/jpeg,image/jpg,image/gif,image/webp';
@@ -58,15 +59,18 @@ export function ImageOcrDialog({ open, onOpenChange }: ImageOcrDialogProps) {
   const inputId = useId();
   const pasteRef = useRef<HTMLDivElement>(null);
   const [resultText, setResultText] = useState('');
+  const [tableRows, setTableRows] = useState<OcrTableRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
   const runOcr = useCallback(async (file: File) => {
     setBusy(true);
     setResultText('');
+    setTableRows([]);
     try {
       const res = await recognizeImageFile(file);
       setResultText(res.text || '');
+      setTableRows(Array.isArray(res.tableRows) ? res.tableRows : []);
       if (!res.text?.trim()) {
         toast.message('Nenhum texto reconhecido', {
           description: 'Tente uma imagem mais nítida ou com melhor contraste.',
@@ -138,6 +142,7 @@ export function ImageOcrDialog({ open, onOpenChange }: ImageOcrDialogProps) {
         onOpenChange(o);
         if (!o) {
           setResultText('');
+          setTableRows([]);
           setBusy(false);
         }
       }}
@@ -210,9 +215,48 @@ export function ImageOcrDialog({ open, onOpenChange }: ImageOcrDialogProps) {
             )}
           </div>
 
+          {tableRows.length > 0 ? (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Itens detectados (quantidade + descrição)
+                </span>
+                <Button
+                  className="gap-1.5"
+                  disabled={busy}
+                  onClick={() => void copyTableTsv()}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  <Copy className="size-3.5" aria-hidden />
+                  Copiar tabela
+                </Button>
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow variant="header">
+                    <TableHead className="w-[22%]">Item</TableHead>
+                    <TableHead className="w-[18%]">Qtd.</TableHead>
+                    <TableHead>Descrição</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {tableRows.map((row, i) => (
+                    <TableRow key={`${row.item}-${i}`}>
+                      <TableCell className="whitespace-nowrap font-medium">{row.item}</TableCell>
+                      <TableCell className="text-muted-foreground">{row.quantity}</TableCell>
+                      <TableCell className="text-sm leading-relaxed">{row.description}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
+
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Texto reconhecido</span>
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Texto bruto (OCR)</span>
               <Button
                 className="gap-1.5"
                 disabled={!resultText.trim() || busy}
