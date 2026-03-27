@@ -134,6 +134,94 @@ function nextReplenishmentIsoFromDelivered(opDeliveredAtIso: string): string | n
   return addCalendarMonthsToDateInputIso(base, 6);
 }
 
+const RANDOM_CATEGORIES: BudgetItem['itemCategory'][] = ['UNIFORM', 'EPI', 'EQUIPMENT', 'CONSUMABLE', 'OTHER'];
+
+const RANDOM_ITEM_NAMES = [
+  'Caixa de ferramenta',
+  'Capacete de segurança classe B',
+  'Carrinho de pedreiro reforçado',
+  'Luvas nitrílica descartável',
+  'Óculos de proteção incolor',
+  'Máscara PFF2',
+  'Cinto de segurança tipo paraquedista',
+  'Botina com biqueira de aço',
+  'Macacão de brim',
+  'Protetor auricular tipo concha',
+];
+
+const RANDOM_STATUS_COMPRAS = ['Pendente', 'Em cotação', 'Aprovado', 'Aguardando NF', 'Pago'];
+
+function randomInt(min: number, max: number) {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+/** yyyy-mm-dd a partir de hoje + [min, max] dias. */
+function randomYmdFromToday(minDays: number, maxDays: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + randomInt(minDays, maxDays));
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function ymdAddDays(ymd: string, days: number): string {
+  const d = new Date(`${ymd}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return ymd;
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Gera dados de teste para todas as colunas editáveis (Fase 1 + Fase 2).
+ * Colunas somente leitura (órgão, data assinatura projeto, valor total calculado, contrato, reposição prevista calculada) não entram no payload.
+ */
+function buildRandomPurchaseControlPayload(): Partial<BudgetItemPayload> {
+  const cat = RANDOM_CATEGORIES[randomInt(0, RANDOM_CATEGORIES.length - 1)]!;
+  const name = RANDOM_ITEM_NAMES[randomInt(0, RANDOM_ITEM_NAMES.length - 1)]!;
+  const plannedQuantity = randomInt(1, 48);
+  const rubricMaxValue = Math.round((Math.random() * 8000 + 300) * 100) / 100;
+  const peopleCount = randomInt(1, 50);
+  const actualUnitValue = Math.round((Math.random() * 400 + 5) * 100) / 100;
+  const payYmd = randomYmdFromToday(10, 200);
+  const expYmd = ymdAddDays(payYmd, randomInt(5, 45));
+  const delYmd = ymdAddDays(expYmd, randomInt(1, 25));
+  const payIso = dateToIsoMidday(payYmd);
+  const expIso = dateToIsoMidday(expYmd);
+  const delIso = dateToIsoMidday(delYmd);
+  const nextRepIso = delIso ? nextReplenishmentIsoFromDelivered(delIso) : null;
+
+  return {
+    itemCategory: cat,
+    name,
+    specification: `Especificação teste — lote ${randomInt(100, 999)}; conforme edital.`,
+    sizeLabel: ['PP', 'P', 'M', 'G', 'GG', 'XG'][randomInt(0, 5)] ?? 'Único',
+    requiresCa: Math.random() < 0.4 ? true : Math.random() < 0.5 ? false : null,
+    roleReference: `${randomInt(1, 12)}. ${['Materiais', 'Equipamentos', 'EPIs', 'Uniformes'][randomInt(0, 3)]} — referência ${randomInt(1, 99)}`,
+    peopleCount,
+    plannedQuantity,
+    rubricMaxValue,
+    operationalPurchaseStatus: RANDOM_STATUS_COMPRAS[randomInt(0, RANDOM_STATUS_COMPRAS.length - 1)] ?? 'Pendente',
+    editalDeliveryDeadlineDays: randomInt(15, 120),
+    replenishmentPeriodDaysEdital: randomInt(30, 365),
+    actualUnitValue,
+    approvedSupplierName: `Fornecedor Teste ${randomInt(10, 99)} LTDA`,
+    glpiTicketNumber: String(randomInt(100000, 999999)),
+    opPaymentSentAt: payIso,
+    opExpectedDeliveryAt: expIso,
+    opDeliveredAt: delIso,
+    nextReplenishmentExpectedAt: nextRepIso,
+    operationalStagesStatus: `Etapa ${randomInt(1, 5)} / ${randomInt(5, 8)}`,
+    replenishmentStateLabel: Math.random() < 0.5 ? 'Em dia' : 'Acompanhar',
+    competenceLabel: `${String(randomInt(1, 12)).padStart(2, '0')}/2026`,
+    administrativeFeePercent: Math.round(Math.random() * 120) / 10,
+    notes: `Preenchimento automático de teste em ${new Date().toLocaleString('pt-BR')}.`,
+  };
+}
+
 function commitDeliveryAndReposicao(
   onPatch: (id: string, p: Partial<BudgetItemPayload>) => void,
   itemId: string,
@@ -210,8 +298,8 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
     }
   }
 
-  /** Preenche Quantidade a ser comprada + Rubrica (Fase 2) com valores aleatórios — só para testes. */
-  async function fillRandomQuantityAndRubric() {
+  /** Preenche todas as colunas editáveis (Fase 1 + Fase 2) com dados aleatórios — só para testes. */
+  async function fillRandomPurchaseControlData() {
     const rows = itemsQuery.data ?? [];
     const targets = rows.filter((r) => !(r.contextOnly ?? false));
     if (targets.length === 0) {
@@ -220,15 +308,20 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
     }
     setRandomFillBusy(true);
     try {
-      for (const row of targets) {
-        const plannedQuantity = Math.floor(Math.random() * 40) + 1;
-        const rubricMaxValue = Math.round((Math.random() * 8000 + 500) * 100) / 100;
-        await updateItem.mutateAsync({
-          id: row.id,
-          payload: { plannedQuantity, rubricMaxValue },
-        });
+      const results = await Promise.allSettled(
+        targets.map((row) =>
+          updateItem.mutateAsync({
+            id: row.id,
+            payload: buildRandomPurchaseControlPayload(),
+          }),
+        ),
+      );
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      if (failed > 0) {
+        toast.error(`${failed} linha(s) falharam ao salvar. Verifique a rede ou tente de novo.`);
+      } else {
+        toast.success(`${targets.length} linha(s) preenchidas com dados de teste (todas as colunas editáveis).`);
       }
-      toast.success(`Preenchidos ${targets.length} itens (quantidade + rubrica).`);
     } catch {
       toast.error('Falha ao aplicar valores aleatórios.');
     } finally {
@@ -301,10 +394,10 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
                         <span className="min-w-0 shrink">Fase 1 — Referência do edital</span>
                         <Button
                           className="h-auto min-h-7 max-w-[min(100%,16rem)] shrink-0 gap-1.5 whitespace-normal px-2 py-1 text-center text-[10px] font-semibold leading-tight normal-case"
-                          disabled={randomFillBusy || updateItem.isPending}
-                          onClick={() => void fillRandomQuantityAndRubric()}
+                          disabled={randomFillBusy}
+                          onClick={() => void fillRandomPurchaseControlData()}
                           size="sm"
-                          title="Preenche na Fase 2: Quantidade a ser comprada e Rubrica (valor na licitação) com números aleatórios para testes."
+                          title="Preenche todas as colunas editáveis (classificação, textos, tamanhos, números, datas, fornecedor, GLPI, taxa, observação, etc.) com dados aleatórios para testes."
                           type="button"
                           variant="secondary"
                         >
