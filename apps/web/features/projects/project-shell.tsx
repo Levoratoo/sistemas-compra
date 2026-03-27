@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { CalendarClock, Download, FileText, Landmark, Pencil, Users, Wallet } from 'lucide-react';
+import { Banknote, ClipboardList, Download, FileText, Landmark, Pencil, ShoppingCart } from 'lucide-react';
 
 import { PageHeader } from '@/components/common/page-header';
 import { StatCard } from '@/components/common/stat-card';
@@ -19,7 +19,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatCurrency, formatDate, formatNumber } from '@/lib/format';
+import { formatNumber } from '@/lib/format';
+import { computePurchasePipelineMetrics } from '@/lib/purchase-pipeline-metrics';
 import {
   isLikelyPdfDocument,
   pickPrimaryEditalDocument,
@@ -76,8 +77,6 @@ export function ProjectShell({
     );
   }
 
-  const totalHeadcount = project.roles.reduce((total, role) => total + role.plannedHeadcount, 0);
-
   if (isExtractionReview) {
     return (
       <div className="page-sections">
@@ -104,6 +103,7 @@ export function ProjectShell({
 
   const hasObjectSummary = Boolean(project.objectSummary?.trim());
   const displayName = (project.organizationName || project.name).trim() || project.code;
+  const pipeline = computePurchasePipelineMetrics(project.budgetItems);
   const editalDoc = pickPrimaryEditalDocument(project.documents);
   const editalDownloadHref = editalDoc ? projectDocumentPublicFileUrl(editalDoc.storagePath) : null;
   const editalDownloadLabel = editalDoc && isLikelyPdfDocument(editalDoc) ? 'Baixar edital' : 'Baixar documento';
@@ -178,22 +178,22 @@ export function ProjectShell({
               value={project.organizationName}
             />
             <StatCard
-              helper={project.contractNumber || 'Sem contrato informado'}
-              icon={CalendarClock}
-              title="Início previsto"
-              value={formatDate(project.plannedStartDate)}
+              helper="Sem compra registrada no checklist"
+              icon={ShoppingCart}
+              title="Total de itens pendentes compra"
+              value={formatNumber(pipeline.pendingCompra)}
             />
             <StatCard
-              helper={`${formatNumber(project.counts.purchaseOrders)} pedidos registrados`}
-              icon={Wallet}
-              title="Valor mensal do contrato"
-              value={formatCurrency(project.monthlyContractValue)}
+              helper="Comprado, aguardando envio para pagamento"
+              icon={Banknote}
+              title="Total itens pendentes de pagamento"
+              value={formatNumber(pipeline.pendingPagamento)}
             />
             <StatCard
-              helper={`${formatNumber(project.roles.length)} cargos planejados`}
-              icon={Users}
-              title="Headcount planejado"
-              value={formatNumber(totalHeadcount)}
+              helper="Itens em acompanhamento até entrega na unidade"
+              icon={ClipboardList}
+              title="Total de pendências conduzidas"
+              value={formatNumber(pipeline.pendenciasConduzidas)}
             />
           </div>
 
