@@ -9,7 +9,7 @@ import {
   type BudgetItemPayload,
   updateBudgetItem,
 } from '@/services/budget-items-service';
-import type { BudgetItem } from '@/types/api';
+import type { BudgetItem, ProjectDetail } from '@/types/api';
 
 export function useBudgetItemsQuery(projectId: string) {
   return useQuery({
@@ -39,11 +39,51 @@ export function useBudgetItemsMutations(projectId: string) {
     updateItem: useMutation({
       mutationFn: ({ id, payload }: { id: string; payload: Partial<BudgetItemPayload> }) =>
         updateBudgetItem(id, payload),
-      onSuccess: async (data, variables) => {
+      onMutate: async ({ id, payload }) => {
+        await queryClient.cancelQueries({ queryKey: ['project', projectId] });
+        await queryClient.cancelQueries({ queryKey: ['budget-items', projectId] });
+
+        const previousProject = queryClient.getQueryData<ProjectDetail>(['project', projectId]);
+        const previousBudgetItems = queryClient.getQueryData<BudgetItem[]>(['budget-items', projectId]);
+
+        const patchList = (items: BudgetItem[]) =>
+          items.map((it) => (it.id === id ? ({ ...it, ...payload } as BudgetItem) : it));
+
+        if (previousProject) {
+          queryClient.setQueryData<ProjectDetail>(['project', projectId], {
+            ...previousProject,
+            budgetItems: patchList(previousProject.budgetItems),
+          });
+        }
+        if (previousBudgetItems) {
+          queryClient.setQueryData<BudgetItem[]>(['budget-items', projectId], patchList(previousBudgetItems));
+        }
+
+        return { previousProject, previousBudgetItems };
+      },
+      onError: (_err, _vars, ctx) => {
+        if (ctx?.previousProject) {
+          queryClient.setQueryData(['project', projectId], ctx.previousProject);
+        }
+        if (ctx?.previousBudgetItems !== undefined) {
+          queryClient.setQueryData(['budget-items', projectId], ctx.previousBudgetItems);
+        }
+      },
+      onSuccess: (data, variables) => {
+        queryClient.setQueryData<ProjectDetail>(['project', projectId], (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            budgetItems: old.budgetItems.map((it) =>
+              it.id === variables.id ? ({ ...it, ...data } as BudgetItem) : it,
+            ),
+          };
+        });
         queryClient.setQueryData<BudgetItem[]>(['budget-items', projectId], (old) =>
           old?.map((it) => (it.id === variables.id ? ({ ...it, ...data } as BudgetItem) : it)) ?? old,
         );
-        await invalidate();
+        void queryClient.invalidateQueries({ queryKey: ['dashboard', 'project', projectId] });
+        void queryClient.invalidateQueries({ queryKey: ['project-replenishments', projectId] });
       },
     }),
     deleteItem: useMutation({

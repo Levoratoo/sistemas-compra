@@ -421,22 +421,27 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
     [purchasableBudgetItems],
   );
 
-  async function patchPurchasedValue(
+  function patchPurchasedValue(
     id: string,
     payload: Partial<BudgetItemPayload>,
     opts?: { toastPurchased?: boolean },
   ) {
-    try {
-      await updateBudgetItem.mutateAsync({ id, payload });
-      if (opts?.toastPurchased) {
-        toast.success('Marcado como comprado', {
-          description: 'Informe o valor pago e a taxa administrativa, se houver.',
-          className: 'border border-emerald-500/30 bg-emerald-950/90 text-emerald-50',
-        });
-      }
-    } catch {
-      toast.error('Não foi possível salvar.');
-    }
+    updateBudgetItem.mutate(
+      { id, payload },
+      {
+        onSuccess: () => {
+          if (opts?.toastPurchased) {
+            toast.success('Marcado como comprado', {
+              description: 'Informe o valor pago e a taxa administrativa, se houver.',
+              className: 'border border-emerald-500/30 bg-emerald-950/90 text-emerald-50',
+            });
+          }
+        },
+        onError: () => {
+          toast.error('Não foi possível salvar.');
+        },
+      },
+    );
   }
 
   return (
@@ -553,6 +558,7 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
                         <TableRow
                           key={item.id}
                           className={cn(
+                            'transition-colors duration-150 ease-out',
                             purchased
                               ? '!border-l-[3px] !border-l-emerald-500 !bg-emerald-500/[0.09] hover:!bg-emerald-500/[0.14] dark:!bg-emerald-500/10'
                               : 'odd:bg-muted/[0.12] hover:bg-muted/35',
@@ -568,17 +574,16 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
                                   ? 'border-emerald-500/80 bg-emerald-500/20 text-emerald-600 accent-emerald-500'
                                   : 'accent-primary',
                               )}
-                              disabled={updateBudgetItem.isPending}
                               type="checkbox"
-                              onChange={async (e) => {
+                              onChange={(e) => {
                                 if (e.target.checked) {
-                                  await patchPurchasedValue(
+                                  patchPurchasedValue(
                                     item.id,
                                     { purchasedValue: item.purchasedValue ?? 0 },
                                     { toastPurchased: true },
                                   );
                                 } else {
-                                  await patchPurchasedValue(item.id, { purchasedValue: null });
+                                  patchPurchasedValue(item.id, { purchasedValue: null });
                                 }
                               }}
                             />
@@ -631,7 +636,7 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
                                   ? String(item.administrativeFeePercent)
                                   : ''
                               }
-                              disabled={!purchased || updateBudgetItem.isPending}
+                              disabled={!purchased}
                               inputMode="decimal"
                               min={0}
                               placeholder="0"
@@ -641,12 +646,12 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
                                 if (!purchased) return;
                                 const raw = e.target.value.trim();
                                 if (raw === '') {
-                                  void patchPurchasedValue(item.id, { administrativeFeePercent: null });
+                                  patchPurchasedValue(item.id, { administrativeFeePercent: null });
                                   return;
                                 }
                                 const n = Number(raw);
                                 if (Number.isNaN(n)) return;
-                                void patchPurchasedValue(item.id, { administrativeFeePercent: n });
+                                patchPurchasedValue(item.id, { administrativeFeePercent: n });
                               }}
                             />
                           </TableCell>
@@ -660,7 +665,7 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
                                   'border-emerald-500/40 bg-emerald-950/30 font-medium focus-visible:border-emerald-500/50 focus-visible:ring-emerald-500/25',
                               )}
                               defaultValue={purchased && item.purchasedValue != null ? String(item.purchasedValue) : ''}
-                              disabled={!purchased || updateBudgetItem.isPending}
+                              disabled={!purchased}
                               inputMode="decimal"
                               min={0}
                               placeholder="0"
@@ -671,7 +676,7 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
                                 const raw = e.target.value.trim();
                                 const n = raw === '' ? 0 : Number(raw);
                                 if (Number.isNaN(n)) return;
-                                void patchPurchasedValue(item.id, { purchasedValue: n });
+                                patchPurchasedValue(item.id, { purchasedValue: n });
                               }}
                             />
                           </TableCell>
