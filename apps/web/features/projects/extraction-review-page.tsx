@@ -409,7 +409,7 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                 </colgroup>
                 <thead>
                   <tr className="bg-muted/80">
-                    <th className="relative border-b border-border/90 border-r border-border px-2 py-2 pr-3 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                    <th className="relative border-b border-border/90 border-r border-border px-2 py-2 pr-3 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-foreground/90">
                       Descrição
                       <button
                         aria-label="Ajustar largura entre Descrição e Cat."
@@ -418,7 +418,7 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                         onPointerDown={(ev) => handleBudgetColumnResizeStart(ev, 0)}
                       />
                     </th>
-                    <th className="relative border-b border-border/90 border-r border-border px-1.5 py-2 pr-3 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                    <th className="relative border-b border-border/90 border-r border-border px-1.5 py-2 pr-3 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-foreground/90">
                       Cat.
                       <button
                         aria-label="Ajustar largura entre Cat. e Orig."
@@ -427,7 +427,7 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                         onPointerDown={(ev) => handleBudgetColumnResizeStart(ev, 1)}
                       />
                     </th>
-                    <th className="relative border-b border-border/90 border-r border-border px-1 py-2 pr-3 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                    <th className="relative border-b border-border/90 border-r border-border px-1 py-2 pr-3 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-foreground/90">
                       Orig.
                       <button
                         aria-label="Ajustar largura entre Orig. e Qtd"
@@ -436,7 +436,7 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                         onPointerDown={(ev) => handleBudgetColumnResizeStart(ev, 2)}
                       />
                     </th>
-                    <th className="relative border-b border-border/90 border-r border-border px-1 py-2 pr-3 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                    <th className="relative border-b border-border/90 border-r border-border px-1 py-2 pr-3 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-foreground/90">
                       Qtd
                       <button
                         aria-label="Ajustar largura entre Qtd e Vlr unit. rubrica"
@@ -445,7 +445,7 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                         onPointerDown={(ev) => handleBudgetColumnResizeStart(ev, 3)}
                       />
                     </th>
-                    <th className="relative border-b border-border/90 border-r border-border px-1.5 py-2 pr-3 text-right text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                    <th className="relative border-b border-border/90 border-r border-border px-1.5 py-2 pr-3 text-right text-[10px] font-semibold uppercase tracking-[0.06em] text-foreground/90">
                       Vlr unit. rubrica (R$)
                       <button
                         aria-label="Ajustar largura entre Vlr unit. rubrica e Vlr total rubrica"
@@ -454,7 +454,7 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                         onPointerDown={(ev) => handleBudgetColumnResizeStart(ev, 4)}
                       />
                     </th>
-                    <th className="border-b border-neutral-300/80 px-1.5 py-2 text-right text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                    <th className="border-b border-border px-1.5 py-2 text-right text-[10px] font-semibold uppercase tracking-[0.06em] text-foreground/90">
                       Vlr total rubrica (R$)
                     </th>
                   </tr>
@@ -465,15 +465,15 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                     return (
                       <tr
                         key={b.id}
-                        className="align-top transition-colors hover:bg-neutral-50/90"
+                        className="align-top transition-colors hover:bg-muted/50"
                         title={tip}
                       >
                         <td className="min-w-0 border-b border-r border-border bg-card p-0 align-top">
                           <div className="px-2 pt-1.5">
                             <textarea
                               className={cn(
-                                'box-border min-h-[2.25rem] w-full resize-y border-0 bg-transparent py-1.5 text-[13px] leading-snug text-neutral-800 outline-none',
-                                'placeholder:text-neutral-400 focus:bg-muted focus:ring-1 focus:ring-inset focus:ring-primary/25',
+                                'box-border min-h-[2.25rem] w-full resize-y border-0 bg-transparent py-1.5 text-[13px] leading-snug text-foreground outline-none',
+                                'placeholder:text-muted-foreground focus:bg-muted focus:ring-1 focus:ring-inset focus:ring-primary/25',
                               )}
                               onChange={(e) =>
                                 setBudgetItems((prev) =>
@@ -489,7 +489,7 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                         <td className="border-b border-r border-border bg-card p-0 align-top">
                           <Select
                             className={cn(
-                              'h-auto min-h-[1.75rem] w-full cursor-pointer rounded-none border-0 bg-transparent px-1.5 py-1.5 text-[12px] text-neutral-700 shadow-none',
+                              'h-auto min-h-[1.75rem] w-full cursor-pointer rounded-none border-0 bg-transparent px-1.5 py-1.5 text-[12px] text-foreground shadow-none',
                               'focus:bg-muted focus:ring-1 focus:ring-inset focus:ring-primary/25',
                             )}
                             onChange={(e) =>
@@ -508,13 +508,13 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                             ))}
                           </Select>
                         </td>
-                        <td className="border-b border-r border-border bg-muted/50 px-1 py-1.5 text-center align-middle text-[11px] font-medium tabular-nums text-muted-foreground">
+                        <td className="border-b border-r border-border bg-muted/50 px-1 py-1.5 text-center align-middle text-[11px] font-medium tabular-nums text-foreground">
                           {budgetSourceAbbrev(b)}
                         </td>
                         <td className="border-b border-r border-border bg-card p-0 align-top">
                           <Input
                             className={cn(
-                              'h-8 rounded-none border-0 bg-transparent px-1 py-0 text-center text-[13px] tabular-nums text-neutral-800 shadow-none',
+                              'h-8 rounded-none border-0 bg-transparent px-1 py-0 text-center text-[13px] tabular-nums text-foreground shadow-none',
                               'focus:bg-muted focus:ring-1 focus:ring-inset focus:ring-primary/25',
                             )}
                             min={0}
@@ -538,7 +538,7 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                         <td className="border-b border-r border-border bg-card p-0 align-top">
                           <Input
                             className={cn(
-                              'h-8 rounded-none border-0 bg-transparent px-1.5 py-0 text-right text-[13px] tabular-nums text-neutral-800 shadow-none',
+                              'h-8 rounded-none border-0 bg-transparent px-1.5 py-0 text-right text-[13px] tabular-nums text-foreground shadow-none',
                               'focus:bg-muted focus:ring-1 focus:ring-inset focus:ring-primary/25',
                             )}
                             min={0}
@@ -561,7 +561,7 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                         <td className="border-b border-border bg-card p-0 align-top">
                           <Input
                             className={cn(
-                              'h-8 rounded-none border-0 bg-transparent px-1.5 py-0 text-right text-[13px] tabular-nums text-neutral-800 shadow-none',
+                              'h-8 rounded-none border-0 bg-transparent px-1.5 py-0 text-right text-[13px] tabular-nums text-foreground shadow-none',
                               'focus:bg-muted focus:ring-1 focus:ring-inset focus:ring-primary/25',
                             )}
                             min={0}
@@ -592,10 +592,10 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
             </div>
           )}
           {budgetItems.length > 0 ? (
-            <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">
-              <span className="font-medium text-muted-foreground">Legenda:</span> S7 = seção 7 · S8 = lista com traço (EPI) ·
+            <p className="mt-2 text-[11px] leading-relaxed text-foreground/90">
+              <span className="font-medium">Legenda:</span> S7 = seção 7 · S8 = lista com traço (EPI) ·
               Mapa = implantação · Parágrafos 8.7.x só normativos (sem rubrica) não entram nesta lista ·{' '}
-              <span className="text-muted-foreground">Vlr unit. / total rubrica</span> = conforme o edital. Arraste entre
+              <span className="text-foreground/85">Vlr unit. / total rubrica</span> = conforme o edital. Arraste entre
               colunas no cabeçalho para ajustar larguras (preferência salva no navegador). Passe o cursor na linha para
               ver trecho do PDF.
             </p>
