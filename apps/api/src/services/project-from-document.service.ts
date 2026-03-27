@@ -104,6 +104,7 @@ async function extractPlainText(
                 subsectionFound: editalMateriais.subsectionFound,
                 rowCount: editalMateriais.budgetLines.length,
                 secao8UniformesCount: editalMateriais.secao8UniformesCount ?? 0,
+                matchedProfile: editalMateriais.matchedProfile,
               },
             },
             editalMateriais,

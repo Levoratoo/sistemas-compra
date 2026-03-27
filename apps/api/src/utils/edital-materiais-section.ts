@@ -1,30 +1,20 @@
+import type { EditalMateriaisProfile } from './edital-materiais-profiles.js';
+import { EDITAL_MATERIAIS_PROFILE_ORDER } from './edital-materiais-profiles.js';
 import { parseEditalSecao8UniformesEpi } from './edital-secao8-uniformes-epi.js';
 import type { BudgetLineCandidate } from './implementation-map-pdf.js';
 
-/** Âncora típica de editais de pregão (ex.: CONSAMU 18/2025). */
-const ANCHOR_MAIN =
-  /(?:^|\n|\r)\s*7\s*[\.\)]?\s*MATERIAIS\s+A\s+SEREM\s+DISPONIBILIZADOS\b/i;
-
-const ANCHOR_SUB =
-  /MATERIAIS\s+A\s+SEREM\s+DISPONIBILIZADOS\s+PARA\s+SERVI[CÇ]OS\s+DE\s+MANUTEN[CÇ][AÃ]O\s+PREDIAL/i;
-
-/**
- * Fim da tabela: próximo bloco claramente fora da lista (evitar parar em "8 Alicate..." — item 8 da tabela).
- * Preferimos "8." / "8)" seguido de DISPOS ou título de anexo/capítulo.
- */
-const SECTION_STOP =
-  /\n\s*(?:8\s*[\.\)]\s*DISPOS|8\s+DISPOSI[CÇ]|ANEXO\s+[IVXLCDM0-9]+|CAP[ÍI]TULO\s+\d+)/i;
-
 const HEADER_LINE =
-  /^(?:ITEM|ÍTEM|ITENS)\b.*(?:DESCRI|QTD|QUANT)/i;
+  /^(?:ITEM|ÍTEM|ITENS|N[º°]?)\b.*(?:DESCRI|QTD|QUANT)/i;
 
 /** Rodapés / repetição de cabeçalho do edital no meio da tabela (quebram linhas “1 por 1”). */
 const PDF_NOISE_LINE =
   /^(--\s*\d+\s+of\s+\d+\s+--|P[aá]gina\s+\d+\s+de\s+\d+|EDITAL\s*-\s*PREG|Processo\s+Administrativo|Edital\s+de\s+licita|Site:\s*www\.|Sede\s+Administrativa|Atualiza[cç][aã]o:|Bairro\s+Alto\s+Alegre|CEP\s+\d)/i;
 
-const RECORD_GROUP = '7. Materiais a disponibilizar (edital)';
-
 const MAX_MERGE_LINES = 45;
+
+const MAX_SLICE = 90_000;
+
+export type EditalMateriaisMatchedProfile = 'parana' | 'roraima' | 'sec8_uniformes' | null;
 
 export type EditalMateriaisParse = {
   anchorFound: boolean;
@@ -32,56 +22,49 @@ export type EditalMateriaisParse = {
   budgetLines: BudgetLineCandidate[];
   /** Itens da secção 8 (uniformes / referências 8.x.y + listas EPI). */
   secao8UniformesCount?: number;
+  /** Perfil cujo âncora venceu na ordem automática, ou só seção 8. */
+  matchedProfile: EditalMateriaisMatchedProfile;
 };
 
 function normalizeSpaces(s: string) {
   return s.replace(/\s+/g, ' ').trim();
 }
 
-/**
- * Extrai linhas ITEM + descrição + quantidade da seção 7 de editais.
- * O texto costuma vir de PDF com colunas quebradas em uma linha: "1 Alicate ... 1".
- */
-export function parseEditalMateriaisDisponibilizados(fullText: string): EditalMateriaisParse {
-  const text = fullText.replace(/\r\n/g, '\n');
+function findAnchorInText(text: string, profile: EditalMateriaisProfile): {
+  anchorIdx: number;
+  subsectionFound: boolean;
+} {
   let anchorIdx = -1;
   let subsectionFound = false;
 
-  const mMain = ANCHOR_MAIN.exec(text);
+  const mMain = profile.anchorMain.exec(text);
   if (mMain?.index !== undefined) {
     anchorIdx = mMain.index;
   }
 
   if (anchorIdx < 0) {
-    const mSub = ANCHOR_SUB.exec(text);
+    const mSub = profile.anchorSub.exec(text);
     if (mSub?.index !== undefined) {
       anchorIdx = mSub.index;
       subsectionFound = true;
     }
   } else {
-    subsectionFound = ANCHOR_SUB.test(text.slice(anchorIdx, anchorIdx + 12_000));
+    subsectionFound = profile.anchorSub.test(text.slice(anchorIdx, anchorIdx + 12_000));
   }
 
-  const sec8 = parseEditalSecao8UniformesEpi(text);
+  return { anchorIdx, subsectionFound };
+}
 
-  if (anchorIdx < 0) {
-    if (!sec8.anchorFound) {
-      return { anchorFound: false, subsectionFound: false, budgetLines: [] };
-    }
-    return {
-      anchorFound: true,
-      subsectionFound: false,
-      budgetLines: sec8.budgetLines,
-      secao8UniformesCount: sec8.budgetLines.length,
-    };
-  }
-
-  let slice = text.slice(anchorIdx);
-  const stop = SECTION_STOP.exec(slice);
+function extractBudgetLinesFromSection7(
+  fullSlice: string,
+  profile: EditalMateriaisProfile,
+): BudgetLineCandidate[] {
+  let slice = fullSlice;
+  const stop = profile.sectionStop.exec(slice);
   if (stop?.index !== undefined && stop.index > 400) {
     slice = slice.slice(0, stop.index);
-  } else if (slice.length > 90_000) {
-    slice = slice.slice(0, 90_000);
+  } else if (slice.length > MAX_SLICE) {
+    slice = slice.slice(0, MAX_SLICE);
   }
 
   const rawLines = slice
@@ -118,13 +101,13 @@ export function parseEditalMateriaisDisponibilizados(fullText: string): EditalMa
     const payload = {
       description,
       quantity: String(quantity),
-      source: 'edital_secao_7',
-      sectionLabel: RECORD_GROUP,
+      source: profile.payloadSource,
+      sectionLabel: profile.recordGroup,
     };
 
     budgetLines.push({
-      recordGroupKey: RECORD_GROUP,
-      fieldKey: `edital_mat_${lineIndex}_${budgetLines.length}`,
+      recordGroupKey: profile.recordGroup,
+      fieldKey: `edital_mat_${profile.id}_${lineIndex}_${budgetLines.length}`,
       proposedValue: JSON.stringify(payload),
       sourceExcerpt: line.slice(0, 400),
     });
@@ -132,11 +115,50 @@ export function parseEditalMateriaisDisponibilizados(fullText: string): EditalMa
     if (budgetLines.length >= 400) break;
   }
 
+  return budgetLines;
+}
+
+/**
+ * Extrai linhas ITEM + descrição + quantidade da seção 7 conforme perfis (Paraná, Roraima, …).
+ * Ordem automática: primeiro perfil cuja âncora for encontrada.
+ */
+export function parseEditalMateriaisDisponibilizados(fullText: string): EditalMateriaisParse {
+  const text = fullText.replace(/\r\n/g, '\n');
+  const sec8 = parseEditalSecao8UniformesEpi(text);
+
+  for (const profile of EDITAL_MATERIAIS_PROFILE_ORDER) {
+    const { anchorIdx, subsectionFound } = findAnchorInText(text, profile);
+    if (anchorIdx < 0) {
+      continue;
+    }
+
+    const slice = text.slice(anchorIdx);
+    const budgetLines7 = extractBudgetLinesFromSection7(slice, profile);
+
+    return {
+      anchorFound: true,
+      subsectionFound,
+      budgetLines: [...budgetLines7, ...sec8.budgetLines],
+      secao8UniformesCount: sec8.budgetLines.length,
+      matchedProfile: profile.id,
+    };
+  }
+
+  if (!sec8.anchorFound) {
+    return {
+      anchorFound: false,
+      subsectionFound: false,
+      budgetLines: [],
+      matchedProfile: null,
+    };
+  }
+
   return {
     anchorFound: true,
-    subsectionFound,
-    budgetLines: [...budgetLines, ...sec8.budgetLines],
+    subsectionFound: false,
+    budgetLines: sec8.budgetLines,
     secao8UniformesCount: sec8.budgetLines.length,
+    matchedProfile: 'sec8_uniformes',
   };
 }
 

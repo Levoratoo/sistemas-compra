@@ -12,7 +12,8 @@
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev --skip-generate",
     "db:push": "npm run db:migrate",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "test": "node --import tsx/esm --test src/utils/edital-materiais-section.test.ts"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.80",

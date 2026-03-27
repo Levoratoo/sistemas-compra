@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { Banknote, ClipboardList, Download, FileText, Landmark, Pencil, ShoppingCart } from 'lucide-react';
+import { Banknote, ClipboardList, Download, FileText, Landmark, Pencil, ScanText, ShoppingCart } from 'lucide-react';
 
 import { PageHeader } from '@/components/common/page-header';
 import { StatCard } from '@/components/common/stat-card';
@@ -28,6 +28,7 @@ import {
 } from '@/lib/project-document-url';
 import { useProjectQuery } from '@/hooks/use-projects';
 
+import { ImageOcrDialog } from './image-ocr-dialog';
 import { ProjectFormDialog } from './project-form-dialog';
 
 export function ProjectShell({
@@ -42,6 +43,7 @@ export function ProjectShell({
   const { data: project, isPending, isError } = useProjectQuery(projectId);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [objectSummaryOpen, setObjectSummaryOpen] = useState(false);
+  const [imageOcrOpen, setImageOcrOpen] = useState(false);
 
   if (isPending && !project) {
     return (
@@ -82,10 +84,16 @@ export function ProjectShell({
       <div className="page-sections">
         <PageHeader
           actions={
-            <Button onClick={() => setDialogOpen(true)} variant="outline">
-              <Pencil className="size-4" />
-              Editar projeto
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button className="gap-2" onClick={() => setImageOcrOpen(true)} type="button" variant="outline">
+                <ScanText className="size-4 shrink-0" aria-hidden />
+                OCR de imagem
+              </Button>
+              <Button className="gap-2" onClick={() => setDialogOpen(true)} type="button" variant="outline">
+                <Pencil className="size-4 shrink-0" aria-hidden />
+                Editar projeto
+              </Button>
+            </div>
           }
           breadcrumbs={[
             { label: 'Projetos', href: '/projects' },
@@ -96,6 +104,7 @@ export function ProjectShell({
           title="Revisão da extração"
         />
         {children}
+        <ImageOcrDialog onOpenChange={setImageOcrOpen} open={imageOcrOpen} />
         <ProjectFormDialog onOpenChange={setDialogOpen} open={dialogOpen} project={project} />
       </div>
     );
@@ -139,6 +148,10 @@ export function ProjectShell({
                 Objeto do edital
               </Button>
             ) : null}
+            <Button className="gap-2" onClick={() => setImageOcrOpen(true)} type="button" variant="outline">
+              <ScanText className="size-4 shrink-0" aria-hidden />
+              OCR de imagem
+            </Button>
             <Button className="gap-2" onClick={() => setDialogOpen(true)} type="button" variant="outline">
               <Pencil className="size-4 shrink-0" aria-hidden />
               Editar projeto
@@ -203,6 +216,7 @@ export function ProjectShell({
 
       {children}
 
+      <ImageOcrDialog onOpenChange={setImageOcrOpen} open={imageOcrOpen} />
       <ProjectFormDialog onOpenChange={setDialogOpen} open={dialogOpen} project={project} />
     </div>
   );
