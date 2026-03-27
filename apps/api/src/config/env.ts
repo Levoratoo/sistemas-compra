@@ -7,7 +7,11 @@ const currentFile = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFile);
 const appRoot = path.resolve(currentDir, '../..');
 
-config({ path: path.resolve(appRoot, '.env') });
+// Em produção (Render, etc.) as variáveis vêm só do ambiente do host — não carregar `.env`
+// do disco evita `PORT=` vazio ou valores locais a confundirem a porta efetiva.
+if (process.env.NODE_ENV !== 'production') {
+  config({ path: path.resolve(appRoot, '.env') });
+}
 
 /**
  * `z.coerce.number()` em `PORT` vazio vira `0` → Express escuta em `:0` e o Render falha o health check.
@@ -42,13 +46,25 @@ if (!parsedEnv.success) {
   throw new Error('Environment validation failed');
 }
 
+function parsePortRaw(raw: unknown): number | undefined {
+  const r = portFromEnv.safeParse(raw);
+  if (!r.success || r.data === undefined) {
+    return undefined;
+  }
+  return r.data;
+}
+
 function resolvePort(parsed: z.infer<typeof envSchema>): number {
   if (parsed.PORT !== undefined && parsed.PORT !== null) {
     return parsed.PORT;
   }
+  const httpPort = parsePortRaw(process.env.HTTP_PORT);
+  if (httpPort !== undefined) {
+    return httpPort;
+  }
   if (process.env.NODE_ENV === 'production') {
     throw new Error(
-      'PORT is missing or invalid (empty, zero or out of range). In production set PORT to 1–65535; on Render it is injected automatically.',
+      'PORT is missing or invalid (empty, zero or out of range). In production set PORT to 1–65535. On Render, use a Web Service (PORT is injected automatically); remove PORT from Environment if set to empty. You can set HTTP_PORT as an alternative.',
     );
   }
   return 3000;
