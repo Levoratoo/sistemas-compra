@@ -22,7 +22,9 @@ function resolveRuntimeDatabaseUrl(databaseUrl: string) {
 const prisma = new PrismaClient({
   datasources: {
     db: {
-      url: resolveRuntimeDatabaseUrl(process.env.DATABASE_URL ?? 'file:./dev.db'),
+      url: resolveRuntimeDatabaseUrl(
+        process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/sitecompras?schema=public',
+      ),
     },
   },
 });

@@ -63,7 +63,7 @@ const { envPath, values } = readBootstrapEnv();
 const apiEnv = `
 PORT=${values.PORT ?? '3000'}
 CORS_ORIGIN=${values.CORS_ORIGIN ?? 'http://localhost:3001'}
-DATABASE_URL=${values.DATABASE_URL ?? 'file:./dev.db'}
+DATABASE_URL=${values.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/sitecompras?schema=public'}
 UPLOADS_DIR=${values.UPLOADS_DIR ?? './uploads'}
 `;
 

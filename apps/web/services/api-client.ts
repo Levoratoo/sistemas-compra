@@ -20,6 +20,25 @@ type RequestOptions = {
   query?: Record<string, string | number | boolean | undefined | null>;
 };
 
+const NETWORK_HINT =
+  'Não foi possível contactar a API. Se o site está na internet: defina NEXT_PUBLIC_API_URL no build (URL pública https da API), inclua a origem do site em CORS_ORIGIN na API e confira se o serviço da API está no ar.';
+
+function rethrowIfNetworkFailure(cause: unknown): never {
+  if (cause instanceof ApiError) {
+    throw cause;
+  }
+  const msg = cause instanceof Error ? cause.message : String(cause);
+  if (
+    msg === 'Failed to fetch' ||
+    msg.includes('NetworkError') ||
+    msg.includes('Failed to load') ||
+    msg.includes('Load failed')
+  ) {
+    throw new ApiError(NETWORK_HINT, 0, cause);
+  }
+  throw cause;
+}
+
 function buildUrl(path: string, query?: RequestOptions['query']) {
   const base = API_BASE_URL.replace(/\/$/, '');
   const cleanPath = path.replace(/^\//, '');
@@ -39,14 +58,19 @@ function buildUrl(path: string, query?: RequestOptions['query']) {
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}) {
-  const response = await fetch(buildUrl(path, options.query), {
-    method: options.method ?? 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-    cache: 'no-store',
-  });
+  let response: Response;
+  try {
+    response = await fetch(buildUrl(path, options.query), {
+      method: options.method ?? 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      cache: 'no-store',
+    });
+  } catch (e) {
+    rethrowIfNetworkFailure(e);
+  }
 
   if (response.status === 204) {
     return null as T;
@@ -68,11 +92,16 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
 }
 
 export async function apiUploadJson<T>(path: string, formData: FormData) {
-  const response = await fetch(buildUrl(path), {
-    method: 'POST',
-    body: formData,
-    cache: 'no-store',
-  });
+  let response: Response;
+  try {
+    response = await fetch(buildUrl(path), {
+      method: 'POST',
+      body: formData,
+      cache: 'no-store',
+    });
+  } catch (e) {
+    rethrowIfNetworkFailure(e);
+  }
 
   const text = await response.text();
   const payload = text ? (JSON.parse(text) as T | ApiErrorPayload) : null;

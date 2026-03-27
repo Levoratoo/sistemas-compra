@@ -6,7 +6,7 @@ Sistema web local para gestão de contratos operacionais, com backend em Express
 
 - Frontend: Next.js 15, TypeScript, Tailwind CSS, TanStack Query, React Hook Form, Zod, Lucide
 - Backend: Node.js, Express, Prisma ORM, Zod
-- Banco local: SQLite
+- Banco local: PostgreSQL (Docker Compose na raiz)
 - Monorepo: npm workspaces
 
 ## Estrutura
@@ -46,7 +46,7 @@ scripts/
 ## Portabilidade
 
 - Nenhum caminho absoluto do Windows é usado no projeto.
-- O banco SQLite fica em `apps/api/prisma/dev.db`.
+- O banco é **PostgreSQL** (dev local: `docker compose up -d` na raiz; URL em `.env.example`).
 - Os uploads ficam em `apps/api/uploads`.
 - As migrations ficam em `apps/api/prisma/migrations`.
 - O seed fica em `apps/api/prisma/seed.ts`.
@@ -60,7 +60,7 @@ Arquivo base da raiz:
 ```env
 PORT=3000
 CORS_ORIGIN=http://localhost:3001
-DATABASE_URL=file:./dev.db
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sitecompras?schema=public
 UPLOADS_DIR=./uploads
 NEXT_PUBLIC_API_URL=http://localhost:3000/api
 ```
@@ -71,6 +71,14 @@ O script `npm run setup:env` gera automaticamente:
 - `apps/web/.env`
 
 ## Instalação local
+
+Subir o PostgreSQL (uma vez):
+
+```bash
+docker compose up -d
+```
+
+Depois:
 
 ```bash
 npm install
