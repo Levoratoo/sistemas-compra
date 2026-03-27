@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { ClipboardList, FileText, PackagePlus, ShoppingCart } from 'lucide-react';
+import { CheckCircle2, ClipboardList, FileText, PackagePlus, ShoppingCart } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { EmptyState } from '@/components/common/empty-state';
@@ -27,6 +27,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { deliveryStatusOptions, getItemCategoryLabel, purchaseStatusOptions } from '@/lib/constants';
+import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate, formatDateTime, formatNumber } from '@/lib/format';
 import { useBudgetItemsMutations } from '@/hooks/use-budget-items';
 import { usePurchasesMutations, usePurchasesQuery } from '@/hooks/use-purchases';
@@ -395,10 +396,16 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
   const budgetItems = project?.budgetItems ?? [];
-  const purchasableBudgetItems = useMemo(
-    () => budgetItems.filter((i) => !i.contextOnly),
-    [budgetItems],
-  );
+  /** Ordem fixa: não reordenar quando `purchasedValue` ou `updatedAt` mudam (evita linha “ir para o fim”). */
+  const purchasableBudgetItems = useMemo(() => {
+    const filtered = budgetItems.filter((i) => !i.contextOnly);
+    return [...filtered].sort((a, b) => {
+      const ta = a.createdAt ?? '';
+      const tb = b.createdAt ?? '';
+      if (ta !== tb) return ta.localeCompare(tb);
+      return a.id.localeCompare(b.id);
+    });
+  }, [budgetItems]);
   const hasBudgetItems = budgetItems.length > 0;
   const orderCount = data?.length ?? 0;
 
@@ -414,9 +421,19 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
     [purchasableBudgetItems],
   );
 
-  async function patchPurchasedValue(id: string, payload: Partial<BudgetItemPayload>) {
+  async function patchPurchasedValue(
+    id: string,
+    payload: Partial<BudgetItemPayload>,
+    opts?: { toastPurchased?: boolean },
+  ) {
     try {
       await updateBudgetItem.mutateAsync({ id, payload });
+      if (opts?.toastPurchased) {
+        toast.success('Marcado como comprado', {
+          description: 'Informe o valor pago e a taxa administrativa, se houver.',
+          className: 'border border-emerald-500/30 bg-emerald-950/90 text-emerald-50',
+        });
+      }
     } catch {
       toast.error('Não foi possível salvar.');
     }
@@ -426,7 +443,9 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
     <div className="page-sections">
       <section className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground sm:text-2xl">Compras Reais</h2>
+          <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+            Checklist de compras
+          </h2>
           <p className="mt-1 max-w-xl text-sm text-muted-foreground">
             Marque o que já foi comprado e informe o valor pago por linha.
           </p>
@@ -480,17 +499,26 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
             </CardContent>
           </Card>
         ) : hasBudgetItems ? (
-          <Card className="overflow-hidden border border-border/80 shadow-sm">
-            <CardHeader className="border-b border-border/80 bg-muted/30 py-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <CardTitle className="text-base font-semibold">Execução</CardTitle>
+          <Card className="overflow-hidden border border-border/60 bg-gradient-to-b from-card via-card to-muted/20 shadow-xl shadow-black/25 ring-1 ring-border/40">
+            <CardHeader className="border-b border-border/60 bg-gradient-to-r from-muted/40 via-muted/25 to-transparent py-5">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-xl bg-primary/15 ring-1 ring-primary/20">
+                    <ClipboardList className="size-5 text-primary" aria-hidden />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base font-semibold tracking-tight">Execução do checklist</CardTitle>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Marque e preencha os valores na mesma linha.</p>
+                  </div>
+                </div>
                 <div className="flex flex-wrap items-center gap-4 text-sm">
-                  <span className="text-muted-foreground">
-                    <span className="font-medium text-foreground">{markedCount}</span> de{' '}
-                    <span className="font-medium text-foreground">{purchasableBudgetItems.length}</span> marcados
+                  <span className="rounded-full bg-background/80 px-3 py-1.5 tabular-nums shadow-sm ring-1 ring-border/60">
+                    <span className="font-semibold text-emerald-400">{markedCount}</span>
+                    <span className="text-muted-foreground"> / {purchasableBudgetItems.length}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">comprados</span>
                   </span>
                   <span className="tabular-nums text-foreground">
-                    Total informado: <strong>{formatCurrency(totalPurchasedRecorded)}</strong>
+                    Total: <strong className="text-foreground">{formatCurrency(totalPurchasedRecorded)}</strong>
                   </span>
                 </div>
               </div>
@@ -511,7 +539,7 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
                     <TableHead className="w-[140px] text-right">Valor comprado (R$)</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
+                <TableBody striped={false}>
                   {purchasableBudgetItems.length === 0 ? (
                     <TableRow>
                       <TableCell className="text-muted-foreground" colSpan={8}>
@@ -522,29 +550,54 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
                     purchasableBudgetItems.map((item) => {
                       const purchased = item.purchasedValue != null;
                       return (
-                        <TableRow key={item.id}>
+                        <TableRow
+                          key={item.id}
+                          className={cn(
+                            purchased
+                              ? '!border-l-[3px] !border-l-emerald-500 !bg-emerald-500/[0.09] hover:!bg-emerald-500/[0.14] dark:!bg-emerald-500/10'
+                              : 'odd:bg-muted/[0.12] hover:bg-muted/35',
+                          )}
+                        >
                           <TableCell className="text-center align-middle">
                             <input
                               aria-label={`Comprado: ${item.name}`}
                               checked={purchased}
-                              className="size-4 cursor-pointer rounded border-neutral-300 text-primary accent-primary"
+                              className={cn(
+                                'size-4 cursor-pointer rounded border-input transition',
+                                purchased
+                                  ? 'border-emerald-500/80 bg-emerald-500/20 text-emerald-600 accent-emerald-500'
+                                  : 'accent-primary',
+                              )}
+                              disabled={updateBudgetItem.isPending}
                               type="checkbox"
-                              onChange={(e) => {
+                              onChange={async (e) => {
                                 if (e.target.checked) {
-                                  void patchPurchasedValue(item.id, {
-                                    purchasedValue: item.purchasedValue ?? 0,
-                                  });
+                                  await patchPurchasedValue(
+                                    item.id,
+                                    { purchasedValue: item.purchasedValue ?? 0 },
+                                    { toastPurchased: true },
+                                  );
                                 } else {
-                                  void patchPurchasedValue(item.id, { purchasedValue: null });
+                                  await patchPurchasedValue(item.id, { purchasedValue: null });
                                 }
                               }}
                             />
                           </TableCell>
                           <TableCell>
-                            <p className="font-medium text-foreground">{item.name}</p>
-                            {item.description ? (
-                              <p className="line-clamp-2 text-xs text-muted-foreground">{item.description}</p>
-                            ) : null}
+                            <div className="flex items-start gap-2">
+                              {purchased ? (
+                                <CheckCircle2
+                                  aria-hidden
+                                  className="mt-0.5 size-4 shrink-0 text-emerald-500 drop-shadow-[0_0_6px_rgba(16,185,129,0.45)]"
+                                />
+                              ) : null}
+                              <div>
+                                <p className="font-medium text-foreground">{item.name}</p>
+                                {item.description ? (
+                                  <p className="line-clamp-2 text-xs text-muted-foreground">{item.description}</p>
+                                ) : null}
+                              </div>
+                            </div>
                           </TableCell>
                           <TableCell className="align-top text-sm text-foreground">
                             {item.sizeLabel?.trim() ? (
@@ -566,9 +619,13 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
                           </TableCell>
                           <TableCell className="text-right">
                             <Input
-                              key={`${item.id}-af-${item.updatedAt ?? ''}`}
+                              key={`${item.id}-fee-${String(purchased)}`}
                               aria-label={`Taxa administrativa (%): ${item.name}`}
-                              className="h-9 max-w-[120px] tabular-nums text-right"
+                              className={cn(
+                                'h-9 max-w-[120px] tabular-nums text-right transition-colors',
+                                purchased &&
+                                  'border-emerald-500/35 bg-emerald-950/25 focus-visible:border-emerald-500/50 focus-visible:ring-emerald-500/25',
+                              )}
                               defaultValue={
                                 item.administrativeFeePercent != null
                                   ? String(item.administrativeFeePercent)
@@ -595,9 +652,13 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
                           </TableCell>
                           <TableCell className="text-right">
                             <Input
-                              key={`${item.id}-pv-${item.updatedAt ?? ''}`}
+                              key={`${item.id}-pv-${String(purchased)}`}
                               aria-label={`Valor comprado: ${item.name}`}
-                              className="h-9 max-w-[140px] tabular-nums text-right"
+                              className={cn(
+                                'h-9 max-w-[140px] tabular-nums text-right transition-colors',
+                                purchased &&
+                                  'border-emerald-500/40 bg-emerald-950/30 font-medium focus-visible:border-emerald-500/50 focus-visible:ring-emerald-500/25',
+                              )}
                               defaultValue={purchased && item.purchasedValue != null ? String(item.purchasedValue) : ''}
                               disabled={!purchased || updateBudgetItem.isPending}
                               inputMode="decimal"

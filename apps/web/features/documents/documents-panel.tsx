@@ -11,14 +11,14 @@ import {
   Folder,
   FolderPlus,
   GripVertical,
+  Home,
   Pencil,
-  Sparkles,
   Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { EmptyState } from '@/components/common/empty-state';
-import { DocumentProcessingBadge, DocumentReviewBadge } from '@/components/common/status-badge';
+import { DocumentProcessingBadge } from '@/components/common/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -56,21 +56,6 @@ function postingDateIsoLocal() {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
-}
-
-function folderPathLabels(folders: ProjectDocumentFolder[]) {
-  const byId = new Map(folders.map((f) => [f.id, f]));
-  return function labelFor(folderId: string): string {
-    const parts: string[] = [];
-    let id: string | null | undefined = folderId;
-    while (id) {
-      const f = byId.get(id);
-      if (!f) break;
-      parts.unshift(f.name);
-      id = f.parentId;
-    }
-    return parts.join(' / ');
-  };
 }
 
 function dragLeaveUnlessEnteringChild(e: DragEvent<HTMLElement>, onLeave: () => void) {
@@ -311,8 +296,6 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
 
   const breadcrumb = useMemo(() => buildBreadcrumbPath(folders ?? [], currentFolderId), [folders, currentFolderId]);
 
-  const pathLabel = useMemo(() => folderPathLabels(folders ?? []), [folders]);
-
   async function refreshAll() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['project-documents', projectId] }),
@@ -384,33 +367,41 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
 
   return (
     <div className="page-sections">
-      <Card>
-        <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <CardTitle>Documentos do projeto</CardTitle>
-            <CardDescription>
-              Repositório central do contrato: organize em pastas, baixe o arquivo original e arraste pelo ícone de alça
-              para soltar em outra pasta (ou na trilha). Os envios são armazenados com a data do dia.
-            </CardDescription>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={openNewFolder} type="button" variant="secondary">
-              <FolderPlus className="size-4" />
-              Nova pasta
-            </Button>
-            <Button onClick={openUpload} type="button">
-              <FileUp className="size-4" />
-              Enviar documento
-            </Button>
+      <Card className="overflow-hidden border-border/80 shadow-md shadow-black/10">
+        <CardHeader className="border-b border-border/60 bg-gradient-to-br from-card via-card to-muted/25 pb-6 sm:pb-8">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between sm:gap-8">
+            <div className="min-w-0 space-y-2">
+              <CardTitle className="font-heading text-xl tracking-tight text-foreground sm:text-2xl">
+                Documentos do projeto
+              </CardTitle>
+              <CardDescription className="max-w-xl text-pretty text-sm leading-relaxed text-muted-foreground">
+                Armazenamento do contrato. Use a alça para arrastar arquivos entre pastas ou solte na trilha abaixo.
+                Envios registram a data de hoje.
+              </CardDescription>
+            </div>
+            <div className="flex shrink-0 flex-row flex-wrap gap-2 sm:pt-0.5">
+              <Button className="min-h-11" onClick={openNewFolder} type="button" variant="secondary">
+                <FolderPlus className="size-4 shrink-0" />
+                Nova pasta
+              </Button>
+              <Button className="min-h-11 shadow-md shadow-primary/15" onClick={openUpload} type="button">
+                <FileUp className="size-4 shrink-0" />
+                Enviar documento
+              </Button>
+            </div>
           </div>
         </CardHeader>
       </Card>
 
-      <div className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
+      <nav
+        aria-label="Pasta atual"
+        className="flex flex-wrap items-center gap-1 rounded-2xl border border-border/70 bg-muted/25 px-3 py-2.5 shadow-inner shadow-black/5 backdrop-blur-[2px] sm:gap-1.5 sm:px-4 sm:py-3"
+      >
         <button
           className={cn(
-            'rounded-md px-2 py-1 font-medium text-primary transition hover:bg-primary/10',
-            !currentFolderId && 'pointer-events-none text-foreground',
+            'inline-flex min-h-9 items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition',
+            'text-muted-foreground hover:bg-background/80 hover:text-foreground',
+            !currentFolderId && 'pointer-events-none bg-primary/10 text-foreground ring-1 ring-primary/25',
             dropTarget === 'root' && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
           )}
           onClick={() => setCurrentFolderId(null)}
@@ -427,15 +418,18 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
           onDrop={(e) => handleDropDocument(e, null)}
           type="button"
         >
+          <Home className="size-4 shrink-0 opacity-80" aria-hidden />
           Raiz
         </button>
         {breadcrumb.map((segment) => (
-          <span className="flex items-center gap-1" key={segment.id}>
-            <ChevronRight className="size-4 shrink-0 opacity-60" />
+          <span className="flex items-center gap-1 sm:gap-1.5" key={segment.id}>
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground/70" aria-hidden />
             <button
               className={cn(
-                'rounded-md px-2 py-1 font-medium text-primary transition hover:bg-primary/10',
-                currentFolderId === segment.id && 'pointer-events-none text-foreground',
+                'inline-flex min-h-9 max-w-[min(100%,16rem)] items-center truncate rounded-lg px-3 py-1.5 text-left text-sm font-medium transition',
+                'text-muted-foreground hover:bg-background/80 hover:text-foreground',
+                currentFolderId === segment.id &&
+                  'pointer-events-none bg-primary/10 text-foreground ring-1 ring-primary/25',
                 dropTarget === segment.id && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
               )}
               onClick={() => setCurrentFolderId(segment.id)}
@@ -456,7 +450,7 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
             </button>
           </span>
         ))}
-      </div>
+      </nav>
 
       {loading ? (
         <div className="grid gap-3">
@@ -573,9 +567,6 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                       <TableHead>Arquivo</TableHead>
                       <TableHead>Documento</TableHead>
                       <TableHead>Processamento</TableHead>
-                      <TableHead>Revisão</TableHead>
-                      <TableHead>Campos extraídos</TableHead>
-                      <TableHead className="w-[200px]">Mover para</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -629,33 +620,6 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                         </TableCell>
                         <TableCell>
                           <DocumentProcessingBadge value={document.processingStatus} />
-                        </TableCell>
-                        <TableCell>
-                          <DocumentReviewBadge value={document.reviewStatus} />
-                        </TableCell>
-                        <TableCell>
-                          <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
-                            <Sparkles className="size-3.5" />
-                            {document.extractedFields.length} campo(s)
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Select
-                            aria-label="Mover documento"
-                            className="text-xs"
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              void handleMoveDocument(document, v === '__root__' ? null : v);
-                            }}
-                            value={document.folderId ?? '__root__'}
-                          >
-                            <option value="__root__">Raiz</option>
-                            {(folders ?? []).map((f) => (
-                              <option key={f.id} value={f.id}>
-                                {pathLabel(f.id)}
-                              </option>
-                            ))}
-                          </Select>
                         </TableCell>
                       </TableRow>
                     ))}

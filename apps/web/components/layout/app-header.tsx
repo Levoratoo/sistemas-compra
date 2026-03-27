@@ -34,7 +34,10 @@ function derivePageCopy(pathname: string) {
   }
 
   if (pathname.startsWith('/projects/') && pathname.includes('/purchases')) {
-    return { title: 'Compras Reais', description: 'Pedidos, fornecedores, itens e comparação com a rubrica.' };
+    return {
+      title: 'Checklist de compras',
+      description: 'Pedidos, fornecedores, itens e comparação com a rubrica.',
+    };
   }
 
   if (
