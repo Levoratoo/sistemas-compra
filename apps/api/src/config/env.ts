@@ -3,6 +3,14 @@ import { fileURLToPath } from 'node:url';
 import { config } from 'dotenv';
 import { z } from 'zod';
 
+/** No Render, `PORT=` vazio no painel pode impedir a injeção automática; chave vazia não é porta válida. */
+if (process.env.PORT === '') {
+  delete process.env.PORT;
+}
+if (process.env.HTTP_PORT === '') {
+  delete process.env.HTTP_PORT;
+}
+
 const currentFile = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFile);
 const appRoot = path.resolve(currentDir, '../..');
