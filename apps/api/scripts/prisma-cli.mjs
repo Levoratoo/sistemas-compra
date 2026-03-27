@@ -7,6 +7,11 @@ const currentFile = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFile);
 const appRoot = path.resolve(currentDir, '..');
 const prismaCliPath = path.resolve(appRoot, 'node_modules/prisma/build/index.js');
+
+function prismaCliLooksLikeShellScript() {
+  const head = readFileSync(prismaCliPath, 'utf8').slice(0, 500);
+  return head.includes('basedir=$(dirname');
+}
 const generatedClientPath = path.resolve(appRoot, 'node_modules/.prisma/client/index.d.ts');
 const generatedSchemaPath = path.resolve(appRoot, 'node_modules/.prisma/client/schema.prisma');
 const sourceSchemaPath = path.resolve(appRoot, 'prisma/schema.prisma');
@@ -46,6 +51,14 @@ function runPrismaCli(cliArgs) {
 
 if (!existsSync(prismaCliPath)) {
   console.error('Prisma CLI not found. Run npm install first.');
+  process.exit(1);
+}
+
+if (prismaCliLooksLikeShellScript()) {
+  console.error(
+    'node_modules/prisma/build/index.js looks like a shell script (corrupted). ' +
+      'Remove node_modules and reinstall (e.g. npm ci). The Prisma bin patch must remove .bin/prisma before writing.',
+  );
   process.exit(1);
 }
 
