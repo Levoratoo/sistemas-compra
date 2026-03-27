@@ -7,6 +7,7 @@ import type { Prisma } from '@prisma/client';
 import { env } from '../config/env.js';
 import { documentRepository } from '../repositories/document.repository.js';
 import { projectRepository } from '../repositories/project.repository.js';
+import { validateFolderForProject } from './document-folder.service.js';
 import { AppError } from '../utils/app-error.js';
 import { parseOptionalDate } from '../utils/date.js';
 import { ensureRelativeStoragePath, sanitizeFileName, toRelativeProjectPath } from '../utils/file.js';
@@ -82,6 +83,7 @@ async function resolveStoragePath(projectId: string, input: CreateProjectDocumen
 class DocumentService {
   async createProjectDocument(projectId: string, input: CreateProjectDocumentServiceInput) {
     await ensureProjectExists(projectId);
+    await validateFolderForProject(projectId, input.folderId ?? null);
 
     const storage = await resolveStoragePath(projectId, input);
 
@@ -104,6 +106,7 @@ class DocumentService {
     const document = await documentRepository.createWithExtractedFields(
       {
         projectId,
+        folderId: input.folderId ?? null,
         documentType: input.documentType,
         originalFileName: input.originalFileName,
         storagePath: storage.relativePath,
@@ -127,15 +130,43 @@ class DocumentService {
     };
   }
 
-  async listProjectDocuments(projectId: string) {
+  async listProjectDocuments(
+    projectId: string,
+    options?: { folderScope?: 'all' | { folderId: string | null } },
+  ) {
     await ensureProjectExists(projectId);
 
-    const documents = await documentRepository.findByProject(projectId);
+    const scope = options?.folderScope ?? 'all';
+    const documents = await documentRepository.findByProject(
+      projectId,
+      scope === 'all' ? undefined : { mode: 'folder', folderId: scope.folderId },
+    );
 
     return documents.map((document) => ({
       ...serializeProjectDocument(document),
       extractedFields: document.extractedFields.map(serializeExtractedField),
     }));
+  }
+
+  async moveProjectDocument(projectId: string, documentId: string, folderId: string | null) {
+    await ensureProjectExists(projectId);
+    await validateFolderForProject(projectId, folderId);
+
+    const existing = await documentRepository.findById(documentId);
+    if (!existing || existing.projectId !== projectId) {
+      throw new AppError('Document not found', 404);
+    }
+
+    await documentRepository.updateFolder(documentId, projectId, folderId);
+    const updated = await documentRepository.findById(documentId);
+    if (!updated) {
+      throw new AppError('Document not found', 404);
+    }
+
+    return {
+      ...serializeProjectDocument(updated),
+      extractedFields: updated.extractedFields.map(serializeExtractedField),
+    };
   }
 }
 

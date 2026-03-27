@@ -10,6 +10,7 @@ import { PDFParse } from 'pdf-parse';
 import * as XLSX from 'xlsx';
 
 import { documentService, type CreateProjectDocumentServiceInput } from './document.service.js';
+import { validateFolderForProject } from './document-folder.service.js';
 import { projectRepository } from '../repositories/project.repository.js';
 import { projectService } from './project.service.js';
 import {
@@ -345,9 +346,15 @@ export async function bootstrapProjectFromUpload(
   };
 }
 
+const EXTRACTION_FILE_EXT = /\.(pdf|xlsx|xls)$/i;
+const STORAGE_FILE_EXT =
+  /\.(pdf|xlsx|xls|doc|docx|ppt|pptx|png|jpg|jpeg|gif|webp|txt|csv|zip)$/i;
+
 export type ImportDocumentOptions = {
   documentDate?: string | null;
   notes?: string | null;
+  folderId?: string | null;
+  storeOnly?: boolean;
 };
 
 /**
@@ -365,7 +372,44 @@ export async function importDocumentToExistingProject(
     throw new AppError('Projeto não encontrado.', 404);
   }
 
+  await validateFolderForProject(projectId, options?.folderId ?? null);
+
   const safeOriginalName = normalizeImportedFileName(file.originalname);
+
+  if (options?.storeOnly) {
+    if (!STORAGE_FILE_EXT.test(safeOriginalName.toLowerCase())) {
+      throw new AppError(
+        'Tipo de arquivo não permitido para armazenamento. Use PDF, Office, imagem, CSV, TXT ou ZIP.',
+        400,
+      );
+    }
+
+    const docPayload: CreateProjectDocumentServiceInput = {
+      documentType,
+      originalFileName: safeOriginalName,
+      mimeType: file.mimetype || undefined,
+      extractedFields: [],
+      originalFileBuffer: file.buffer,
+      processingStatus: 'PROCESSED',
+      reviewStatus: 'REVIEWED',
+      documentDate: options.documentDate?.trim() || undefined,
+      notes: options.notes?.trim() || undefined,
+      folderId: options.folderId ?? null,
+    };
+
+    const documentResult = await documentService.createProjectDocument(projectId, docPayload);
+    const project = await projectService.getProjectById(projectId);
+
+    return {
+      project,
+      documentId: documentResult.id,
+    };
+  }
+
+  if (!EXTRACTION_FILE_EXT.test(safeOriginalName.toLowerCase())) {
+    throw new AppError('Envie um arquivo PDF ou Excel (.pdf, .xlsx, .xls).', 400);
+  }
+
   const { text, previewJson, gridRows, implementationMap, editalMateriais } = await extractPlainText(
     { ...file, originalname: safeOriginalName },
     documentType,
@@ -396,6 +440,7 @@ export async function importDocumentToExistingProject(
     documentDate: options?.documentDate?.trim() || undefined,
     notes: options?.notes?.trim() || undefined,
     originalFileBuffer: file.buffer,
+    folderId: options?.folderId ?? null,
   };
 
   const documentResult = await documentService.createProjectDocument(projectId, docPayload);

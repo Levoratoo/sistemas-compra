@@ -8,6 +8,7 @@ import {
   importDocumentToExistingProject,
 } from '../services/project-from-document.service.js';
 import { AppError } from '../utils/app-error.js';
+import { normalizeImportedFileName } from '../utils/encoding.js';
 import type { CreateProjectInput, ListProjectsQuery, UpdateProjectInput } from '../modules/project/project.schemas.js';
 
 const fromDocumentBodySchema = z.object({
@@ -18,6 +19,14 @@ const importDocumentBodySchema = z.object({
   documentType: z.nativeEnum(DocumentType),
   documentDate: z.string().trim().optional().nullable(),
   notes: z.string().trim().optional().nullable(),
+  folderId: z
+    .union([z.string().min(1), z.literal('')])
+    .optional()
+    .transform((v) => (v === '' || v == null ? null : v)),
+  storeOnly: z
+    .union([z.string(), z.boolean()])
+    .optional()
+    .transform((v) => v === true || v === 'true' || v === '1'),
 });
 
 class ProjectController {
@@ -25,6 +34,11 @@ class ProjectController {
     const file = request.file;
 
     if (!file) {
+      throw new AppError('Envie um arquivo PDF ou Excel (.pdf, .xlsx, .xls).', 400);
+    }
+
+    const safeName = normalizeImportedFileName(file.originalname);
+    if (!/\.(pdf|xlsx|xls)$/i.test(safeName)) {
       throw new AppError('Envie um arquivo PDF ou Excel (.pdf, .xlsx, .xls).', 400);
     }
 
@@ -52,11 +66,13 @@ class ProjectController {
     }
 
     const projectId = String(request.params.id);
-    const { documentType, documentDate, notes } = parsed.data;
+    const { documentType, documentDate, notes, folderId, storeOnly } = parsed.data;
 
     const result = await importDocumentToExistingProject(projectId, file, documentType, {
       documentDate: documentDate ?? null,
       notes: notes ?? null,
+      folderId: folderId ?? null,
+      storeOnly: Boolean(storeOnly),
     });
     response.status(201).json(result);
   }

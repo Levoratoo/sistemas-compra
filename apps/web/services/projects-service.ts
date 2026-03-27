@@ -80,13 +80,20 @@ export function importProjectDocumentFromUpload(
   projectId: string,
   file: File,
   documentType: DocumentType,
-  options?: { documentDate?: string | null; notes?: string | null },
+  options?: {
+    documentDate?: string | null;
+    notes?: string | null;
+    folderId?: string | null;
+    storeOnly?: boolean;
+  },
 ) {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('documentType', documentType);
   if (options?.documentDate) formData.append('documentDate', options.documentDate);
   if (options?.notes) formData.append('notes', options.notes);
+  if (options?.folderId) formData.append('folderId', options.folderId);
+  if (options?.storeOnly) formData.append('storeOnly', 'true');
   return apiUploadJson<ImportDocumentToProjectResult>(`projects/${projectId}/documents/from-upload`, formData);
 }
 

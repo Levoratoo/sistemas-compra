@@ -4,6 +4,7 @@ import type {
   ImplementationTask,
   Project,
   ProjectDocument,
+  ProjectDocumentFolder,
   ProjectRole,
   PurchaseOrder,
   PurchaseOrderItem,
@@ -33,6 +34,14 @@ export function serializeProjectDocument(document: ProjectDocument) {
     documentDate: toIsoString(document.documentDate),
     createdAt: toIsoString(document.createdAt),
     updatedAt: toIsoString(document.updatedAt),
+  };
+}
+
+export function serializeProjectDocumentFolder(folder: ProjectDocumentFolder) {
+  return {
+    ...folder,
+    createdAt: toIsoString(folder.createdAt),
+    updatedAt: toIsoString(folder.updatedAt),
   };
 }
 

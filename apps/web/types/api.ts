@@ -127,9 +127,18 @@ export interface ExtractedField extends EntityTimestamps {
   reviewNote: string | null;
 }
 
+export interface ProjectDocumentFolder extends EntityTimestamps {
+  id: string;
+  projectId: string;
+  parentId: string | null;
+  name: string;
+  sortOrder: number;
+}
+
 export interface ProjectDocument extends EntityTimestamps {
   id: string;
   projectId: string;
+  folderId: string | null;
   documentType: DocumentType;
   originalFileName: string;
   storagePath: string;

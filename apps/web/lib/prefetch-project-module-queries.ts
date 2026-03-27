@@ -1,7 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 
 import { listBudgetItems } from '@/services/budget-items-service';
-import { listProjectDocuments } from '@/services/documents-service';
+import { listProjectDocumentFolders, listProjectDocuments } from '@/services/documents-service';
 import { getProjectDashboard } from '@/services/dashboard-service';
 import { listProjectPurchases } from '@/services/purchases-service';
 import { listProjectReplenishments } from '@/services/replenishments-service';
@@ -57,12 +57,20 @@ export function prefetchProjectModuleQueries(queryClient: QueryClient, projectId
         }),
       );
     case '/documents':
-      return run(
-        queryClient.prefetchQuery({
-          queryKey: ['project-documents', projectId],
-          queryFn: () => listProjectDocuments(projectId),
-        }),
-      );
+      return Promise.all([
+        run(
+          queryClient.prefetchQuery({
+            queryKey: ['project-documents', projectId, 'root'],
+            queryFn: () => listProjectDocuments(projectId, { folderScope: 'root' }),
+          }),
+        ),
+        run(
+          queryClient.prefetchQuery({
+            queryKey: ['project-document-folders', projectId],
+            queryFn: () => listProjectDocumentFolders(projectId),
+          }),
+        ),
+      ]);
     default:
       return Promise.resolve();
   }

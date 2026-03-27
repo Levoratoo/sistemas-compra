@@ -16,9 +16,8 @@ export const projectRouter = Router();
 const uploadFromDocument = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    const ok = /\.(pdf|xlsx|xls)$/i.test(file.originalname);
-    cb(null, ok);
+  fileFilter: (_req, _file, cb) => {
+    cb(null, true);
   },
 });
 

@@ -40,13 +40,30 @@ class DocumentRepository {
     });
   }
 
-  findByProject(projectId: string) {
+  findByProject(
+    projectId: string,
+    folderFilter?: { mode: 'all' } | { mode: 'folder'; folderId: string | null },
+  ) {
+    const folderWhere =
+      folderFilter?.mode === 'folder'
+        ? folderFilter.folderId === null
+          ? { folderId: null }
+          : { folderId: folderFilter.folderId }
+        : {};
+
     return prisma.projectDocument.findMany({
-      where: { projectId },
+      where: { projectId, ...folderWhere },
       include: documentInclude,
       orderBy: {
         createdAt: 'desc',
       },
+    });
+  }
+
+  updateFolder(documentId: string, projectId: string, folderId: string | null) {
+    return prisma.projectDocument.updateMany({
+      where: { id: documentId, projectId },
+      data: { folderId },
     });
   }
 

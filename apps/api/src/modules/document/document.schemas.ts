@@ -11,6 +11,38 @@ export const projectDocumentParamsSchema = z.object({
   id: z.string().min(1),
 });
 
+export const projectDocumentIdParamsSchema = z.object({
+  id: z.string().min(1),
+  documentId: z.string().min(1),
+});
+
+export const listProjectDocumentsQuerySchema = z.object({
+  folderId: z.union([z.literal('all'), z.literal('root'), z.string().min(1)]).optional(),
+});
+
+export const moveProjectDocumentBodySchema = z.object({
+  folderId: z.union([z.string().min(1), z.null()]),
+});
+
+export const createDocumentFolderBodySchema = z.object({
+  name: z.string().trim().min(1),
+  parentId: z.string().min(1).optional().nullable(),
+});
+
+export const updateDocumentFolderBodySchema = z
+  .object({
+    name: z.string().trim().min(1).optional(),
+    parentId: z.union([z.string().min(1), z.null()]).optional(),
+  })
+  .refine((data) => data.name !== undefined || data.parentId !== undefined, {
+    message: 'Informe nome ou pasta pai.',
+  });
+
+export const documentFolderParamsSchema = z.object({
+  id: z.string().min(1),
+  folderId: z.string().min(1),
+});
+
 const extractedFieldSchema = z.object({
   targetType: z.nativeEnum(ExtractedTargetType),
   recordGroupKey: z.string().trim().optional(),
@@ -30,6 +62,7 @@ const extractedFieldSchema = z.object({
 
 export const createProjectDocumentSchema = z.object({
   documentType: z.nativeEnum(DocumentType),
+  folderId: z.string().min(1).optional().nullable(),
   originalFileName: z.string().trim().min(1),
   storagePath: z.string().trim().optional(),
   mimeType: z.string().trim().optional(),
@@ -45,3 +78,5 @@ export const createProjectDocumentSchema = z.object({
 });
 
 export type CreateProjectDocumentInput = z.infer<typeof createProjectDocumentSchema>;
+export type CreateDocumentFolderBody = z.infer<typeof createDocumentFolderBodySchema>;
+export type UpdateDocumentFolderBody = z.infer<typeof updateDocumentFolderBodySchema>;
