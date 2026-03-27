@@ -158,7 +158,7 @@ function FolderAppearanceFields({
       </div>
       <div className="space-y-2">
         <span className="text-sm font-medium leading-none" id={`${idPrefix}-emoji-label`}>
-          Ícone (emoji de trabalho)
+          Ícone
         </span>
         <div className="flex flex-wrap gap-1.5">
           <button
