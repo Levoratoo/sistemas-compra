@@ -2,11 +2,13 @@ import { copyFileSync, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { resolvePrismaBuildIndexPath } from './prisma-resolve.mjs';
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFile);
 const appRoot = path.resolve(currentDir, '..');
-const prismaCliPath = path.resolve(appRoot, 'node_modules/prisma/build/index.js');
+const prismaCliPath =
+  resolvePrismaBuildIndexPath(appRoot) ?? path.resolve(appRoot, 'node_modules/prisma/build/index.js');
 
 function prismaCliLooksLikeShellScript() {
   const head = readFileSync(prismaCliPath, 'utf8').slice(0, 500);

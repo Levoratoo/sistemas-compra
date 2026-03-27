@@ -2,6 +2,7 @@ import { chmodSync, existsSync, readFileSync, realpathSync, rmSync, writeFileSyn
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolvePrismaBuildIndexPath, resolvePrismaPackageRoot } from './prisma-resolve.mjs';
 
 const currentFile = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFile);
@@ -73,8 +74,8 @@ if (!existsSync(binDir)) {
 }
 
 function prismaBuildIndexLooksCorrupted() {
-  const buildIndex = path.join(appRoot, 'node_modules/prisma/build/index.js');
-  if (!existsSync(buildIndex)) {
+  const buildIndex = resolvePrismaBuildIndexPath(appRoot);
+  if (!buildIndex || !existsSync(buildIndex)) {
     return false;
   }
   const head = readFileSync(buildIndex, 'utf8').slice(0, 500);
@@ -84,7 +85,7 @@ function prismaBuildIndexLooksCorrupted() {
 function reinstallPrismaPackage() {
   const pkg = JSON.parse(readFileSync(path.join(appRoot, 'package.json'), 'utf8'));
   const spec = pkg.devDependencies?.prisma ?? pkg.dependencies?.prisma ?? '^6.19.0';
-  const prismaDir = path.join(appRoot, 'node_modules/prisma');
+  const prismaDir = resolvePrismaPackageRoot(appRoot);
   console.warn('[patch-prisma-bin] prisma/build/index.js looks corrupted; reinstalling prisma package...');
   try {
     const resolved = existsSync(prismaDir) ? realpathSync(prismaDir) : prismaDir;
