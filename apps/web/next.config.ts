@@ -1,6 +1,11 @@
 import type { NextConfig } from 'next';
 
-/** Render Static Site / GitHub Pages: definir `NEXT_STATIC_EXPORT=1` no build. */
+/**
+ * `NEXT_STATIC_EXPORT=1`: export estático (GitHub Pages, Render Static Site).
+ * Rotas dinâmicas com IDs reais não têm HTML por URL — só navegação em cliente a partir de / ou /projects;
+ * refresh ou abrir link direto nessas URLs devolve 404 no hosting. Para produção com deep links, use
+ * Web Service + `next start` sem esta variável.
+ */
 const staticExport = process.env.NEXT_STATIC_EXPORT === '1';
 
 /** Opcional: subpath (ex.: `nome-do-repo` no GitHub Pages). */
