@@ -1,0 +1,20 @@
+---
+description: Após alterações de código neste repo, fazer commit e push automaticamente.
+alwaysApply: true
+---
+
+# Git: commit e push em cada interação
+
+Quando você **alterar arquivos do projeto** (código, config relevante) neste repositório:
+
+1. **Antes de encerrar a tarefa**, execute no terminal (PowerShell usa `;` entre comandos):
+   - `git status` para ver o que mudou
+   - `git add` dos arquivos tocados (ou `git add -A` se for o conjunto inteiro da tarefa)
+   - `git commit -m "mensagem clara em português ou inglês"` descrevendo o *porquê* ou o escopo
+   - `git push origin` na branch atual (normalmente `main`)
+
+2. **Não deixe** mudanças locais sem commit ao final de uma sessão de implementação, salvo se o usuário pedir explicitamente para não versionar.
+
+3. Se `git push` falhar (rede, auth), informe o erro e tente uma vez com diagnóstico; não assuma que o push funcionou sem saída de sucesso.
+
+4. Não faça commit de segredos (`.env` com chaves reais, tokens). Respeite `.gitignore`.
