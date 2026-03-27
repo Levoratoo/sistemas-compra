@@ -40,6 +40,8 @@ import {
   DEFAULT_FOLDER_COLOR_HEX,
   FOLDER_COLOR_SWATCHES,
   FOLDER_WORK_EMOJIS,
+  folderCardSurfaceStyle,
+  normalizeFolderHex,
 } from '@/lib/folder-appearance';
 import { formatDate, formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -90,7 +92,13 @@ function FolderGlyph({
       </span>
     );
   }
-  return <Folder aria-hidden className={cn(iconClass, 'shrink-0', className)} style={{ color: colorHex }} />;
+  return (
+    <Folder
+      aria-hidden
+      className={cn(iconClass, 'shrink-0', className)}
+      style={{ color: normalizeFolderHex(colorHex) }}
+    />
+  );
 }
 
 function FolderAppearanceFields({
@@ -106,8 +114,19 @@ function FolderAppearanceFields({
   onEmojiChange: (emoji: string | null) => void;
   idPrefix: string;
 }) {
+  const normalized = normalizeFolderHex(colorHex);
   return (
     <div className="space-y-4">
+      <div
+        className="rounded-xl border border-border/60 p-4 shadow-sm transition duration-200 ease-out hover:scale-[1.02] hover:shadow-md hover:shadow-black/10"
+        style={folderCardSurfaceStyle(normalized)}
+      >
+        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Pré-visualização</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <FolderGlyph colorHex={normalized} iconEmoji={iconEmoji} />
+          <span className="font-medium text-foreground">Assim ficará o cartão da pasta</span>
+        </div>
+      </div>
       <div className="space-y-2">
         <Label htmlFor={`${idPrefix}-color`}>Cor da pasta</Label>
         <div className="flex flex-wrap gap-2">
@@ -115,25 +134,26 @@ function FolderAppearanceFields({
             <button
               aria-label={`Cor ${hex}`}
               className={cn(
-                'size-8 shrink-0 rounded-full border-2 border-transparent shadow-sm ring-offset-2 ring-offset-background transition hover:scale-105',
-                colorHex.toLowerCase() === hex.toLowerCase() && 'ring-2 ring-primary',
+                'size-8 shrink-0 rounded-full border-2 border-transparent shadow-sm ring-offset-2 ring-offset-background transition hover:scale-110',
+                normalized === hex && 'ring-2 ring-primary',
               )}
               key={hex}
-              onClick={() => onColorChange(hex)}
+              onClick={() => onColorChange(normalizeFolderHex(hex))}
               style={{ backgroundColor: hex }}
               type="button"
             />
           ))}
         </div>
         <div className="flex items-center gap-3 pt-1">
-          <Input
-            className="h-10 w-20 cursor-pointer p-1"
+          <input
+            aria-label="Cor personalizada"
+            className="h-11 w-16 shrink-0 cursor-pointer overflow-hidden rounded-xl border border-border bg-transparent p-0 shadow-inner"
             id={`${idPrefix}-color`}
-            onChange={(e) => onColorChange(e.target.value)}
+            onChange={(e) => onColorChange(normalizeFolderHex(e.target.value))}
             type="color"
-            value={colorHex}
+            value={normalized}
           />
-          <span className="font-mono text-xs text-muted-foreground">{colorHex}</span>
+          <span className="font-mono text-xs text-muted-foreground">{normalized}</span>
         </div>
       </div>
       <div className="space-y-2">
@@ -331,7 +351,7 @@ function NewFolderDialog({
       await createProjectDocumentFolder(projectId, {
         name: trimmed,
         parentId,
-        colorHex,
+        colorHex: normalizeFolderHex(colorHex),
         iconEmoji,
       });
       toast.success('Pasta criada.');
@@ -472,7 +492,7 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
     try {
       await updateProjectDocumentFolder(projectId, renameFolder.id, {
         name: trimmed,
-        colorHex: renameColor,
+        colorHex: normalizeFolderHex(renameColor),
         iconEmoji: renameEmoji,
       });
       toast.success('Pasta atualizada.');
@@ -592,7 +612,7 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
             >
               <span className="inline-flex min-w-0 items-center gap-2">
                 <FolderGlyph
-                  colorHex={segment.colorHex ?? DEFAULT_FOLDER_COLOR_HEX}
+                  colorHex={normalizeFolderHex(segment.colorHex ?? DEFAULT_FOLDER_COLOR_HEX)}
                   iconEmoji={segment.iconEmoji}
                   size="sm"
                 />
@@ -634,11 +654,14 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                 {subfolders.map((folder) => (
                   <div
                     className={cn(
-                      'flex items-center justify-between gap-2 rounded-xl border border-border bg-card/60 px-3 py-3 transition',
+                      'group flex items-center justify-between gap-2 rounded-xl border border-border/60 px-3 py-3 shadow-sm',
+                      'transition duration-200 ease-out will-change-transform',
+                      'hover:scale-[1.02] hover:shadow-md hover:shadow-black/10',
+                      'active:scale-[0.99]',
                       dropTarget === folder.id && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
                     )}
                     key={folder.id}
-                    style={{ borderLeftWidth: 4, borderLeftColor: folder.colorHex ?? DEFAULT_FOLDER_COLOR_HEX }}
+                    style={folderCardSurfaceStyle(folder.colorHex ?? DEFAULT_FOLDER_COLOR_HEX)}
                     onDragLeave={(e) =>
                       dragLeaveUnlessEnteringChild(e, () => {
                         setDropTarget(null);
@@ -663,7 +686,7 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                       type="button"
                     >
                       <FolderGlyph
-                        colorHex={folder.colorHex ?? DEFAULT_FOLDER_COLOR_HEX}
+                        colorHex={normalizeFolderHex(folder.colorHex ?? DEFAULT_FOLDER_COLOR_HEX)}
                         iconEmoji={folder.iconEmoji}
                       />
                       <span className="truncate">{folder.name}</span>
@@ -675,7 +698,7 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                         onClick={() => {
                           setRenameFolder(folder);
                           setRenameName(folder.name);
-                          setRenameColor(folder.colorHex ?? DEFAULT_FOLDER_COLOR_HEX);
+                          setRenameColor(normalizeFolderHex(folder.colorHex ?? DEFAULT_FOLDER_COLOR_HEX));
                           setRenameEmoji(folder.iconEmoji);
                         }}
                         onDragOver={(e) => {
