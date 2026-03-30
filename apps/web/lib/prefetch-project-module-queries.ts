@@ -4,6 +4,7 @@ import { listBudgetItems } from '@/services/budget-items-service';
 import { listProjectDocumentFolders, listProjectDocuments } from '@/services/documents-service';
 import { getProjectDashboard } from '@/services/dashboard-service';
 import { listProjectPurchases } from '@/services/purchases-service';
+import { listMissingItemReports } from '@/services/missing-item-reports-service';
 import { listProjectReplenishments } from '@/services/replenishments-service';
 
 /**
@@ -54,6 +55,13 @@ export function prefetchProjectModuleQueries(queryClient: QueryClient, projectId
         queryClient.prefetchQuery({
           queryKey: ['project-replenishments', projectId],
           queryFn: () => listProjectReplenishments(projectId),
+        }),
+      );
+    case '/missing-items':
+      return run(
+        queryClient.prefetchQuery({
+          queryKey: ['missing-item-reports', projectId],
+          queryFn: () => listMissingItemReports(projectId),
         }),
       );
     case '/documents':

@@ -1,0 +1,26 @@
+import dynamic from 'next/dynamic';
+
+import { ProjectModuleSkeleton } from '@/components/common/project-module-skeleton';
+import { STATIC_EXPORT_PROJECT_ID } from '@/lib/static-export-placeholders';
+
+const MissingItemsReportPanel = dynamic(
+  () =>
+    import('@/features/missing-items/missing-items-report-panel').then((m) => ({
+      default: m.MissingItemsReportPanel,
+    })),
+  { loading: () => <ProjectModuleSkeleton /> },
+);
+
+export async function generateStaticParams() {
+  return [{ projectId: STATIC_EXPORT_PROJECT_ID }];
+}
+
+type ProjectPageProps = {
+  params: Promise<{ projectId: string }>;
+};
+
+export default async function ProjectMissingItemsPage({ params }: ProjectPageProps) {
+  const { projectId } = await params;
+
+  return <MissingItemsReportPanel projectId={projectId} />;
+}

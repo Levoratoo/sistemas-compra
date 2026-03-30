@@ -48,6 +48,30 @@ export interface ImplementationTask extends EntityTimestamps {
   sourcePage: number | null;
   notes: string | null;
 }
+
+export interface MissingItemReportAttachment {
+  id: string;
+  missingItemReportId: string;
+  originalFileName: string;
+  storagePath: string;
+  mimeType: string | null;
+  fileSizeBytes: number | null;
+  createdAt: string | null;
+}
+
+export interface MissingItemReport extends EntityTimestamps {
+  id: string;
+  projectId: string;
+  requesterName: string;
+  requestDate: string | null;
+  itemToAcquire: string;
+  estimatedQuantity: string;
+  necessityReason: string;
+  urgencyLevel: MissingItemUrgency;
+  ownerApprovalStatus: OwnerApprovalStatus;
+  ownerApprovedAt: string | null;
+  attachments: MissingItemReportAttachment[];
+}
 export type PurchaseStatus =
   | 'TO_START'
   | 'QUOTING'
@@ -77,6 +101,9 @@ export type ReplenishmentDerivedStatus =
   | 'OVERDUE'
   | 'UPCOMING'
   | 'SCHEDULED';
+
+export type MissingItemUrgency = 'HIGH' | 'MEDIUM' | 'LOW';
+export type OwnerApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface EntityTimestamps {
   createdAt: string | null;

@@ -2,6 +2,8 @@ import type {
   BudgetItem,
   ExtractedField,
   ImplementationTask,
+  MissingItemReport,
+  MissingItemReportAttachment,
   Project,
   ProjectDocument,
   ProjectDocumentFolder,
@@ -67,6 +69,30 @@ export function serializeImplementationTask(task: ImplementationTask) {
     dueDate: toIsoString(task.dueDate),
     createdAt: toIsoString(task.createdAt),
     updatedAt: toIsoString(task.updatedAt),
+  };
+}
+
+export function serializeMissingItemReportAttachment(att: MissingItemReportAttachment) {
+  return {
+    ...att,
+    createdAt: toIsoString(att.createdAt),
+  };
+}
+
+type MissingItemReportWithAttachments = MissingItemReport & {
+  attachments?: MissingItemReportAttachment[];
+};
+
+export function serializeMissingItemReport(report: MissingItemReportWithAttachments) {
+  const { attachments: rawAttachments, requestDate, ownerApprovedAt, createdAt, updatedAt, ...rest } = report;
+
+  return {
+    ...rest,
+    requestDate: toIsoString(requestDate),
+    ownerApprovedAt: toIsoString(ownerApprovedAt),
+    createdAt: toIsoString(createdAt),
+    updatedAt: toIsoString(updatedAt),
+    attachments: (rawAttachments ?? []).map(serializeMissingItemReportAttachment),
   };
 }
 

@@ -1,0 +1,746 @@
+'use client';
+
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+import {
+  ClipboardList,
+  Download,
+  FileText,
+  Paperclip,
+  Pencil,
+  Plus,
+  Trash2,
+  Upload,
+} from 'lucide-react';
+import { toast } from 'sonner';
+
+import { EmptyState } from '@/components/common/empty-state';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  getMissingItemUrgencyLabel,
+  getOwnerApprovalStatusLabel,
+  missingItemUrgencyOptions,
+  ownerApprovalStatusOptions,
+} from '@/lib/constants';
+import { formatDate, formatDateTime, formatFileSize } from '@/lib/format';
+import { projectDocumentPublicFileUrl } from '@/lib/project-document-url';
+import { useMissingItemReportsMutations, useMissingItemReportsQuery } from '@/hooks/use-missing-item-reports';
+import type { MissingItemReportUpdatePayload } from '@/services/missing-item-reports-service';
+import type { MissingItemReport, MissingItemReportAttachment } from '@/types/api';
+
+const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
+type ApprovalFilter = 'all' | MissingItemReport['ownerApprovalStatus'];
+
+const approvalFilterOptions: Array<{ value: ApprovalFilter; label: string }> = [
+  { value: 'all', label: 'Todos os status' },
+  { value: 'PENDING', label: 'Aguardando aprovação' },
+  { value: 'APPROVED', label: 'Aprovadas' },
+  { value: 'REJECTED', label: 'Rejeitadas' },
+];
+
+const formSchema = z.object({
+  requesterName: z.string().trim().min(1, 'Informe o responsável.'),
+  requestDate: z.string().min(1, 'Informe a data.'),
+  itemToAcquire: z.string().trim().min(1, 'Descreva o item.'),
+  estimatedQuantity: z.string().trim().min(1, 'Informe a quantidade estimada.'),
+  necessityReason: z.string().trim().min(1, 'Explique a necessidade.'),
+  urgencyLevel: z.enum(['HIGH', 'MEDIUM', 'LOW']),
+  ownerApprovalStatus: z.enum(['PENDING', 'APPROVED', 'REJECTED']).optional(),
+});
+
+type FormValues = z.input<typeof formSchema>;
+type FormSubmitValues = z.output<typeof formSchema>;
+
+function urgencyBadgeVariant(level: MissingItemReport['urgencyLevel']) {
+  if (level === 'HIGH') return 'danger' as const;
+  if (level === 'MEDIUM') return 'warning' as const;
+  return 'secondary' as const;
+}
+
+function approvalBadgeVariant(status: MissingItemReport['ownerApprovalStatus']) {
+  if (status === 'APPROVED') return 'success' as const;
+  if (status === 'REJECTED') return 'danger' as const;
+  return 'warning' as const;
+}
+
+function attachmentHref(storagePath: string) {
+  return projectDocumentPublicFileUrl(storagePath);
+}
+
+function addFilesFromList(files: FileList | null, onAdd: (files: File[]) => void) {
+  if (!files?.length) return;
+  const accepted: File[] = [];
+  for (const f of Array.from(files)) {
+    if (f.size > MAX_ATTACHMENT_BYTES) {
+      toast.error(`${f.name} excede o limite de 20 MB.`);
+      continue;
+    }
+    accepted.push(f);
+  }
+  if (accepted.length) onAdd(accepted);
+}
+
+function AttachmentList({
+  attachments,
+  onRemove,
+  disabled,
+}: {
+  attachments: MissingItemReportAttachment[];
+  onRemove: (id: string) => void;
+  disabled?: boolean;
+}) {
+  if (!attachments.length) return null;
+
+  return (
+    <ul className="flex flex-col gap-2">
+      {attachments.map((att) => (
+        <li
+          key={att.id}
+          className="flex items-center gap-2 rounded-xl border border-border/60 bg-background/80 px-3 py-2 text-sm shadow-sm transition-colors hover:border-primary/25"
+        >
+          <FileText className="size-4 shrink-0 text-primary/90" aria-hidden />
+          <div className="min-w-0 flex-1">
+            <a
+              className="block truncate font-medium text-foreground underline-offset-2 hover:underline"
+              href={attachmentHref(att.storagePath)}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              {att.originalFileName}
+            </a>
+            <span className="text-xs text-muted-foreground">{formatFileSize(att.fileSizeBytes)}</span>
+          </div>
+          <Button
+            aria-label="Baixar"
+            className="size-8 shrink-0"
+            disabled={disabled}
+            size="icon"
+            type="button"
+            variant="ghost"
+            asChild
+          >
+            <a download={att.originalFileName} href={attachmentHref(att.storagePath)} rel="noopener noreferrer">
+              <Download className="size-4" />
+            </a>
+          </Button>
+          <Button
+            aria-label="Remover anexo"
+            className="size-8 shrink-0 text-destructive hover:text-destructive"
+            disabled={disabled}
+            onClick={() => onRemove(att.id)}
+            size="icon"
+            type="button"
+            variant="ghost"
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ReportDialog({
+  open,
+  onOpenChange,
+  projectId,
+  report,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  projectId: string;
+  report?: MissingItemReport | null;
+}) {
+  const { createReport, updateReport, uploadAttachment, deleteAttachment } = useMissingItemReportsMutations(projectId);
+  const isEdit = Boolean(report);
+  const fileCreateRef = useRef<HTMLInputElement>(null);
+  const fileEditRef = useRef<HTMLInputElement>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+
+  const form = useForm<FormValues, undefined, FormSubmitValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      requesterName: '',
+      requestDate: '',
+      itemToAcquire: '',
+      estimatedQuantity: '',
+      necessityReason: '',
+      urgencyLevel: 'MEDIUM',
+      ownerApprovalStatus: 'PENDING',
+    },
+  });
+
+  useEffect(() => {
+    if (!open) {
+      setPendingFiles([]);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!report) {
+      form.reset({
+        requesterName: '',
+        requestDate: '',
+        itemToAcquire: '',
+        estimatedQuantity: '',
+        necessityReason: '',
+        urgencyLevel: 'MEDIUM',
+        ownerApprovalStatus: 'PENDING',
+      });
+      return;
+    }
+
+    form.reset({
+      requesterName: report.requesterName,
+      requestDate: report.requestDate ? report.requestDate.slice(0, 10) : '',
+      itemToAcquire: report.itemToAcquire,
+      estimatedQuantity: report.estimatedQuantity,
+      necessityReason: report.necessityReason,
+      urgencyLevel: report.urgencyLevel,
+      ownerApprovalStatus: report.ownerApprovalStatus,
+    });
+  }, [form, report]);
+
+  async function onSubmit(values: FormSubmitValues) {
+    const requestDateIso = `${values.requestDate}T12:00:00.000Z`;
+
+    try {
+      if (isEdit && report) {
+        const payload: MissingItemReportUpdatePayload = {
+          requesterName: values.requesterName,
+          requestDate: requestDateIso,
+          itemToAcquire: values.itemToAcquire,
+          estimatedQuantity: values.estimatedQuantity,
+          necessityReason: values.necessityReason,
+          urgencyLevel: values.urgencyLevel,
+          ownerApprovalStatus: values.ownerApprovalStatus,
+        };
+
+        await updateReport.mutateAsync({ id: report.id, payload });
+        toast.success('Solicitação atualizada.');
+      } else {
+        const created = await createReport.mutateAsync({
+          requesterName: values.requesterName,
+          requestDate: requestDateIso,
+          itemToAcquire: values.itemToAcquire,
+          estimatedQuantity: values.estimatedQuantity,
+          necessityReason: values.necessityReason,
+          urgencyLevel: values.urgencyLevel,
+        });
+
+        for (const file of pendingFiles) {
+          await uploadAttachment.mutateAsync({ reportId: created.id, file });
+        }
+
+        toast.success(
+          pendingFiles.length
+            ? `Solicitação registrada com ${pendingFiles.length} anexo(s).`
+            : 'Solicitação registrada.',
+        );
+      }
+
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível salvar.');
+    }
+  }
+
+  async function handleRemoveAttachment(attachmentId: string) {
+    if (!window.confirm('Remover este anexo?')) return;
+
+    try {
+      await deleteAttachment.mutateAsync(attachmentId);
+      toast.success('Anexo removido.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível remover o anexo.');
+    }
+  }
+
+  async function handleEditAddFiles(files: FileList | null) {
+    if (!report || !files?.length) return;
+    const f = files[0];
+    if (f.size > MAX_ATTACHMENT_BYTES) {
+      toast.error('O arquivo excede 20 MB.');
+      return;
+    }
+    try {
+      await uploadAttachment.mutateAsync({ reportId: report.id, file: f });
+      toast.success('Anexo enviado.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha no envio.');
+    }
+  }
+
+  const pending = createReport.isPending || updateReport.isPending || uploadAttachment.isPending;
+  const editAttachments = report?.attachments ?? [];
+
+  return (
+    <Dialog onOpenChange={onOpenChange} open={open}>
+      <DialogContent className="max-h-[min(92vh,760px)] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+        <div className="border-b border-border/60 bg-muted/20 px-6 py-5">
+          <DialogHeader className="space-y-1.5 text-left">
+            <DialogTitle className="text-xl">
+              {isEdit ? 'Editar solicitação' : 'Nova solicitação de item'}
+            </DialogTitle>
+            <DialogDescription>
+              Dados preenchidos manualmente. Inclua anexos (orçamentos, fotos, etc.) para apoiar a solicitação.
+            </DialogDescription>
+          </DialogHeader>
+        </div>
+
+        <form className="flex flex-1 flex-col overflow-hidden" onSubmit={form.handleSubmit(onSubmit)}>
+          <div className="space-y-4 overflow-y-auto px-6 py-5">
+            <div className="space-y-2">
+              <Label htmlFor="requesterName">Nome do responsável pela solicitação</Label>
+              <Input id="requesterName" {...form.register('requesterName')} autoComplete="name" />
+              {form.formState.errors.requesterName ? (
+                <p className="text-sm text-destructive">{form.formState.errors.requesterName.message}</p>
+              ) : null}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="requestDate">Data</Label>
+              <Input id="requestDate" type="date" {...form.register('requestDate')} />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="itemToAcquire">Qual item precisa ser adquirido?</Label>
+              <Input id="itemToAcquire" {...form.register('itemToAcquire')} />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="estimatedQuantity">Quantidade estimada</Label>
+              <Input id="estimatedQuantity" {...form.register('estimatedQuantity')} placeholder="Ex.: 10 unidades" />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="necessityReason">Por que esse item é necessário?</Label>
+              <Textarea id="necessityReason" rows={4} {...form.register('necessityReason')} />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="urgencyLevel">Qual o nível de urgência?</Label>
+              <Select id="urgencyLevel" {...form.register('urgencyLevel')}>
+                {missingItemUrgencyOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label} — {opt.hint}
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            {isEdit ? (
+              <div className="space-y-2 rounded-xl border border-border/70 bg-muted/15 p-4">
+                <Label htmlFor="ownerApprovalStatus">Aprovado pelo dono da empresa</Label>
+                <Select id="ownerApprovalStatus" {...form.register('ownerApprovalStatus')}>
+                  {ownerApprovalStatusOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </Select>
+                {report?.ownerApprovedAt ? (
+                  <p className="text-xs text-muted-foreground">
+                    Última resposta registrada em {formatDateTime(report.ownerApprovedAt)}.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <Paperclip className="size-4 text-primary" aria-hidden />
+                Anexos
+              </div>
+
+              {isEdit && report ? (
+                <div className="space-y-3">
+                  <AttachmentList
+                    attachments={editAttachments}
+                    disabled={deleteAttachment.isPending}
+                    onRemove={handleRemoveAttachment}
+                  />
+                  <input
+                    ref={fileEditRef}
+                    className="sr-only"
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip"
+                    onChange={(e) => {
+                      void handleEditAddFiles(e.target.files);
+                      e.target.value = '';
+                    }}
+                    type="file"
+                  />
+                  <Button
+                    className="w-full gap-2 border-dashed"
+                    disabled={uploadAttachment.isPending}
+                    onClick={() => fileEditRef.current?.click()}
+                    type="button"
+                    variant="outline"
+                  >
+                    <Upload className="size-4" aria-hidden />
+                    {uploadAttachment.isPending ? 'Enviando...' : 'Adicionar arquivo'}
+                  </Button>
+                </div>
+              ) : (
+                <div>
+                  <input
+                    ref={fileCreateRef}
+                    className="sr-only"
+                    multiple
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip"
+                    onChange={(e) => {
+                      addFilesFromList(e.target.files, (next) => setPendingFiles((p) => [...p, ...next]));
+                      e.target.value = '';
+                    }}
+                    type="file"
+                  />
+                  <button
+                    className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/80 bg-muted/20 px-4 py-6 text-center transition-colors hover:border-primary/35 hover:bg-muted/35"
+                    onClick={() => fileCreateRef.current?.click()}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      addFilesFromList(e.dataTransfer.files, (next) => setPendingFiles((p) => [...p, ...next]));
+                    }}
+                    type="button"
+                  >
+                    <Upload className="size-8 text-muted-foreground" aria-hidden />
+                    <span className="text-sm font-medium text-foreground">Solte arquivos aqui ou clique para escolher</span>
+                    <span className="text-xs text-muted-foreground">Até 20 MB por arquivo · enviados após salvar a solicitação</span>
+                  </button>
+                  {pendingFiles.length > 0 ? (
+                    <ul className="mt-3 space-y-2">
+                      {pendingFiles.map((f, idx) => (
+                        <li
+                          key={`${f.name}-${idx}`}
+                          className="flex items-center justify-between gap-2 rounded-lg border border-border/50 bg-background px-3 py-2 text-sm"
+                        >
+                          <span className="truncate font-medium">{f.name}</span>
+                          <span className="shrink-0 text-xs text-muted-foreground">{formatFileSize(f.size)}</span>
+                          <Button
+                            className="size-8 shrink-0"
+                            onClick={() => setPendingFiles((p) => p.filter((_, i) => i !== idx))}
+                            size="icon"
+                            type="button"
+                            variant="ghost"
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="border-t border-border/60 bg-muted/10 px-6 py-4">
+            <Button onClick={() => onOpenChange(false)} type="button" variant="ghost">
+              Cancelar
+            </Button>
+            <Button disabled={pending} type="submit">
+              {pending ? 'Salvando...' : isEdit ? 'Salvar alterações' : 'Registrar solicitação'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
+  const { data: reports, isLoading, isError } = useMissingItemReportsQuery(projectId);
+  const { deleteReport, uploadAttachment, deleteAttachment } = useMissingItemReportsMutations(projectId);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<MissingItemReport | null>(null);
+  const [approvalFilter, setApprovalFilter] = useState<ApprovalFilter>('all');
+
+  const filteredReports = useMemo(() => {
+    if (!reports?.length) return [];
+    if (approvalFilter === 'all') return reports;
+    return reports.filter((r) => r.ownerApprovalStatus === approvalFilter);
+  }, [reports, approvalFilter]);
+
+  function openCreate() {
+    setEditing(null);
+    setDialogOpen(true);
+  }
+
+  function openEdit(row: MissingItemReport) {
+    setEditing(row);
+    setDialogOpen(true);
+  }
+
+  async function handleDelete(row: MissingItemReport) {
+    if (!window.confirm('Excluir esta solicitação e todos os anexos?')) return;
+
+    try {
+      await deleteReport.mutateAsync(row.id);
+      toast.success('Solicitação excluída.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível excluir.');
+    }
+  }
+
+  async function handleCardRemoveAttachment(attachmentId: string) {
+    if (!window.confirm('Remover este anexo?')) return;
+
+    try {
+      await deleteAttachment.mutateAsync(attachmentId);
+      toast.success('Anexo removido.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível remover.');
+    }
+  }
+
+  async function handleCardAddFile(reportId: string, files: FileList | null) {
+    const f = files?.[0];
+    if (!f) return;
+    if (f.size > MAX_ATTACHMENT_BYTES) {
+      toast.error('O arquivo excede 20 MB.');
+      return;
+    }
+    try {
+      await uploadAttachment.mutateAsync({ reportId, file: f });
+      toast.success('Anexo enviado.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha no envio.');
+    }
+  }
+
+  return (
+    <div className="space-y-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Relatório de Itens Faltantes</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Cadastro manual das solicitações de itens em falta neste contrato, com urgência, status de aprovação e anexos
+            opcionais. Use o filtro para ver o que está pendente ou já foi aprovado.
+          </p>
+        </div>
+        <Button className="shrink-0 gap-2" onClick={openCreate} type="button">
+          <Plus className="size-4" aria-hidden />
+          Nova solicitação
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader className="space-y-4 pb-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <ClipboardList className="size-5 text-primary" aria-hidden />
+                Itens solicitados
+              </CardTitle>
+              <CardDescription className="mt-1.5">
+                Cada cartão é uma solicitação vinculada a este projeto. Anexos ficam listados abaixo do texto.
+              </CardDescription>
+            </div>
+            <div className="flex w-full shrink-0 flex-col gap-1.5 sm:w-[min(100%,280px)]">
+              <Label className="text-xs font-medium text-muted-foreground" htmlFor="approval-filter">
+                Filtrar por status de aprovação
+              </Label>
+              <Select
+                id="approval-filter"
+                onChange={(e) => setApprovalFilter(e.target.value as ApprovalFilter)}
+                value={approvalFilter}
+              >
+                {approvalFilterOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+          {reports && reports.length > 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Exibindo {filteredReports.length} de {reports.length}{' '}
+              {reports.length === 1 ? 'solicitação' : 'solicitações'}
+              {approvalFilter !== 'all'
+                ? ` (${approvalFilterOptions.find((o) => o.value === approvalFilter)?.label})`
+                : ''}
+              .
+            </p>
+          ) : null}
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-40 w-full rounded-2xl" />
+            </div>
+          ) : isError ? (
+            <p className="text-sm text-destructive">Não foi possível carregar o relatório.</p>
+          ) : !reports?.length ? (
+            <EmptyState
+              description="Registre a primeira solicitação de item em falta para este contrato."
+              icon={ClipboardList}
+              title="Nenhuma solicitação ainda"
+            />
+          ) : !filteredReports.length ? (
+            <div className="rounded-2xl border border-dashed border-border/80 bg-muted/20 px-6 py-10 text-center">
+              <p className="text-sm font-medium text-foreground">Nenhuma solicitação com este status</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Altere o filtro acima ou cadastre novas solicitações com o status desejado.
+              </p>
+            </div>
+          ) : (
+            <div className="grid max-w-4xl gap-5">
+              {filteredReports.map((row) => (
+                <article
+                  key={row.id}
+                  className="group relative overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-br from-card to-card/80 shadow-sm ring-1 ring-border/40 transition-shadow hover:shadow-md"
+                >
+                  <div
+                    aria-hidden
+                    className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-primary via-primary/70 to-primary/30"
+                  />
+                  <div className="relative pl-5 pr-4 pt-5 pb-4 sm:pl-6 sm:pr-5">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0 space-y-1">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {row.requestDate ? formatDate(row.requestDate) : '—'} · {row.requesterName}
+                        </p>
+                        <h2 className="text-lg font-semibold leading-snug text-foreground">{row.itemToAcquire}</h2>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <Badge variant={urgencyBadgeVariant(row.urgencyLevel)}>
+                            {getMissingItemUrgencyLabel(row.urgencyLevel)}
+                          </Badge>
+                          <Badge variant={approvalBadgeVariant(row.ownerApprovalStatus)}>
+                            {getOwnerApprovalStatusLabel(row.ownerApprovalStatus)}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 gap-1 sm:pt-0">
+                        <Button
+                          aria-label="Editar"
+                          className="size-9"
+                          onClick={() => openEdit(row)}
+                          size="icon"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                        <Button
+                          aria-label="Excluir"
+                          className="size-9 text-destructive hover:text-destructive"
+                          disabled={deleteReport.isPending}
+                          onClick={() => void handleDelete(row)}
+                          size="icon"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-xl bg-muted/50 px-3 py-2.5">
+                        <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          Quantidade estimada
+                        </dt>
+                        <dd className="mt-0.5 text-sm font-medium text-foreground">{row.estimatedQuantity}</dd>
+                      </div>
+                      <div className="rounded-xl bg-muted/50 px-3 py-2.5 sm:col-span-2">
+                        <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          Motivo / necessidade
+                        </dt>
+                        <dd className="mt-0.5 text-sm leading-relaxed text-foreground/95">{row.necessityReason}</dd>
+                      </div>
+                    </dl>
+
+                    {row.ownerApprovedAt ? (
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        Resposta do dono registrada em {formatDateTime(row.ownerApprovedAt)}.
+                      </p>
+                    ) : null}
+
+                    <div className="mt-5 border-t border-border/50 pt-4">
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+                          <Paperclip className="size-4 text-primary" aria-hidden />
+                          Anexos
+                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                            {row.attachments?.length ?? 0}
+                          </span>
+                        </span>
+                        <input
+                          className="sr-only"
+                          id={`card-attach-${row.id}`}
+                          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip"
+                          onChange={(e) => {
+                            void handleCardAddFile(row.id, e.target.files);
+                            e.target.value = '';
+                          }}
+                          type="file"
+                        />
+                        <Button
+                          className="h-8 gap-1.5 text-xs"
+                          disabled={uploadAttachment.isPending}
+                          onClick={() => document.getElementById(`card-attach-${row.id}`)?.click()}
+                          size="sm"
+                          type="button"
+                          variant="secondary"
+                        >
+                          <Plus className="size-3.5" />
+                          Adicionar
+                        </Button>
+                      </div>
+                      {row.attachments?.length ? (
+                        <AttachmentList
+                          attachments={row.attachments}
+                          disabled={deleteAttachment.isPending}
+                          onRemove={handleCardRemoveAttachment}
+                        />
+                      ) : (
+                        <p className="rounded-lg border border-dashed border-border/60 bg-muted/15 px-3 py-3 text-center text-sm text-muted-foreground">
+                          Nenhum anexo. Use “Adicionar” para enviar fotos, PDFs ou planilhas.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <ReportDialog
+        onOpenChange={(next) => {
+          setDialogOpen(next);
+          if (!next) setEditing(null);
+        }}
+        open={dialogOpen}
+        projectId={projectId}
+        report={editing}
+      />
+    </div>
+  );
+}

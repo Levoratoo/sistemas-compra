@@ -6,6 +6,8 @@ import type {
   ImplementationStatus,
   IntervalUnit,
   ItemCategory,
+  MissingItemUrgency,
+  OwnerApprovalStatus,
   ProjectStatus,
   PurchaseStatus,
   ReplenishmentDerivedStatus,
@@ -78,6 +80,26 @@ export const intervalUnitOptions: Array<{ value: IntervalUnit; label: string }> 
   { value: 'MONTH', label: 'Mês' },
   { value: 'YEAR', label: 'Ano' },
 ];
+
+export const missingItemUrgencyOptions: Array<{ value: MissingItemUrgency; label: string; hint: string }> = [
+  { value: 'HIGH', label: 'Alta', hint: 'necessário com urgência' },
+  { value: 'MEDIUM', label: 'Média', hint: 'necessário em breve' },
+  { value: 'LOW', label: 'Baixa', hint: 'pode aguardar' },
+];
+
+export const ownerApprovalStatusOptions: Array<{ value: OwnerApprovalStatus; label: string }> = [
+  { value: 'PENDING', label: 'Pendente de aprovação' },
+  { value: 'APPROVED', label: 'Aprovado pelo dono da empresa' },
+  { value: 'REJECTED', label: 'Rejeitado' },
+];
+
+export function getMissingItemUrgencyLabel(level: MissingItemUrgency) {
+  return missingItemUrgencyOptions.find((o) => o.value === level)?.label ?? level;
+}
+
+export function getOwnerApprovalStatusLabel(status: OwnerApprovalStatus) {
+  return ownerApprovalStatusOptions.find((o) => o.value === status)?.label ?? status;
+}
 
 export function getProjectStatusLabel(value: ProjectStatus) {
   return projectStatusOptions.find((option) => option.value === value)?.label ?? value;

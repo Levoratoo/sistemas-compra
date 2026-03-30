@@ -2,6 +2,7 @@ import { Router } from 'express';
 
 import { budgetItemRouter } from '../modules/budget-item/budget-item.routes.js';
 import { dashboardRouter } from '../modules/dashboard/dashboard.routes.js';
+import { missingItemReportRouter } from '../modules/missing-item-report/missing-item-report.routes.js';
 import { documentRouter } from '../modules/document/document.routes.js';
 import { extractionApplyRouter } from '../modules/extraction-apply/extraction-apply.routes.js';
 import { projectRouter } from '../modules/project/project.routes.js';
@@ -27,4 +28,5 @@ apiRouter.use(budgetItemRouter);
 apiRouter.use(supplierRouter);
 apiRouter.use(purchaseRouter);
 apiRouter.use(replenishmentRouter);
+apiRouter.use(missingItemReportRouter);
 apiRouter.use(dashboardRouter);

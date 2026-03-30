@@ -13,6 +13,7 @@ const tabs = [
   { href: '/purchase-control', label: 'Controle de compras' },
   { href: '/purchases', label: 'Checklist de compras' },
   { href: '/replenishments', label: 'Reposições' },
+  { href: '/missing-items', label: 'Relatório de Itens Faltantes' },
 ];
 
 export function ProjectNav({ projectId }: { projectId: string }) {

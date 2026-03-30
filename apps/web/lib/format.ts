@@ -68,3 +68,19 @@ export function toDateInputValue(value?: string | null) {
 
   return date.toISOString().slice(0, 10);
 }
+
+export function formatFileSize(bytes?: number | null) {
+  if (bytes === null || bytes === undefined || bytes < 0) {
+    return '—';
+  }
+
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} KB`;
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
