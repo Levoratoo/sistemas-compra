@@ -36,13 +36,15 @@ function isHeaderOrNoise(line: string): boolean {
   return false;
 }
 
-/** Função / cargo antes da tabela (termina em dois-pontos). */
+/** Função / cargo antes da tabela (termina em dois-pontos). Aceita "Secretário(a) Executivo(a):" etc. */
 function parseRoleLine(line: string): string | null {
   const t = line.trim();
-  if (t.length < 4 || t.length > 100) return null;
+  if (t.length < 4 || t.length > 140) return null;
   if (!/:\s*$/.test(t)) return null;
   const head = t.replace(/:\s*$/, '').trim();
   if (/^(TIPO|ESPECIFICA|FEMININO|SOLU|ITEM|OBS)/i.test(head)) return null;
+  /** Subtítulos de coluna do PDF, não são cargo. */
+  if (/^(MASCULINO|FEMININO)(\s*\/\s*(MASCULINO|FEMININO))?\s*$/i.test(head)) return null;
   if (!/[a-záàãâéêíóôõúç]/i.test(head)) return null;
   return head;
 }
@@ -151,7 +153,7 @@ export function extractBudgetLinesFromRoraimaTipoQtd(
     };
 
     budgetLines.push({
-      recordGroupKey: profile.recordGroup,
+      recordGroupKey: roleForRow ?? profile.recordGroup,
       fieldKey: `edital_rr_tq_${profile.id}_${lineIndex}_${budgetLines.length}`,
       proposedValue: JSON.stringify(payload),
       sourceExcerpt: `${itemLine} | ${quantity} | ${description}`.slice(0, 400),

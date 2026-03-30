@@ -30,8 +30,9 @@ import {
 
 const MIN_BUDGET_COL_PX = 40;
 const BUDGET_COL_STORAGE_KEY = 'sitecompras:extraction-review:budget-cols';
-/** Larguras padrão (px): descrição larga, cat, orig, qtd, vlr unit. rubrica, vlr total rubrica */
-const DEFAULT_BUDGET_COL_WIDTHS = [400, 84, 52, 56, 120, 120] as const;
+/** Larguras padrão (px): descrição, função/cargo, cat, orig, qtd, vlr unit., vlr total */
+const DEFAULT_BUDGET_COL_WIDTHS = [360, 148, 72, 48, 52, 110, 110] as const;
+const BUDGET_COL_COUNT = DEFAULT_BUDGET_COL_WIDTHS.length;
 
 function loadBudgetColWidths(): number[] {
   if (typeof window === 'undefined') {
@@ -41,7 +42,26 @@ function loadBudgetColWidths(): number[] {
     const raw = localStorage.getItem(BUDGET_COL_STORAGE_KEY);
     if (!raw) return [...DEFAULT_BUDGET_COL_WIDTHS];
     const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed) || parsed.length !== DEFAULT_BUDGET_COL_WIDTHS.length) {
+    if (!Array.isArray(parsed)) {
+      return [...DEFAULT_BUDGET_COL_WIDTHS];
+    }
+    /** Migração: 6 colunas (layout antigo) → insere coluna Função. */
+    if (parsed.length === 6) {
+      const nums = parsed.map((n) =>
+        typeof n === 'number' && Number.isFinite(n) ? Math.max(MIN_BUDGET_COL_PX, Math.round(n)) : MIN_BUDGET_COL_PX,
+      );
+      const [desc, cat, orig, qtd, vu, vt] = nums;
+      return [
+        Math.max(MIN_BUDGET_COL_PX, desc - 48),
+        148,
+        cat,
+        orig,
+        qtd,
+        vu,
+        vt,
+      ];
+    }
+    if (parsed.length !== BUDGET_COL_COUNT) {
       return [...DEFAULT_BUDGET_COL_WIDTHS];
     }
     return parsed.map((n) =>
@@ -158,15 +178,16 @@ function buildBudgetDrafts(
     else if (fromEditalRr) extractedSource = 'editalRr';
     else if (j?.description) extractedSource = 'map';
     else extractedSource = undefined;
+    const roleRef = (j?.role && String(j.role).trim()) || f.recordGroupKey || null;
     return {
       id: f.id,
       name: d.slice(0, 500),
-      itemCategory: guessItemCategory(rawDesc || d, f.recordGroupKey, src),
+      itemCategory: guessItemCategory(rawDesc || d, roleRef, src),
       plannedQuantity: contextOnly ? null : parseQuantity(j ?? {}),
       bidUnitValue: contextOnly ? null : bid,
       rubricMaxValue: null,
       purchasedValue: null,
-      roleReference: f.recordGroupKey,
+      roleReference: roleRef,
       sourcePage: f.sourcePage,
       sourceExcerpt: f.sourceExcerpt,
       contextOnly,
@@ -416,10 +437,19 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                     <th className="relative border-b border-border/90 border-r border-border px-2 py-2 pr-3 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-foreground/90">
                       Descrição
                       <button
-                        aria-label="Ajustar largura entre Descrição e Cat."
+                        aria-label="Ajustar largura entre Descrição e Função"
                         className="absolute right-0 top-0 z-10 h-full w-2 cursor-col-resize touch-none border-0 bg-transparent p-0 hover:bg-primary/20 active:bg-primary/30"
                         type="button"
                         onPointerDown={(ev) => handleBudgetColumnResizeStart(ev, 0)}
+                      />
+                    </th>
+                    <th className="relative border-b border-border/90 border-r border-border px-1.5 py-2 pr-3 text-left text-[10px] font-semibold tracking-[0.06em] text-foreground/90">
+                      Função / cargo
+                      <button
+                        aria-label="Ajustar largura entre Função e Cat."
+                        className="absolute right-0 top-0 z-10 h-full w-2 cursor-col-resize touch-none border-0 bg-transparent p-0 hover:bg-primary/20 active:bg-primary/30"
+                        type="button"
+                        onPointerDown={(ev) => handleBudgetColumnResizeStart(ev, 1)}
                       />
                     </th>
                     <th className="relative border-b border-border/90 border-r border-border px-1.5 py-2 pr-3 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-foreground/90">
@@ -428,7 +458,7 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                         aria-label="Ajustar largura entre Cat. e Orig."
                         className="absolute right-0 top-0 z-10 h-full w-2 cursor-col-resize touch-none border-0 bg-transparent p-0 hover:bg-primary/20 active:bg-primary/30"
                         type="button"
-                        onPointerDown={(ev) => handleBudgetColumnResizeStart(ev, 1)}
+                        onPointerDown={(ev) => handleBudgetColumnResizeStart(ev, 2)}
                       />
                     </th>
                     <th className="relative border-b border-border/90 border-r border-border px-1 py-2 pr-3 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-foreground/90">
@@ -437,7 +467,7 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                         aria-label="Ajustar largura entre Orig. e Qtd"
                         className="absolute right-0 top-0 z-10 h-full w-2 cursor-col-resize touch-none border-0 bg-transparent p-0 hover:bg-primary/20 active:bg-primary/30"
                         type="button"
-                        onPointerDown={(ev) => handleBudgetColumnResizeStart(ev, 2)}
+                        onPointerDown={(ev) => handleBudgetColumnResizeStart(ev, 3)}
                       />
                     </th>
                     <th className="relative border-b border-border/90 border-r border-border px-1 py-2 pr-3 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-foreground/90">
@@ -446,7 +476,7 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                         aria-label="Ajustar largura entre Qtd e Vlr unit. rubrica"
                         className="absolute right-0 top-0 z-10 h-full w-2 cursor-col-resize touch-none border-0 bg-transparent p-0 hover:bg-primary/20 active:bg-primary/30"
                         type="button"
-                        onPointerDown={(ev) => handleBudgetColumnResizeStart(ev, 3)}
+                        onPointerDown={(ev) => handleBudgetColumnResizeStart(ev, 4)}
                       />
                     </th>
                     <th className="relative border-b border-border/90 border-r border-border px-1.5 py-2 pr-3 text-right text-[10px] font-semibold uppercase tracking-[0.06em] text-foreground/90">
@@ -455,7 +485,7 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                         aria-label="Ajustar largura entre Vlr unit. rubrica e Vlr total rubrica"
                         className="absolute right-0 top-0 z-10 h-full w-2 cursor-col-resize touch-none border-0 bg-transparent p-0 hover:bg-primary/20 active:bg-primary/30"
                         type="button"
-                        onPointerDown={(ev) => handleBudgetColumnResizeStart(ev, 4)}
+                        onPointerDown={(ev) => handleBudgetColumnResizeStart(ev, 5)}
                       />
                     </th>
                     <th className="border-b border-border px-1.5 py-2 text-right text-[10px] font-semibold uppercase tracking-[0.06em] text-foreground/90">
@@ -487,6 +517,28 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
                               rows={2}
                               spellCheck={false}
                               value={b.name}
+                            />
+                          </div>
+                        </td>
+                        <td className="min-w-0 border-b border-r border-border bg-muted/25 p-0 align-top">
+                          <div className="px-1.5 pt-1.5">
+                            <textarea
+                              className={cn(
+                                'box-border min-h-[2.25rem] w-full resize-y border-0 bg-transparent py-1.5 text-[12px] leading-snug text-foreground outline-none',
+                                'placeholder:text-muted-foreground focus:bg-muted focus:ring-1 focus:ring-inset focus:ring-primary/25',
+                              )}
+                              onChange={(e) =>
+                                setBudgetItems((prev) =>
+                                  prev.map((x) =>
+                                    x.id === b.id ? { ...x, roleReference: e.target.value.trim() || null } : x,
+                                  ),
+                                )
+                              }
+                              placeholder="Cargo no edital (ex.: Secretário…)"
+                              rows={2}
+                              spellCheck={false}
+                              title="Função/cargo acima da tabela TIPO/QTD no PDF — distingue peças com o mesmo nome."
+                              value={b.roleReference ?? ''}
                             />
                           </div>
                         </td>
@@ -598,7 +650,8 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
           {budgetItems.length > 0 ? (
             <p className="mt-2 text-[11px] leading-relaxed text-foreground/90">
               <span className="font-medium">Legenda:</span> S7 = seção 7 · S8 = lista com traço (EPI) ·
-              Mapa = implantação · Parágrafos 8.7.x só normativos (sem rubrica) não entram nesta lista ·{' '}
+              Mapa = implantação · TR = tabela TIPO/QTD (Roraima) · Função = cargo no PDF acima da tabela · Parágrafos
+              8.7.x só normativos (sem rubrica) não entram nesta lista ·{' '}
               <span className="text-foreground/85">Vlr unit. / total rubrica</span> = conforme o edital. Arraste entre
               colunas no cabeçalho para ajustar larguras (preferência salva no navegador). Passe o cursor na linha para
               ver trecho do PDF.

@@ -87,6 +87,25 @@ describe('parseEditalMateriaisDisponibilizados', () => {
     const first = JSON.parse(r.budgetLines[0]!.proposedValue) as { source: string; item: string };
     assert.equal(first.source, 'edital_tr_tipo_qtd_roraima');
     assert.match(first.item, /Casaco/i);
+    assert.match(r.budgetLines[0]!.recordGroupKey ?? '', /Agente de Portaria/);
+  });
+
+  it('TR tipo/qtd: cargo com parênteses vira recordGroupKey e role no JSON', () => {
+    const r = parseEditalMateriaisDisponibilizados(`
+TIPO/QTD ESPECIFICAÇÃO
+Secretário(a) Executivo(a):
+Casaco
+01 unidade
+Tecido em microfibra.
+9 MODELO DE GESTÃO DO CONTRATO
+`);
+    assert.equal(r.matchedProfile, 'roraima_tr_tabelas');
+    assert.ok(r.budgetLines.length >= 1);
+    const bl = r.budgetLines.find((b) => (JSON.parse(b.proposedValue) as { item: string }).item === 'Casaco');
+    assert.ok(bl);
+    assert.match(bl!.recordGroupKey ?? '', /Secretário\(a\) Executivo\(a\)/);
+    const pv = JSON.parse(bl!.proposedValue) as { role: string | null };
+    assert.ok(pv.role && /Secretário/.test(pv.role));
   });
 
   it('usa perfil Roraima quando o título traz MATERIAIS, EQUIPAMENTOS', () => {

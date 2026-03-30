@@ -134,6 +134,18 @@ function extractBudgetLinesForProfile(
   return extractBudgetLinesFromSection7(slice, profile);
 }
 
+/** Linhas antes de TIPO/QTD (cargo, SOLUÇÃO ÚNICA) ficam fora do slice que começa na âncora — reanexam o trecho. */
+const TIPO_QTD_LOOKBACK_CHARS = 4000;
+const TIPO_QTD_LOOKBACK_LINES = 45;
+
+function sliceWithTipoQtdRoleContext(fullText: string, anchorIdx: number): string {
+  const head = fullText.slice(Math.max(0, anchorIdx - TIPO_QTD_LOOKBACK_CHARS), anchorIdx);
+  const lines = head.split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const prefix = lines.slice(-TIPO_QTD_LOOKBACK_LINES).join('\n');
+  const rest = fullText.slice(anchorIdx);
+  return prefix ? `${prefix}\n${rest}` : rest;
+}
+
 /**
  * Extrai linhas ITEM + descrição + quantidade da seção 7 conforme perfis (Paraná, Roraima, …).
  * Ordem automática: primeiro perfil cuja âncora for encontrada.
@@ -148,7 +160,10 @@ export function parseEditalMateriaisDisponibilizados(fullText: string): EditalMa
       continue;
     }
 
-    const slice = text.slice(anchorIdx);
+    let slice = text.slice(anchorIdx);
+    if (profile.id === 'roraima_tr_tabelas') {
+      slice = sliceWithTipoQtdRoleContext(text, anchorIdx);
+    }
     const budgetLines7 = extractBudgetLinesForProfile(slice, profile);
 
     return {
