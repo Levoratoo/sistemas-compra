@@ -1,0 +1,34 @@
+# Cria/atualiza os 3 utilizadores demo na base Postgres (Render ou outra).
+# Não precisa do Shell pago do Render: corre no GitHub (plano gratuito).
+#
+# 1) GitHub → Settings → Secrets and variables → Actions → New repository secret
+#    Nome: DATABASE_URL
+#    Valor: connection string da base (Render → Postgres → Connections → URI)
+# 2) Actions → "Seed demo users" → Run workflow
+
+name: Seed demo users
+
+on:
+  workflow_dispatch:
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Prisma generate
+        run: npm run db:generate
+
+      - name: Seed users (upsert, não apaga dados)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npm run db:seed:users
