@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Sparkles, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -13,15 +13,17 @@ import { mainNav } from '@/lib/nav';
 export function AppSidebar() {
   const pathname = usePathname();
   const { open, setOpen } = useSidebar();
+  const setOpenRef = useRef(setOpen);
+  setOpenRef.current = setOpen;
 
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape') setOpenRef.current(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, setOpen]);
+  }, [open]);
 
   useEffect(() => {
     if (open) {
