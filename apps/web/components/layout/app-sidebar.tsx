@@ -21,7 +21,7 @@ export function AppSidebar() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
+  }, [open, setOpen]);
 
   useEffect(() => {
     if (open) {
