@@ -37,11 +37,24 @@ export function pickBidUnitValue(j: ParsedBudgetLineJson): number | null {
   return parseFirstBrlNumber(j.totalOrUnit ?? j.monthlyOrTotal);
 }
 
+/**
+ * Quantidade no JSON pode ser número puro (edital CONSAMU) ou texto do TR ("02 unidades", "03 pares").
+ */
 export function parseQuantity(j: ParsedBudgetLineJson): number | null {
-  const q = j.quantity?.trim();
-  if (!q) return null;
-  const n = Number(q.replace(',', '.'));
-  return Number.isFinite(n) && n >= 0 ? n : null;
+  const raw = j.quantity;
+  if (raw == null) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+
+  const unitMatch = s.match(/^(\d{1,6})\s*(?:unidades?|pares?|par)\b/i);
+  if (unitMatch) {
+    const n = Number.parseInt(unitMatch[1], 10);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  }
+
+  const n = Number(s.replace(/\s/g, '').replace(',', '.'));
+  if (Number.isFinite(n) && n >= 0) return n;
+  return null;
 }
 
 export function guessItemCategory(

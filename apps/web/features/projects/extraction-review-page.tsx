@@ -74,7 +74,7 @@ type BudgetDraft = {
   sourcePage: number | null;
   sourceExcerpt: string | null;
   /** Presente só na revisão logo após extração (antes de aplicar ao projeto). */
-  extractedSource?: 'edital' | 'edital8' | 'map';
+  extractedSource?: 'edital' | 'edital8' | 'editalRr' | 'map';
   /** Trecho normativo do edital (ex. cláusulas 8.7.x) — sem previsão de compra/valores. */
   contextOnly: boolean;
 };
@@ -83,6 +83,7 @@ function budgetSourceAbbrev(b: BudgetDraft): string {
   if (b.contextOnly) return 'Ref.';
   if (b.extractedSource === 'edital') return 'S7';
   if (b.extractedSource === 'edital8') return 'S8';
+  if (b.extractedSource === 'editalRr') return 'TR';
   if (b.extractedSource === 'map') return 'Mapa';
   if (b.sourceExcerpt) return 'Doc';
   return '—';
@@ -147,11 +148,14 @@ function buildBudgetDrafts(
     const fromEdital7 = src === 'edital_secao_7';
     const fromEdital8 =
       src === 'edital_secao_8_uniforme_epi' || src === 'edital_secao_8_epi_lista';
-    const fromEdital = fromEdital7 || fromEdital8;
+    const fromEditalRr =
+      src === 'edital_secao_7_roraima' || src === 'edital_tr_tipo_qtd_roraima';
+    const fromEdital = fromEdital7 || fromEdital8 || fromEditalRr;
     const contextOnly = isEditalBudgetLineContextOnly(j);
     let extractedSource: BudgetDraft['extractedSource'];
     if (fromEdital7) extractedSource = 'edital';
     else if (fromEdital8) extractedSource = 'edital8';
+    else if (fromEditalRr) extractedSource = 'editalRr';
     else if (j?.description) extractedSource = 'map';
     else extractedSource = undefined;
     return {
