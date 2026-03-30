@@ -136,6 +136,24 @@ export function ImageOcrDialog({ open, onOpenChange }: ImageOcrDialogProps) {
     }
   }
 
+  function tableAsTsv(rows: OcrTableRow[]): string {
+    const header = 'Item\tQuantidade\tDescrição';
+    const lines = rows.map((r) =>
+      [r.item, r.quantity, r.description.replace(/\t/g, ' ')].join('\t'),
+    );
+    return [header, ...lines].join('\n');
+  }
+
+  async function copyTableTsv() {
+    if (!tableRows.length) return;
+    try {
+      await navigator.clipboard.writeText(tableAsTsv(tableRows));
+      toast.success('Tabela copiada (colunas separadas por tab).');
+    } catch {
+      toast.error('Não foi possível copiar a tabela.');
+    }
+  }
+
   return (
     <Dialog
       onOpenChange={(o) => {
