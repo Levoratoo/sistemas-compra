@@ -1,7 +1,28 @@
 import type { ApiErrorPayload } from '@/types/api';
 import { getStoredToken } from '@/lib/auth-storage';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api';
+/**
+ * Base da API (termina em `/api` na URL pública do Render).
+ * Produção (ex.: Vercel): `NEXT_PUBLIC_API_URL` vem embutida no build — é a única fonte.
+ * Desenvolvimento: sem env, usa mesma origem + `/api` (proxy do `next dev`) ou fallback local.
+ */
+export function getApiBaseUrl(): string {
+  const raw = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (raw) {
+    return raw.replace(/\/+$/, '');
+  }
+  if (typeof window !== 'undefined') {
+    const basePath = process.env.NEXT_PUBLIC_BASE_PATH?.trim() || '';
+    const prefix = basePath.replace(/\/+$/, '');
+    return `${window.location.origin}${prefix}/api`;
+  }
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'NEXT_PUBLIC_API_URL em falta no build de produção (deve estar definida na Vercel).',
+    );
+  }
+  return 'http://localhost:3000/api';
+}
 
 function authHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
@@ -30,10 +51,12 @@ type RequestOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   query?: Record<string, string | number | boolean | undefined | null>;
+  /** Não envia `Authorization` (usar em `auth/login` para nunca mandar JWT antigo). */
+  skipAuth?: boolean;
 };
 
 const NETWORK_HINT =
-  'Não foi possível contactar a API. Se o site está na internet: defina NEXT_PUBLIC_API_URL no build (URL pública https da API), inclua a origem do site em CORS_ORIGIN na API e confira se o serviço da API está no ar.';
+  'Não foi possível contactar a API (rede, CORS no Render ou serviço indisponível).';
 
 function rethrowIfNetworkFailure(cause: unknown): never {
   if (cause instanceof ApiError) {
@@ -52,7 +75,7 @@ function rethrowIfNetworkFailure(cause: unknown): never {
 }
 
 function buildUrl(path: string, query?: RequestOptions['query']) {
-  const base = API_BASE_URL.replace(/\/$/, '');
+  const base = getApiBaseUrl().replace(/\/$/, '');
   const cleanPath = path.replace(/^\//, '');
   const url = new URL(`${base}/${cleanPath}`);
 
@@ -76,7 +99,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
       method: options.method ?? 'GET',
       headers: {
         'Content-Type': 'application/json',
-        ...authHeaders(),
+        ...(options.skipAuth ? {} : authHeaders()),
       },
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
       cache: 'no-store',

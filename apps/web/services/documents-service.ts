@@ -1,4 +1,4 @@
-import { apiRequest } from '@/services/api-client';
+import { apiRequest, getApiBaseUrl } from '@/services/api-client';
 import type {
   DocumentType,
   ExtractedFieldReviewStatus,
@@ -97,7 +97,7 @@ export function moveProjectDocumentToFolder(
 
 /** URL da API para download do arquivo original (GET, `Content-Disposition: attachment`). */
 export function getProjectDocumentDownloadUrl(projectId: string, documentId: string) {
-  const base = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api').replace(/\/+$/, '');
+  const base = getApiBaseUrl().replace(/\/+$/, '');
   return `${base}/projects/${projectId}/documents/${documentId}/download`;
 }
 

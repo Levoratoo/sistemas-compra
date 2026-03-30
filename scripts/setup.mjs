@@ -60,16 +60,28 @@ function writeFile(targetPath, contents) {
 
 const { envPath, values } = readBootstrapEnv();
 
+const port = (values.PORT ?? '3000').trim();
+const apiBackendUrl = (values.API_BACKEND_URL ?? '').trim() || `http://127.0.0.1:${port}`;
+const nextPublicApiUrl = (values.NEXT_PUBLIC_API_URL ?? '').trim();
+
 const apiEnv = `
-PORT=${values.PORT ?? '3000'}
-CORS_ORIGIN=${values.CORS_ORIGIN ?? 'http://localhost:3001'}
+PORT=${port}
+CORS_ORIGIN=${values.CORS_ORIGIN ?? 'http://localhost:3016,http://localhost:3000'}
 DATABASE_URL=${values.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/sitecompras?schema=public'}
 UPLOADS_DIR=${values.UPLOADS_DIR ?? './uploads'}
 `;
 
-const webEnv = `
-NEXT_PUBLIC_API_URL=${values.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api'}
-`;
+const webEnvLines = [];
+if (nextPublicApiUrl) {
+  webEnvLines.push(`NEXT_PUBLIC_API_URL=${nextPublicApiUrl}`);
+} else {
+  webEnvLines.push(
+    '# Vazio = no browser usa mesma origem + /api; em `next dev` o proxy encaminha para API_BACKEND_URL.',
+  );
+  webEnvLines.push('NEXT_PUBLIC_API_URL=');
+}
+webEnvLines.push(`API_BACKEND_URL=${apiBackendUrl}`);
+const webEnv = webEnvLines.join('\n');
 
 writeFile(path.join(rootDir, 'apps', 'api', '.env'), apiEnv);
 writeFile(path.join(rootDir, 'apps', 'web', '.env'), webEnv);

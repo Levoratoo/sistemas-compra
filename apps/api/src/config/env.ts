@@ -48,6 +48,18 @@ const envSchema = z.object({
   /** Mínimo 32 caracteres em produção; em dev pode ficar vazio e usa fallback no código. */
   JWT_SECRET: z.string().optional(),
   JWT_EXPIRES_IN: z.string().default('7d'),
+  /** EmailJS: envio de e-mail ao criar solicitação de item faltante (ver .env.example). */
+  EMAILJS_ENABLED: z.string().optional(),
+  EMAILJS_SERVICE_ID: z.string().optional(),
+  EMAILJS_TEMPLATE_ID: z.string().optional(),
+  /** Public Key (User ID) no painel EmailJS. */
+  EMAILJS_PUBLIC_KEY: z.string().optional(),
+  /** Private Key — recomendada para envio pelo servidor (API REST). */
+  EMAILJS_PRIVATE_KEY: z.string().optional(),
+  /** E-mail do dono da empresa que recebe o pedido de aprovação. */
+  OWNER_APPROVAL_EMAIL: z.string().optional(),
+  /** URL pública do front (link no e-mail). Ex.: https://app.seudominio.com */
+  PUBLIC_APP_URL: z.string().optional(),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
@@ -97,14 +109,36 @@ function resolveJwtSecret(raw: string | undefined): string {
   if (process.env.NODE_ENV !== 'production') {
     return 'dev-only-jwt-secret-min-32-chars-sitecompras';
   }
-  throw new Error('JWT_SECRET is required in production (min 32 characters).');
+  throw new Error(
+    'JWT_SECRET é obrigatório em produção (mínimo 32 caracteres). No Render: Web Service → Environment → Add Environment Variable → JWT_SECRET (ex.: saída de `openssl rand -base64 32`).',
+  );
 }
 
+const data = parsedEnv.data;
+
 export const env = {
-  ...parsedEnv.data,
-  PORT: resolvePort(parsedEnv.data),
+  ...data,
+  PORT: resolvePort(data),
   APP_ROOT: appRoot,
-  UPLOADS_DIR_ABSOLUTE: path.resolve(appRoot, parsedEnv.data.UPLOADS_DIR),
-  JWT_SECRET: resolveJwtSecret(parsedEnv.data.JWT_SECRET),
-  JWT_EXPIRES_IN: parsedEnv.data.JWT_EXPIRES_IN,
+  UPLOADS_DIR_ABSOLUTE: path.resolve(appRoot, data.UPLOADS_DIR),
+  JWT_SECRET: resolveJwtSecret(data.JWT_SECRET),
+  JWT_EXPIRES_IN: data.JWT_EXPIRES_IN,
 };
+
+/** EmailJS pronto para envio (o destinatário do aprovador resolve-se em `emailjs.service`). */
+export function isEmailJsConfigured(): boolean {
+  return (
+    data.EMAILJS_ENABLED === 'true' &&
+    Boolean(data.EMAILJS_SERVICE_ID?.trim()) &&
+    Boolean(data.EMAILJS_TEMPLATE_ID?.trim()) &&
+    Boolean(data.EMAILJS_PUBLIC_KEY?.trim())
+  );
+}
+
+export function getPublicAppUrl(): string {
+  const raw = data.PUBLIC_APP_URL?.trim();
+  if (raw) {
+    return raw.replace(/\/+$/, '');
+  }
+  return 'http://localhost:3016';
+}

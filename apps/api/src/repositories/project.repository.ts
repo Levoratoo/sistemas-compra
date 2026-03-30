@@ -126,6 +126,14 @@ class ProjectRepository {
       select: { id: true },
     });
   }
+
+  /** Dados mínimos para e-mails/notificações sem carregar o agregado completo. */
+  findSummaryById(id: string) {
+    return prisma.project.findUnique({
+      where: { id },
+      select: { id: true, name: true, code: true },
+    });
+  }
 }
 
 export const projectRepository = new ProjectRepository();

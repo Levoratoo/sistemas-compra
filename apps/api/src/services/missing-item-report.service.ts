@@ -8,6 +8,7 @@ import { env } from '../config/env.js';
 import { missingItemReportAttachmentRepository } from '../repositories/missing-item-report-attachment.repository.js';
 import { missingItemReportRepository } from '../repositories/missing-item-report.repository.js';
 import { projectRepository } from '../repositories/project.repository.js';
+import { notifyMissingItemReportCreated } from './emailjs.service.js';
 import type {
   CreateMissingItemReportInput,
   UpdateMissingItemReportInput,
@@ -93,6 +94,24 @@ class MissingItemReportService {
       necessityReason: input.necessityReason,
       urgencyLevel: input.urgencyLevel,
     });
+
+    const projectSummary = await projectRepository.findSummaryById(projectId);
+    if (projectSummary) {
+      void notifyMissingItemReportCreated({
+        projectId,
+        projectName: projectSummary.name,
+        projectCode: projectSummary.code,
+        reportId: row.id,
+        requesterName: row.requesterName,
+        itemToAcquire: row.itemToAcquire,
+        estimatedQuantity: row.estimatedQuantity,
+        necessityReason: row.necessityReason,
+        urgencyLevel: row.urgencyLevel,
+        requestDate: row.requestDate,
+      }).catch((err) => {
+        console.error('[missing-item-report] EmailJS notification failed', err);
+      });
+    }
 
     return serializeMissingItemReport(row);
   }

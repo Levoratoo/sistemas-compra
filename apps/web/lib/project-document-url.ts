@@ -1,8 +1,10 @@
 import type { ProjectDocument } from '@/types/api';
 
+import { getApiBaseUrl } from '@/services/api-client';
+
 /** URL pública servida por `express.static` em `/uploads` (mesma origem da API, sem prefixo `/api`). */
 export function projectDocumentPublicFileUrl(storagePath: string): string {
-  const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api';
+  const base = getApiBaseUrl();
   const origin = base.replace(/\/api\/?$/, '');
   const rel = storagePath.replace(/^uploads\//, '');
   return `${origin}/uploads/${rel.split('/').map(encodeURIComponent).join('/')}`;

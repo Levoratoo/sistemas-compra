@@ -5,6 +5,7 @@ import type { UserRole } from '@prisma/client';
 
 import { env } from '../config/env.js';
 import { AppError } from '../utils/app-error.js';
+import { isPublicApiHealthRequest } from '../utils/public-api-paths.js';
 
 type JwtPayload = {
   sub: string;
@@ -16,6 +17,11 @@ type JwtPayload = {
 
 export function authenticate(req: Request, _res: Response, next: NextFunction) {
   if (req.method === 'OPTIONS') {
+    next();
+    return;
+  }
+
+  if (isPublicApiHealthRequest(req)) {
     next();
     return;
   }

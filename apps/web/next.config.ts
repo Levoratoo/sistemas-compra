@@ -11,6 +11,13 @@ const staticExport = process.env.NEXT_STATIC_EXPORT === '1';
 /** Opcional: subpath (ex.: `nome-do-repo` no GitHub Pages). */
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH?.trim() || undefined;
 
+/**
+ * Só em `next dev` local: encaminha `/api` e `/uploads` para o Express (API_BACKEND_URL).
+ * Produção (ex.: Vercel + API no Render): não usa isto — o browser chama direto NEXT_PUBLIC_API_URL.
+ */
+const enableApiDevProxy =
+  process.env.NODE_ENV === 'development' && process.env.NEXT_STATIC_EXPORT !== '1';
+
 const nextConfig: NextConfig = {
   ...(staticExport && {
     output: 'export' as const,
@@ -31,6 +38,16 @@ const nextConfig: NextConfig = {
     /** Importa só os ícones usados (lucide), reduzindo JS inicial e rebuilds. */
     optimizePackageImports: ['lucide-react'],
   },
+  ...(enableApiDevProxy && {
+    async rewrites() {
+      const backend = process.env.API_BACKEND_URL?.trim() || 'http://127.0.0.1:3000';
+      const b = backend.replace(/\/+$/, '');
+      return [
+        { source: '/api/:path*', destination: `${b}/api/:path*` },
+        { source: '/uploads/:path*', destination: `${b}/uploads/:path*` },
+      ];
+    },
+  }),
 };
 
 export default nextConfig;

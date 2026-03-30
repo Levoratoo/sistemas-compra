@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import type { Prisma, UserRole } from '@prisma/client';
 
 import { prisma } from '../config/prisma.js';
 
@@ -18,6 +18,15 @@ class UserRepository {
   findMany() {
     return prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** Primeiro utilizador ativo com o papel (ex.: aprovador para notificações). */
+  findFirstActiveByRole(role: UserRole) {
+    return prisma.user.findFirst({
+      where: { role, isActive: true },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, email: true },
     });
   }
 
