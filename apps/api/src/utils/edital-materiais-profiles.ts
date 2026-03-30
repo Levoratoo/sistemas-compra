@@ -5,9 +5,10 @@
  * Paraná (CONSAMU / pregão oeste PR): seção 7 "MATERIAIS A SEREM DISPONIBILIZADOS".
  * Roraima (EBSERH / HU-UFRR e similares): variações comuns com vírgula ("MATERIAIS, EQUIPAMENTOS")
  * ou "RELACAO DE MATERIAIS" em anexo — ajustar regex após validar PDF real.
+ * Roraima TR (tabelas TIPO/QTD + ESPECIFICAÇÃO, uniformes por função — págs. típicas 46+).
  */
 export type EditalMateriaisProfile = {
-  id: 'parana' | 'roraima';
+  id: 'parana' | 'roraima' | 'roraima_tr_tabelas';
   /** Rótulo para logs / previewJson */
   label: string;
   /** Âncora principal (primeira tentativa) */
@@ -53,4 +54,25 @@ const RORAIMA: EditalMateriaisProfile = {
   payloadSource: 'edital_secao_7_roraima',
 };
 
-export const EDITAL_MATERIAIS_PROFILE_ORDER: EditalMateriaisProfile[] = [PARANA, RORAIMA];
+/**
+ * TR HU-UFRR / Roraima: tabelas com cabeçalhos TIPO/QTD e ESPECIFICAÇÃO (sem coluna ITEM 1,2,3…).
+ * Âncora na primeira ocorrência do cabeçalho da tabela ou em SOLUÇÃO ÚNICA.
+ * Não usar como fim do bloco "8 UNIFORMES" (o conteúdo pode estar dentro do cap. 8).
+ */
+const RORAIMA_TR_TABELAS: EditalMateriaisProfile = {
+  id: 'roraima_tr_tabelas',
+  label: 'Roraima TR — TIPO/QTD + ESPECIFICAÇÃO (uniformes)',
+  /** PDFs podem perder a barra no texto copiado. */
+  anchorMain: /\b(?:TIPO\s*\/\s*QTD|TIPO\s+QTD)\b/i,
+  anchorSub: /\bSOLU[CÇ][AÃ]O\s+[ÚU]NICA\b/i,
+  sectionStop:
+    /\n\s*(?:9\s+MODELO\s+DE\s+GEST|9\s*\.\s*MODELO|MODELO\s+DE\s+GEST[AÃ]O\s+DO\s+CONTRATO|CAP[ÍI]TULO\s+9\b|9\s+DO\s+OBJETO)/i,
+  recordGroup: 'TR — Uniformes (TIPO/QTD — Roraima)',
+  payloadSource: 'edital_tr_tipo_qtd_roraima',
+};
+
+export const EDITAL_MATERIAIS_PROFILE_ORDER: EditalMateriaisProfile[] = [
+  PARANA,
+  RORAIMA_TR_TABELAS,
+  RORAIMA,
+];

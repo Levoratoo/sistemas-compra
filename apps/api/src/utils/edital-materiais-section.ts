@@ -1,5 +1,6 @@
 import type { EditalMateriaisProfile } from './edital-materiais-profiles.js';
 import { EDITAL_MATERIAIS_PROFILE_ORDER } from './edital-materiais-profiles.js';
+import { extractBudgetLinesFromRoraimaTipoQtd } from './edital-roraima-tipo-qtd.js';
 import { parseEditalSecao8UniformesEpi } from './edital-secao8-uniformes-epi.js';
 import type { BudgetLineCandidate } from './implementation-map-pdf.js';
 
@@ -14,7 +15,12 @@ const MAX_MERGE_LINES = 45;
 
 const MAX_SLICE = 90_000;
 
-export type EditalMateriaisMatchedProfile = 'parana' | 'roraima' | 'sec8_uniformes' | null;
+export type EditalMateriaisMatchedProfile =
+  | 'parana'
+  | 'roraima'
+  | 'roraima_tr_tabelas'
+  | 'sec8_uniformes'
+  | null;
 
 export type EditalMateriaisParse = {
   anchorFound: boolean;
@@ -118,6 +124,16 @@ function extractBudgetLinesFromSection7(
   return budgetLines;
 }
 
+function extractBudgetLinesForProfile(
+  slice: string,
+  profile: EditalMateriaisProfile,
+): BudgetLineCandidate[] {
+  if (profile.id === 'roraima_tr_tabelas') {
+    return extractBudgetLinesFromRoraimaTipoQtd(slice, profile);
+  }
+  return extractBudgetLinesFromSection7(slice, profile);
+}
+
 /**
  * Extrai linhas ITEM + descrição + quantidade da seção 7 conforme perfis (Paraná, Roraima, …).
  * Ordem automática: primeiro perfil cuja âncora for encontrada.
@@ -133,7 +149,7 @@ export function parseEditalMateriaisDisponibilizados(fullText: string): EditalMa
     }
 
     const slice = text.slice(anchorIdx);
-    const budgetLines7 = extractBudgetLinesFromSection7(slice, profile);
+    const budgetLines7 = extractBudgetLinesForProfile(slice, profile);
 
     return {
       anchorFound: true,

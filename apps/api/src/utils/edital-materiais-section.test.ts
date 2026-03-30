@@ -27,6 +27,30 @@ ITEM DESCRIÇÃO QTD
 8. DISPOSIÇÕES FINAIS
 `;
 
+/** TR Roraima: tabela TIPO/QTD (uniformes por função), sem coluna ITEM numérica. */
+const FIXTURE_RORAIMA_TR_TIPO_QTD = `
+8 UNIFORMES
+SOLUÇÃO ÚNICA
+Agente de Portaria:
+TIPO/QTD ESPECIFICAÇÃO
+FEMININO / MASCULINO
+Casaco
+02 unidades
+Tipo pulôver, fechado, com gola V, cor azul marinho, emblema bordado.
+Calça
+02 unidades
+Calça comprida, modelo social, cor azul marinho, presilhas para cinto.
+Bombeiro Civil:
+TIPO/QTD ESPECIFICAÇÃO
+Camiseta de algodão com identificação
+02 unidades
+Conforme especificação disposta na Norma Brasileira ABNT - NBR 14276.
+Boné
+01 unidade
+Conforme especificação disposta na Norma Brasileira ABNT - NBR 14276.
+9 MODELO DE GESTÃO DO CONTRATO
+`;
+
 /** Só seção 8 (uniformes), sem seção 7 reconhecida. */
 const FIXTURE_SEC8_ONLY = `
 CONTRATO
@@ -53,6 +77,16 @@ describe('parseEditalMateriaisDisponibilizados', () => {
     assert.ok(r.budgetLines.length >= 2);
     const sources = r.budgetLines.map((b) => JSON.parse(b.proposedValue).source);
     assert.ok(sources.every((s) => s === 'edital_secao_7'));
+  });
+
+  it('usa perfil roraima_tr_tabelas quando há TIPO/QTD + linhas de quantidade', () => {
+    const r = parseEditalMateriaisDisponibilizados(FIXTURE_RORAIMA_TR_TIPO_QTD);
+    assert.equal(r.matchedProfile, 'roraima_tr_tabelas');
+    assert.equal(r.anchorFound, true);
+    assert.ok(r.budgetLines.length >= 4, `esperado ≥4 linhas, obtido ${r.budgetLines.length}`);
+    const first = JSON.parse(r.budgetLines[0]!.proposedValue) as { source: string; item: string };
+    assert.equal(first.source, 'edital_tr_tipo_qtd_roraima');
+    assert.match(first.item, /Casaco/i);
   });
 
   it('usa perfil Roraima quando o título traz MATERIAIS, EQUIPAMENTOS', () => {

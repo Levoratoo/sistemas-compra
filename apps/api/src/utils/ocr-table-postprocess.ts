@@ -57,6 +57,7 @@ function buildItemSplitSource(): string {
 
 const ITEM_SPLIT_RE = new RegExp(`(?=${buildItemSplitSource()})`, 'i');
 const ITEM_HEADER_RE = new RegExp(`^\\s*(${buildItemAlternation()})\\s*(.*)$`, 'is');
+const ORPHAN_QTY_ONLY_RE = /^\s*(\d{1,2}\s+(?:unidades?|pares?|par))\s*\.?\s*$/i;
 
 function normalizeWhitespace(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
