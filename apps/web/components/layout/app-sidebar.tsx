@@ -8,11 +8,14 @@ import { Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSidebar } from '@/components/layout/sidebar-context';
 import { cn } from '@/lib/utils';
-import { mainNav } from '@/lib/nav';
+import { useAuth } from '@/components/auth/auth-context';
+import { adminNavItem, mainNav } from '@/lib/nav';
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { isAdmin } = useAuth();
   const { open, setOpen } = useSidebar();
+  const navItems = isAdmin ? [...mainNav, adminNavItem] : mainNav;
   const setOpenRef = useRef(setOpen);
   setOpenRef.current = setOpen;
 
@@ -82,7 +85,7 @@ export function AppSidebar() {
               </div>
 
               <nav className="space-y-1" aria-label="Principal">
-                {mainNav.map((item) => {
+                {navItems.map((item) => {
                   const active =
                     pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
                   const Icon = item.icon;

@@ -144,6 +144,26 @@ enum OwnerApprovalStatus {
   REJECTED
 }
 
+enum UserRole {
+  ADMIN
+  USER
+  APPROVER
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         UserRole  @default(USER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([role])
+  @@index([isActive])
+}
+
 model Project {
   id                       String               @id @default(cuid())
   code                     String               @unique

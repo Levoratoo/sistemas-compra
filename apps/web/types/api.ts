@@ -110,6 +110,16 @@ export interface EntityTimestamps {
   updatedAt: string | null;
 }
 
+export type UserRole = 'ADMIN' | 'USER' | 'APPROVER';
+
+export interface AuthUser extends EntityTimestamps {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  isActive: boolean;
+}
+
 export interface Project extends EntityTimestamps {
   id: string;
   code: string;

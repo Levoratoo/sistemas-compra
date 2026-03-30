@@ -5,6 +5,7 @@ import type {
   MissingItemReport,
   MissingItemReportAttachment,
   Project,
+  User,
   ProjectDocument,
   ProjectDocumentFolder,
   ProjectRole,
@@ -17,6 +18,18 @@ import type {
 
 import { decimalToNumber } from './decimal.js';
 import { toIsoString } from './date.js';
+
+export function serializeUser(user: User) {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    isActive: user.isActive,
+    createdAt: toIsoString(user.createdAt),
+    updatedAt: toIsoString(user.updatedAt),
+  };
+}
 
 export function serializeProject(project: Project) {
   return {

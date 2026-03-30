@@ -1,6 +1,18 @@
 import type { ApiErrorPayload } from '@/types/api';
+import { getStoredToken } from '@/lib/auth-storage';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api';
+
+function authHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const token = getStoredToken();
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  return headers;
+}
 
 export class ApiError extends Error {
   status: number;
@@ -64,6 +76,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
       method: options.method ?? 'GET',
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders(),
       },
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
       cache: 'no-store',
@@ -96,6 +109,7 @@ export async function apiUploadJson<T>(path: string, formData: FormData) {
   try {
     response = await fetch(buildUrl(path), {
       method: 'POST',
+      headers: authHeaders(),
       body: formData,
       cache: 'no-store',
     });

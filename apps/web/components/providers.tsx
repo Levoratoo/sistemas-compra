@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useTheme } from 'next-themes';
 import { Toaster } from 'sonner';
 
+import { AuthProvider } from '@/components/auth/auth-context';
 import { ThemeProvider } from '@/components/theme-provider';
 
 function ThemeAwareToaster() {
@@ -53,8 +54,10 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        {children}
-        <ThemeAwareToaster />
+        <AuthProvider>
+          {children}
+          <ThemeAwareToaster />
+        </AuthProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );

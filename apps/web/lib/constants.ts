@@ -12,6 +12,7 @@ import type {
   PurchaseStatus,
   ReplenishmentDerivedStatus,
   ReplenishmentTriggerType,
+  UserRole,
 } from '@/types/api';
 
 export const projectStatusOptions: Array<{ value: ProjectStatus; label: string }> = [
@@ -166,4 +167,14 @@ export function getReplenishmentStatusLabel(value: ReplenishmentDerivedStatus) {
     case 'SCHEDULED':
       return 'Agendada';
   }
+}
+
+export const userRoleOptions: Array<{ value: UserRole; label: string }> = [
+  { value: 'ADMIN', label: 'Administrador' },
+  { value: 'USER', label: 'Usuário' },
+  { value: 'APPROVER', label: 'Aprovador' },
+];
+
+export function getUserRoleLabel(role: UserRole) {
+  return userRoleOptions.find((o) => o.value === role)?.label ?? role;
 }

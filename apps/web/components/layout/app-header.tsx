@@ -1,10 +1,14 @@
 'use client';
 
-import { CalendarDays, PanelLeft } from 'lucide-react';
+import { CalendarDays, LogOut, PanelLeft } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 
+import { useAuth } from '@/components/auth/auth-context';
 import { useSidebar } from '@/components/layout/sidebar-context';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { getUserRoleLabel } from '@/lib/constants';
 
 const pageTitles: Record<string, { title: string; description: string }> = {
   '/': {
@@ -59,12 +63,20 @@ function derivePageCopy(pathname: string) {
     return { title: 'Projeto', description: 'Visão geral do contrato e seus módulos operacionais.' };
   }
 
+  if (pathname.startsWith('/admin/users')) {
+    return {
+      title: 'Usuários',
+      description: 'Gerencie contas, perfis (admin, usuário, aprovador) e acessos ao sistema.',
+    };
+  }
+
   return pageTitles[pathname] ?? pageTitles['/'];
 }
 
 export function AppHeader() {
   const pathname = usePathname();
   const copy = derivePageCopy(pathname);
+  const { user, logout } = useAuth();
   const { open: sidebarOpen, setOpen: setSidebarOpen } = useSidebar();
 
   return (
@@ -89,6 +101,27 @@ export function AppHeader() {
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
             <ThemeToggle />
+            {user ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/90 bg-card px-3 py-2 text-sm shadow-sm sm:gap-3 sm:px-4 sm:py-2.5">
+                <div className="min-w-0 text-left">
+                  <p className="truncate font-medium text-foreground">{user.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                </div>
+                <Badge className="shrink-0" variant="secondary">
+                  {getUserRoleLabel(user.role)}
+                </Badge>
+                <Button
+                  className="shrink-0 gap-1.5 text-muted-foreground"
+                  onClick={() => logout()}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <LogOut className="size-4" aria-hidden />
+                  Sair
+                </Button>
+              </div>
+            ) : null}
             <div className="flex items-center gap-3 rounded-2xl border border-border/90 bg-card px-4 py-2.5 text-sm text-muted-foreground shadow-sm">
               <CalendarDays className="size-4 text-primary" aria-hidden />
               <span className="tabular-nums">

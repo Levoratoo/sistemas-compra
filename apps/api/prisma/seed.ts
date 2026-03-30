@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 import 'dotenv/config';
 
+import bcrypt from 'bcryptjs';
 import { Prisma, PrismaClient } from '@prisma/client';
 
 const currentFile = fileURLToPath(import.meta.url);
@@ -34,6 +35,7 @@ function decimal(value: number) {
 }
 
 async function resetDatabase() {
+  await prisma.user.deleteMany();
   await prisma.replenishmentEvent.deleteMany();
   await prisma.replenishmentRule.deleteMany();
   await prisma.purchaseOrderItem.deleteMany();
@@ -379,6 +381,33 @@ async function main() {
       purchaseDate: new Date('2026-03-19T00:00:00.000Z'),
       internalReference: 'PC-2026-003',
       notes: 'Cotacao complementar de EPIs.',
+    },
+  });
+
+  const hashPassword = (plain: string) => bcrypt.hashSync(plain, 12);
+
+  await prisma.user.create({
+    data: {
+      email: 'admin@sitecompras.local',
+      passwordHash: hashPassword('Admin@123'),
+      name: 'Administrador',
+      role: 'ADMIN',
+    },
+  });
+  await prisma.user.create({
+    data: {
+      email: 'usuario@sitecompras.local',
+      passwordHash: hashPassword('Usuario@123'),
+      name: 'Usuário operacional',
+      role: 'USER',
+    },
+  });
+  await prisma.user.create({
+    data: {
+      email: 'aprovador@sitecompras.local',
+      passwordHash: hashPassword('Aprovador@123'),
+      name: 'Aprovador',
+      role: 'APPROVER',
     },
   });
 

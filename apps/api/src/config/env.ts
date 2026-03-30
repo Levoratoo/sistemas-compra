@@ -42,9 +42,12 @@ const portFromEnv = z.preprocess((val: unknown): number | undefined => {
 
 const envSchema = z.object({
   PORT: portFromEnv,
-  CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  CORS_ORIGIN: z.string().default('http://localhost:3016,http://localhost:5173'),
   DATABASE_URL: z.string().min(1),
   UPLOADS_DIR: z.string().default('./uploads'),
+  /** Mínimo 32 caracteres em produção; em dev pode ficar vazio e usa fallback no código. */
+  JWT_SECRET: z.string().optional(),
+  JWT_EXPIRES_IN: z.string().default('7d'),
 });
 
 const parsedEnv = envSchema.safeParse(process.env);
@@ -86,9 +89,22 @@ function resolvePort(parsed: z.infer<typeof envSchema>): number {
   return 3000;
 }
 
+function resolveJwtSecret(raw: string | undefined): string {
+  const trimmed = raw?.trim();
+  if (trimmed && trimmed.length >= 32) {
+    return trimmed;
+  }
+  if (process.env.NODE_ENV !== 'production') {
+    return 'dev-only-jwt-secret-min-32-chars-sitecompras';
+  }
+  throw new Error('JWT_SECRET is required in production (min 32 characters).');
+}
+
 export const env = {
   ...parsedEnv.data,
   PORT: resolvePort(parsedEnv.data),
   APP_ROOT: appRoot,
   UPLOADS_DIR_ABSOLUTE: path.resolve(appRoot, parsedEnv.data.UPLOADS_DIR),
+  JWT_SECRET: resolveJwtSecret(parsedEnv.data.JWT_SECRET),
+  JWT_EXPIRES_IN: parsedEnv.data.JWT_EXPIRES_IN,
 };
