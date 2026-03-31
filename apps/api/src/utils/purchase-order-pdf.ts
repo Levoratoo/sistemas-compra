@@ -1,4 +1,9 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
+import path from 'node:path';
+import { readFile } from 'node:fs/promises';
+
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
+
+import { env } from '../config/env.js';
 
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
@@ -17,6 +22,10 @@ const LEGAL_NOTES = [
   '- Os pagamentos nao serao efetuados, em hipotese alguma, em conta poupanca.',
   '- Mencionar na nota fiscal: numero do GLPI e da Ordem de Compra.',
   '- A copia da ordem de compra devera vir anexa a NF.',
+];
+const LOGO_CANDIDATE_PATHS = [
+  path.resolve(env.APP_ROOT, '..', '..', 'Logo IDEAS', '764c3d25-f713-4848-9442-fc95c52d83f1.jpg'),
+  path.resolve(env.APP_ROOT, '..', '..', 'Logo IDEAS', '420f1c40-561b-4405-943b-7b476adb630c.jpg'),
 ];
 
 export type PurchaseOrderPdfItem = {
@@ -117,6 +126,43 @@ function drawLabelValue(
   });
 }
 
+function fitImageDimensions(width: number, height: number, maxWidth: number, maxHeight: number) {
+  const scale = Math.min(maxWidth / width, maxHeight / height, 1);
+
+  return {
+    width: width * scale,
+    height: height * scale,
+  };
+}
+
+function drawCenteredTextWithin(
+  page: PDFPage,
+  font: PDFFont,
+  text: string,
+  size: number,
+  startX: number,
+  availableWidth: number,
+  y: number,
+  color = rgb(0, 0, 0),
+) {
+  let finalSize = size;
+
+  while (finalSize > 6 && font.widthOfTextAtSize(text, finalSize) > availableWidth) {
+    finalSize -= 0.5;
+  }
+
+  const textWidth = font.widthOfTextAtSize(text, finalSize);
+  const x = startX + Math.max(0, (availableWidth - textWidth) / 2);
+
+  page.drawText(text, {
+    x,
+    y,
+    size: finalSize,
+    font,
+    color,
+  });
+}
+
 function drawTableHeader(page: PDFPage, boldFont: PDFFont, startY: number) {
   const left = PAGE_MARGIN;
   const headerHeight = 18;
@@ -183,7 +229,13 @@ function drawPageHeader(
   regularFont: PDFFont,
   boldFont: PDFFont,
   input: PurchaseOrderPdfInput,
+  brandLogo: PDFImage | null,
 ) {
+  const leftSectionWidth = 180;
+  const rightSectionWidth = 130;
+  const middleSectionX = PAGE_MARGIN + leftSectionWidth;
+  const middleSectionWidth = PAGE_WIDTH - PAGE_MARGIN * 2 - leftSectionWidth - rightSectionWidth;
+
   page.drawRectangle({
     x: PAGE_MARGIN,
     y: PAGE_HEIGHT - 88,
@@ -193,32 +245,81 @@ function drawPageHeader(
     borderWidth: 1,
   });
 
-  page.drawText(input.issuerName, {
-    x: PAGE_MARGIN + 14,
-    y: PAGE_HEIGHT - 56,
-    size: 12,
-    font: boldFont,
-    color: rgb(0.05, 0.35, 0.18),
-  });
-  page.drawText(`Projeto: ${input.projectCode} - ${input.projectName}`, {
-    x: PAGE_MARGIN + 14,
-    y: PAGE_HEIGHT - 72,
-    size: 8,
-    font: regularFont,
-  });
+  if (brandLogo) {
+    const logoDimensions = fitImageDimensions(brandLogo.width, brandLogo.height, leftSectionWidth - 20, 34);
 
-  page.drawText(`Ordem de Compra Avulsa`, {
-    x: PAGE_MARGIN + 205,
-    y: PAGE_HEIGHT - 56,
-    size: 12,
-    font: boldFont,
-  });
-  page.drawText(`GLPI/NF: ${input.glpiNumber}`, {
-    x: PAGE_MARGIN + 235,
-    y: PAGE_HEIGHT - 72,
-    size: 9,
-    font: boldFont,
-  });
+    page.drawImage(brandLogo, {
+      x: PAGE_MARGIN + (leftSectionWidth - logoDimensions.width) / 2,
+      y: PAGE_HEIGHT - 88 + (56 - logoDimensions.height) / 2,
+      width: logoDimensions.width,
+      height: logoDimensions.height,
+    });
+
+    drawCenteredTextWithin(
+      page,
+      regularFont,
+      input.issuerName,
+      7.5,
+      middleSectionX + 8,
+      middleSectionWidth - 16,
+      PAGE_HEIGHT - 42,
+      rgb(0.15, 0.15, 0.15),
+    );
+    drawCenteredTextWithin(
+      page,
+      boldFont,
+      'Ordem de Compra Avulsa',
+      12,
+      middleSectionX + 8,
+      middleSectionWidth - 16,
+      PAGE_HEIGHT - 58,
+    );
+    drawCenteredTextWithin(
+      page,
+      boldFont,
+      `GLPI/NF: ${input.glpiNumber}`,
+      9,
+      middleSectionX + 8,
+      middleSectionWidth - 16,
+      PAGE_HEIGHT - 72,
+    );
+    drawCenteredTextWithin(
+      page,
+      regularFont,
+      `Projeto: ${input.projectCode} - ${input.projectName}`,
+      7.5,
+      middleSectionX + 8,
+      middleSectionWidth - 16,
+      PAGE_HEIGHT - 83,
+    );
+  } else {
+    page.drawText(input.issuerName, {
+      x: PAGE_MARGIN + 14,
+      y: PAGE_HEIGHT - 56,
+      size: 12,
+      font: boldFont,
+      color: rgb(0.05, 0.35, 0.18),
+    });
+    page.drawText(`Projeto: ${input.projectCode} - ${input.projectName}`, {
+      x: PAGE_MARGIN + 14,
+      y: PAGE_HEIGHT - 72,
+      size: 8,
+      font: regularFont,
+    });
+
+    page.drawText('Ordem de Compra Avulsa', {
+      x: PAGE_MARGIN + 205,
+      y: PAGE_HEIGHT - 56,
+      size: 12,
+      font: boldFont,
+    });
+    page.drawText(`GLPI/NF: ${input.glpiNumber}`, {
+      x: PAGE_MARGIN + 235,
+      y: PAGE_HEIGHT - 72,
+      size: 9,
+      font: boldFont,
+    });
+  }
 
   page.drawText(`Emissao: ${input.issuedAtLabel}`, {
     x: PAGE_WIDTH - PAGE_MARGIN - 120,
@@ -234,27 +335,41 @@ function drawPageHeader(
   });
 
   page.drawLine({
-    start: { x: PAGE_MARGIN + 180, y: PAGE_HEIGHT - 88 },
-    end: { x: PAGE_MARGIN + 180, y: PAGE_HEIGHT - 32 },
+    start: { x: PAGE_MARGIN + leftSectionWidth, y: PAGE_HEIGHT - 88 },
+    end: { x: PAGE_MARGIN + leftSectionWidth, y: PAGE_HEIGHT - 32 },
     thickness: 0.8,
     color: rgb(0.2, 0.2, 0.2),
   });
   page.drawLine({
-    start: { x: PAGE_WIDTH - PAGE_MARGIN - 130, y: PAGE_HEIGHT - 88 },
-    end: { x: PAGE_WIDTH - PAGE_MARGIN - 130, y: PAGE_HEIGHT - 32 },
+    start: { x: PAGE_WIDTH - PAGE_MARGIN - rightSectionWidth, y: PAGE_HEIGHT - 88 },
+    end: { x: PAGE_WIDTH - PAGE_MARGIN - rightSectionWidth, y: PAGE_HEIGHT - 32 },
     thickness: 0.8,
     color: rgb(0.2, 0.2, 0.2),
   });
+}
+
+async function loadBrandLogo(pdfDoc: PDFDocument) {
+  for (const logoPath of LOGO_CANDIDATE_PATHS) {
+    try {
+      const imageBytes = await readFile(logoPath);
+      return await pdfDoc.embedJpg(imageBytes);
+    } catch {
+      // Ignore missing or invalid assets and keep the PDF functional without the logo.
+    }
+  }
+
+  return null;
 }
 
 async function createBasePdf(input: PurchaseOrderPdfInput) {
   const pdfDoc = await PDFDocument.create();
   const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const brandLogo = await loadBrandLogo(pdfDoc);
 
   const addPage = () => {
     const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-    drawPageHeader(page, regularFont, boldFont, input);
+    drawPageHeader(page, regularFont, boldFont, input, brandLogo);
     return page;
   };
 
