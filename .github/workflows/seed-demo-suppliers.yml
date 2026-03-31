@@ -1,0 +1,28 @@
+# Insere/atualiza os 2 fornecedores demo (DF + MADIS) — mesmo secret DATABASE_URL que "Seed demo users".
+
+name: Seed demo suppliers
+
+on:
+  workflow_dispatch:
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Prisma generate
+        run: npm run db:generate
+
+      - name: Seed suppliers (upsert por CNPJ)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npm run db:seed:suppliers

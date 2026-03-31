@@ -14,6 +14,7 @@
     "db:push": "npm run db:migrate",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:users": "tsx prisma/seed-users-only.ts",
+    "db:seed:suppliers": "tsx prisma/seed-suppliers-demo.ts",
     "test": "node --import tsx/esm --test src/utils/edital-materiais-section.test.ts"
   },
   "dependencies": {
