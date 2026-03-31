@@ -25,6 +25,7 @@ export function useBudgetItemsMutations(projectId: string) {
   const invalidate = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['budget-items', projectId] }),
+      queryClient.invalidateQueries({ queryKey: ['project-quotes', projectId] }),
       queryClient.invalidateQueries({ queryKey: ['project', projectId] }),
       queryClient.invalidateQueries({ queryKey: ['dashboard', 'project', projectId] }),
       queryClient.invalidateQueries({ queryKey: ['project-replenishments', projectId] }),

@@ -4,8 +4,10 @@ import { listBudgetItems } from '@/services/budget-items-service';
 import { listProjectDocumentFolders, listProjectDocuments } from '@/services/documents-service';
 import { getProjectDashboard } from '@/services/dashboard-service';
 import { listProjectPurchases } from '@/services/purchases-service';
+import { listProjectQuotes } from '@/services/quotes-service';
 import { listMissingItemReports } from '@/services/missing-item-reports-service';
 import { listProjectReplenishments } from '@/services/replenishments-service';
+import { listSuppliers } from '@/services/suppliers-service';
 
 /**
  * Pré-carrega as mesmas queries usadas pelas páginas do projeto (hover no nav).
@@ -50,6 +52,21 @@ export function prefetchProjectModuleQueries(queryClient: QueryClient, projectId
           queryFn: () => listProjectPurchases(projectId),
         }),
       );
+    case '/quotes':
+      return Promise.all([
+        run(
+          queryClient.prefetchQuery({
+            queryKey: ['project-quotes', projectId],
+            queryFn: () => listProjectQuotes(projectId),
+          }),
+        ),
+        run(
+          queryClient.prefetchQuery({
+            queryKey: ['suppliers'],
+            queryFn: () => listSuppliers(),
+          }),
+        ),
+      ]);
     case '/replenishments':
       return run(
         queryClient.prefetchQuery({

@@ -12,6 +12,7 @@ const tabs = [
   { href: '/documents', label: 'Documentos' },
   { href: '/purchase-control', label: 'Controle de compras' },
   { href: '/purchases', label: 'Checklist de compras' },
+  { href: '/quotes', label: 'Orçamento' },
   { href: '/replenishments', label: 'Reposições' },
   { href: '/missing-items', label: 'Relatório de Itens Faltantes' },
 ];

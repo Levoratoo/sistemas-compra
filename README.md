@@ -154,6 +154,7 @@ O frontend em `apps/web` já consome a API existente em `apps/api` e cobre o flu
 - `/projects`: lista de projetos
 - `/projects/:projectId`: visão geral do projeto
 - `/projects/:projectId/documents`: documentos
+- `/projects/:projectId/quotes`: orcamentos
 - `/projects/:projectId/roles`: cargos
 - `/projects/:projectId/budget-items`: itens orçados
 - `/projects/:projectId/purchases`: compras
@@ -217,6 +218,7 @@ O seed cria dados suficientes para navegação local do MVP:
 ## Documentação adicional
 
 - guia de teste da API: [docs/api-testing.md](docs/api-testing.md)
+- deploy Vercel + Render: [docs/deploy-vercel-render.md](docs/deploy-vercel-render.md)
 
 ## Observações
 

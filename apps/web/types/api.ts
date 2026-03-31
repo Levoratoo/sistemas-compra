@@ -235,6 +235,74 @@ export interface Supplier extends EntityTimestamps {
   notes: string | null;
 }
 
+export type ProjectQuoteWinnerStatus = 'NONE' | 'UNIQUE' | 'TIE';
+
+export interface ProjectQuoteRowValue {
+  projectQuoteId: string;
+  slotNumber: number;
+  supplierId: string | null;
+  supplierName: string | null;
+  unitPrice: number | null;
+  totalValue: number | null;
+  notes: string | null;
+  updatedAt: string | null;
+}
+
+export interface ProjectQuoteRow {
+  budgetItemId: string;
+  description: string;
+  specification: string | null;
+  quantity: number | null;
+  unit: string | null;
+  itemCategory: ItemCategory;
+  values: ProjectQuoteRowValue[];
+  winner: {
+    status: ProjectQuoteWinnerStatus;
+    slotNumbers: number[];
+    unitPrice: number | null;
+    totalValue: number | null;
+  };
+}
+
+export interface ProjectQuoteSlot extends EntityTimestamps {
+  id: string;
+  projectId: string;
+  slotNumber: number;
+  supplierId: string | null;
+  supplier: Supplier | null;
+  itemCount: number;
+  filledItemCount: number;
+  totalValue: number | null;
+  isComplete: boolean;
+}
+
+export interface ProjectQuoteComparison {
+  slotTotals: Array<{
+    slotNumber: number;
+    supplierId: string | null;
+    supplierName: string | null;
+    totalValue: number | null;
+    itemCount: number;
+    filledItemCount: number;
+    isComplete: boolean;
+  }>;
+  overallWinner: {
+    status: ProjectQuoteWinnerStatus;
+    slotNumbers: number[];
+    totalValue: number | null;
+  };
+  resolvedRowCount: number;
+  tieRowCount: number;
+  unresolvedRowCount: number;
+}
+
+export interface ProjectQuoteState {
+  projectId: string;
+  slots: ProjectQuoteSlot[];
+  rows: ProjectQuoteRow[];
+  comparison: ProjectQuoteComparison;
+}
+
 export interface PurchaseOrderItem extends EntityTimestamps {
   id: string;
   purchaseOrderId: string;

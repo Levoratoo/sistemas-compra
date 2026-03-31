@@ -14,6 +14,7 @@ import { extractionApplyRouter } from '../modules/extraction-apply/extraction-ap
 import { ocrRouter } from '../modules/ocr/ocr.routes.js';
 import { projectRouter } from '../modules/project/project.routes.js';
 import { purchaseRouter } from '../modules/purchase/purchase.routes.js';
+import { quoteRouter } from '../modules/quote/quote.routes.js';
 import { replenishmentRouter } from '../modules/replenishment/replenishment.routes.js';
 import { roleRouter } from '../modules/role/role.routes.js';
 import { supplierRouter } from '../modules/supplier/supplier.routes.js';
@@ -48,6 +49,7 @@ protectedApiRoutes.use(authProtectedRouter);
 protectedApiRoutes.use(userAdminRouter);
 protectedApiRoutes.use(ocrRouter);
 protectedApiRoutes.use(projectRouter);
+protectedApiRoutes.use(quoteRouter);
 protectedApiRoutes.use(extractionApplyRouter);
 protectedApiRoutes.use(documentRouter);
 protectedApiRoutes.use(roleRouter);
