@@ -43,16 +43,30 @@ class DocumentRepository {
   findByProject(
     projectId: string,
     folderFilter?: { mode: 'all' } | { mode: 'folder'; folderId: string | null },
+    search?: string | null,
   ) {
+    const normalizedSearch = search?.trim();
     const folderWhere =
-      folderFilter?.mode === 'folder'
-        ? folderFilter.folderId === null
-          ? { folderId: null }
-          : { folderId: folderFilter.folderId }
+      normalizedSearch && normalizedSearch.length > 0
+        ? {}
+        : folderFilter?.mode === 'folder'
+          ? folderFilter.folderId === null
+            ? { folderId: null }
+            : { folderId: folderFilter.folderId }
+          : {};
+    const searchWhere =
+      normalizedSearch && normalizedSearch.length > 0
+        ? {
+            OR: [
+              { originalFileName: { contains: normalizedSearch, mode: 'insensitive' as const } },
+              { notes: { contains: normalizedSearch, mode: 'insensitive' as const } },
+              { searchText: { contains: normalizedSearch, mode: 'insensitive' as const } },
+            ],
+          }
         : {};
 
     return prisma.projectDocument.findMany({
-      where: { projectId, ...folderWhere },
+      where: { projectId, ...folderWhere, ...searchWhere },
       include: documentInclude,
       orderBy: {
         createdAt: 'desc',
@@ -70,6 +84,14 @@ class DocumentRepository {
   findById(id: string) {
     return prisma.projectDocument.findUnique({
       where: { id },
+      include: documentInclude,
+    });
+  }
+
+  updateById(id: string, data: Prisma.ProjectDocumentUncheckedUpdateInput) {
+    return prisma.projectDocument.update({
+      where: { id },
+      data,
       include: documentInclude,
     });
   }

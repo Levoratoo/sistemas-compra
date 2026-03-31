@@ -4,6 +4,7 @@ import { prisma } from '../config/prisma.js';
 
 const purchaseOrderInclude = {
   supplier: true,
+  generatedDocument: true,
   items: {
     include: {
       budgetItem: true,
@@ -20,6 +21,7 @@ const purchaseOrderItemInclude = {
   purchaseOrder: {
     include: {
       supplier: true,
+      generatedDocument: true,
       project: true,
     },
   },
@@ -42,6 +44,14 @@ class PurchaseRepository {
     });
   }
 
+  updateOrder(id: string, data: Prisma.PurchaseOrderUncheckedUpdateInput) {
+    return prisma.purchaseOrder.update({
+      where: { id },
+      data,
+      include: purchaseOrderInclude,
+    });
+  }
+
   findOrdersByProject(projectId: string) {
     return prisma.purchaseOrder.findMany({
       where: { projectId },
@@ -56,6 +66,38 @@ class PurchaseRepository {
     return prisma.purchaseOrder.findUnique({
       where: { id },
       include: purchaseOrderInclude,
+    });
+  }
+
+  findOrderByProjectAndGlpi(projectId: string, glpiNumber: string) {
+    return prisma.purchaseOrder.findFirst({
+      where: {
+        projectId,
+        glpiNumber,
+      },
+      include: purchaseOrderInclude,
+    });
+  }
+
+  replaceOrderItems(
+    purchaseOrderId: string,
+    items: Prisma.PurchaseOrderItemUncheckedCreateInput[],
+  ) {
+    return prisma.$transaction(async (tx) => {
+      await tx.purchaseOrderItem.deleteMany({
+        where: { purchaseOrderId },
+      });
+
+      if (items.length > 0) {
+        await tx.purchaseOrderItem.createMany({
+          data: items,
+        });
+      }
+
+      return tx.purchaseOrder.findUniqueOrThrow({
+        where: { id: purchaseOrderId },
+        include: purchaseOrderInclude,
+      });
     });
   }
 

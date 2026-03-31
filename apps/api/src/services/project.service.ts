@@ -56,6 +56,12 @@ export function mapProjectAggregate(project: ProjectAggregate) {
     purchaseOrders: project.purchaseOrders.map((order) => ({
       ...serializePurchaseOrder(order),
       supplier: order.supplier ? serializeSupplier(order.supplier) : null,
+      generatedDocument: order.generatedDocument
+        ? {
+            id: order.generatedDocument.id,
+            originalFileName: order.generatedDocument.originalFileName,
+          }
+        : null,
       items: order.items.map((item) => ({
         ...serializePurchaseOrderItem(item),
         budgetItem: serializeBudgetItem(item.budgetItem),

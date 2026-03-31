@@ -4,9 +4,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
   applyProjectQuoteWinner,
+  generateProjectQuotePurchaseOrder,
   listProjectQuotes,
+  selectProjectQuoteSlot,
   updateProjectQuoteItem,
   updateProjectQuoteSupplier,
+  type GenerateQuotePurchaseOrderPayload,
   type QuoteApplyMode,
   type UpdateQuoteItemPayload,
   type UpdateQuoteSupplierPayload,
@@ -36,6 +39,8 @@ export function useProjectQuotesMutations(projectId: string) {
       queryClient.invalidateQueries({ queryKey: ['dashboard', 'project', projectId] }),
       queryClient.invalidateQueries({ queryKey: ['project-replenishments', projectId] }),
       queryClient.invalidateQueries({ queryKey: ['purchases', projectId] }),
+      queryClient.invalidateQueries({ queryKey: ['project-documents', projectId] }),
+      queryClient.invalidateQueries({ queryKey: ['project-document-folders', projectId] }),
     ]);
   };
 
@@ -62,9 +67,30 @@ export function useProjectQuotesMutations(projectId: string) {
       }) => updateProjectQuoteItem(projectId, slotNumber, budgetItemId, payload),
       onSuccess: setQuotesState,
     }),
+    selectSlot: useMutation({
+      mutationFn: (slotNumber: number) => selectProjectQuoteSlot(projectId, slotNumber),
+      onSuccess: async (state) => {
+        setQuotesState(state);
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['project', projectId] }),
+          queryClient.invalidateQueries({ queryKey: ['projects'] }),
+        ]);
+      },
+    }),
     applyWinner: useMutation({
       mutationFn: (mode: QuoteApplyMode) => applyProjectQuoteWinner(projectId, mode),
       onSuccess: invalidateOperationalData,
+    }),
+    generatePurchaseOrder: useMutation({
+      mutationFn: (payload: GenerateQuotePurchaseOrderPayload) =>
+        generateProjectQuotePurchaseOrder(projectId, payload),
+      onSuccess: async () => {
+        await invalidateOperationalData();
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['projects'] }),
+          queryClient.invalidateQueries({ queryKey: ['dashboard', 'consolidated'] }),
+        ]);
+      },
     }),
   };
 }

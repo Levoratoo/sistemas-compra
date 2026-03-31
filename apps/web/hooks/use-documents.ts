@@ -13,10 +13,11 @@ import {
 export function useProjectDocumentsQuery(
   projectId: string,
   folderScope: ListProjectDocumentsFolderScope = 'all',
+  search?: string | null,
 ) {
   return useQuery({
-    queryKey: ['project-documents', projectId, folderScope],
-    queryFn: () => listProjectDocuments(projectId, { folderScope }),
+    queryKey: ['project-documents', projectId, folderScope, search?.trim() || ''],
+    queryFn: () => listProjectDocuments(projectId, { folderScope, search }),
     enabled: Boolean(projectId),
   });
 }

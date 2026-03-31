@@ -139,6 +139,7 @@ export function serializePurchaseOrder(order: PurchaseOrder) {
   return {
     ...order,
     purchaseDate: toIsoString(order.purchaseDate),
+    expectedDeliveryDate: toIsoString(order.expectedDeliveryDate),
     paymentSentAt: toIsoString(order.paymentSentAt),
     createdAt: toIsoString(order.createdAt),
     updatedAt: toIsoString(order.updatedAt),

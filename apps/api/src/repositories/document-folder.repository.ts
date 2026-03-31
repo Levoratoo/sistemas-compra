@@ -17,6 +17,19 @@ class DocumentFolderRepository {
     });
   }
 
+  findByProjectParentAndName(projectId: string, parentId: string | null, name: string) {
+    return prisma.projectDocumentFolder.findFirst({
+      where: {
+        projectId,
+        parentId,
+        name: {
+          equals: name.trim(),
+          mode: 'insensitive',
+        },
+      },
+    });
+  }
+
   countChildFolders(parentId: string, projectId: string) {
     return prisma.projectDocumentFolder.count({
       where: { parentId, projectId },

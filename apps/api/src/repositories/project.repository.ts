@@ -56,6 +56,7 @@ export const projectDetailInclude = {
   purchaseOrders: {
     include: {
       supplier: true,
+      generatedDocument: true,
       items: {
         include: {
           budgetItem: true,

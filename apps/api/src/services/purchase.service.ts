@@ -39,6 +39,12 @@ function buildPurchaseOrderItemResponse(
     purchaseOrder: {
       ...serializePurchaseOrder(item.purchaseOrder),
       supplier: item.purchaseOrder.supplier ? serializeSupplier(item.purchaseOrder.supplier) : null,
+      generatedDocument: item.purchaseOrder.generatedDocument
+        ? {
+            id: item.purchaseOrder.generatedDocument.id,
+            originalFileName: item.purchaseOrder.generatedDocument.originalFileName,
+          }
+        : null,
       project: {
         id: item.purchaseOrder.project.id,
         code: item.purchaseOrder.project.code,
@@ -71,6 +77,12 @@ function buildPurchaseOrderResponse(
   return {
     ...serializePurchaseOrder(order),
     supplier: order.supplier ? serializeSupplier(order.supplier) : null,
+    generatedDocument: order.generatedDocument
+      ? {
+          id: order.generatedDocument.id,
+          originalFileName: order.generatedDocument.originalFileName,
+        }
+      : null,
     items,
     totalRealValue: items.reduce((total, item) => total + item.realTotalValue, 0),
     totalBudgetValue: items.reduce((total, item) => total + (item.budgetTotalValue ?? 0), 0),

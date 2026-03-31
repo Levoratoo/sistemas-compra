@@ -29,13 +29,19 @@ export type ListProjectDocumentsFolderScope = 'all' | 'root' | string;
 
 export function listProjectDocuments(
   projectId: string,
-  options?: { folderScope?: ListProjectDocumentsFolderScope },
+  options?: { folderScope?: ListProjectDocumentsFolderScope; search?: string | null },
 ) {
   const folderScope = options?.folderScope ?? 'all';
+  const search = options?.search?.trim() || undefined;
   const query =
     folderScope === 'all'
-      ? undefined
-      : { folderId: folderScope === 'root' ? 'root' : folderScope };
+      ? search
+        ? { search }
+        : undefined
+      : {
+          folderId: folderScope === 'root' ? 'root' : folderScope,
+          ...(search ? { search } : {}),
+        };
   return apiRequest<ProjectDocument[]>(`projects/${projectId}/documents`, { query });
 }
 

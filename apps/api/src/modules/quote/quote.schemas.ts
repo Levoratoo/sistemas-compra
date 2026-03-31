@@ -36,6 +36,19 @@ export const applyQuoteWinnerSchema = z.object({
   mode: z.enum(['OVERALL', 'PER_ITEM']),
 });
 
+export const generateQuotePurchaseOrderSchema = z.object({
+  glpiNumber: z.string().trim().min(1),
+  internalReference: optionalTrimmedString().nullable().optional(),
+  deliveryAddress: optionalTrimmedString().nullable().optional(),
+  freightType: optionalTrimmedString().nullable().optional(),
+  paymentTerms: optionalTrimmedString().nullable().optional(),
+  responsibleName: optionalTrimmedString().nullable().optional(),
+  responsiblePhone: optionalTrimmedString().nullable().optional(),
+  expectedDeliveryDate: z.string().trim().optional().nullable(),
+  notes: optionalTrimmedString().nullable().optional(),
+});
+
 export type UpdateQuoteSupplierInput = z.infer<typeof updateQuoteSupplierSchema>;
 export type UpdateQuoteItemInput = z.infer<typeof updateQuoteItemSchema>;
 export type ApplyQuoteWinnerInput = z.infer<typeof applyQuoteWinnerSchema>;
+export type GenerateQuotePurchaseOrderInput = z.infer<typeof generateQuotePurchaseOrderSchema>;

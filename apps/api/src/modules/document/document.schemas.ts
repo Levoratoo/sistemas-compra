@@ -28,6 +28,7 @@ export const projectDocumentIdParamsSchema = z.object({
 
 export const listProjectDocumentsQuerySchema = z.object({
   folderId: z.union([z.literal('all'), z.literal('root'), z.string().min(1)]).optional(),
+  search: z.string().trim().min(1).optional(),
 });
 
 export const moveProjectDocumentBodySchema = z.object({
@@ -88,12 +89,14 @@ const extractedFieldSchema = z.object({
 export const createProjectDocumentSchema = z.object({
   documentType: z.nativeEnum(DocumentType),
   folderId: z.string().min(1).optional().nullable(),
+  purchaseOrderId: z.string().min(1).optional().nullable(),
   originalFileName: z.string().trim().min(1),
   storagePath: z.string().trim().optional(),
   mimeType: z.string().trim().optional(),
   checksum: z.string().trim().optional(),
   documentDate: z.string().trim().optional().nullable(),
   contentText: z.string().optional(),
+  searchText: z.string().optional().nullable(),
   previewJson: z.unknown().optional(),
   processingStatus: z.nativeEnum(DocumentProcessingStatus).optional(),
   reviewStatus: z.nativeEnum(DocumentReviewStatus).optional(),

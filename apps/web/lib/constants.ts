@@ -57,6 +57,7 @@ export const documentTypeOptions: Array<{ value: DocumentType; label: string }> 
   { value: 'IMPLEMENTATION_MAP', label: 'Mapa de Implantação' },
   { value: 'COST_SPREADSHEET', label: 'Planilha de composição' },
   { value: 'CONTROL_SPREADSHEET', label: 'Planilha de controle' },
+  { value: 'PURCHASE_ORDER_PDF', label: 'Ordem de compra (PDF)' },
   { value: 'OTHER_ATTACHMENT', label: 'Outro anexo' },
 ];
 

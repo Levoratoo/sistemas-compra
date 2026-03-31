@@ -26,6 +26,7 @@ class DocumentController {
     const folderScope = parseFolderScope(request.query.folderId as string | undefined);
     const result = await documentService.listProjectDocuments(String(request.params.id), {
       folderScope,
+      search: (request.query.search as string | undefined) ?? null,
     });
     response.json(result);
   }

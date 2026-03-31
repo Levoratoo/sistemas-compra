@@ -1,5 +1,5 @@
 import { apiRequest } from '@/services/api-client';
-import type { ProjectQuoteState } from '@/types/api';
+import type { ProjectQuotePurchaseOrderResult, ProjectQuoteState } from '@/types/api';
 
 export type QuoteApplyMode = 'OVERALL' | 'PER_ITEM';
 
@@ -10,6 +10,18 @@ export type UpdateQuoteSupplierPayload = {
 
 export type UpdateQuoteItemPayload = {
   unitPrice?: number | null;
+  notes?: string | null;
+};
+
+export type GenerateQuotePurchaseOrderPayload = {
+  glpiNumber: string;
+  internalReference?: string | null;
+  deliveryAddress?: string | null;
+  freightType?: string | null;
+  paymentTerms?: string | null;
+  responsibleName?: string | null;
+  responsiblePhone?: string | null;
+  expectedDeliveryDate?: string | null;
   notes?: string | null;
 };
 
@@ -40,6 +52,12 @@ export function updateProjectQuoteItem(
   });
 }
 
+export function selectProjectQuoteSlot(projectId: string, slotNumber: number) {
+  return apiRequest<ProjectQuoteState>(`projects/${projectId}/quotes/${slotNumber}/select`, {
+    method: 'PUT',
+  });
+}
+
 export function applyProjectQuoteWinner(projectId: string, mode: QuoteApplyMode) {
   return apiRequest<{ mode: QuoteApplyMode; updatedItems: number; skippedItems: number }>(
     `projects/${projectId}/quotes/apply-winner`,
@@ -48,4 +66,14 @@ export function applyProjectQuoteWinner(projectId: string, mode: QuoteApplyMode)
       body: { mode },
     },
   );
+}
+
+export function generateProjectQuotePurchaseOrder(
+  projectId: string,
+  payload: GenerateQuotePurchaseOrderPayload,
+) {
+  return apiRequest<ProjectQuotePurchaseOrderResult>(`projects/${projectId}/quotes/generate-purchase-order`, {
+    method: 'POST',
+    body: payload,
+  });
 }

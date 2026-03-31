@@ -1,11 +1,12 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { Prisma } from '@prisma/client';
+import type { Prisma, ProjectDocumentFolder } from '@prisma/client';
 
 import { env } from '../config/env.js';
 import { documentRepository } from '../repositories/document.repository.js';
+import { documentFolderRepository } from '../repositories/document-folder.repository.js';
 import { projectRepository } from '../repositories/project.repository.js';
 import { validateFolderForProject } from './document-folder.service.js';
 import { AppError } from '../utils/app-error.js';
@@ -17,6 +18,8 @@ import type { CreateProjectDocumentInput } from '../modules/document/document.sc
 /** Inclusão opcional do binário original (upload); não vem do corpo JSON da API pública. */
 export type CreateProjectDocumentServiceInput = CreateProjectDocumentInput & {
   originalFileBuffer?: Buffer;
+  searchText?: string | null;
+  purchaseOrderId?: string | null;
 };
 
 async function ensureProjectExists(projectId: string) {
@@ -33,6 +36,7 @@ function buildSimulatedDocumentContent(input: CreateProjectDocumentInput) {
       originalFileName: input.originalFileName,
       mimeType: input.mimeType ?? null,
       contentText: input.contentText ?? null,
+      searchText: (input as CreateProjectDocumentServiceInput).searchText ?? null,
       previewJson: input.previewJson ?? null,
       createdAt: new Date().toISOString(),
     },
@@ -80,6 +84,53 @@ async function resolveStoragePath(projectId: string, input: CreateProjectDocumen
   };
 }
 
+function buildFolderPathLabel(folders: ProjectDocumentFolder[], folderId: string | null | undefined) {
+  if (!folderId) {
+    return 'Raiz';
+  }
+
+  const foldersById = new Map(folders.map((folder) => [folder.id, folder]));
+  const labels: string[] = [];
+  let currentId: string | null | undefined = folderId;
+
+  while (currentId) {
+    const folder = foldersById.get(currentId);
+    if (!folder) {
+      break;
+    }
+
+    labels.unshift(folder.name);
+    currentId = folder.parentId;
+  }
+
+  return labels.length > 0 ? labels.join(' / ') : 'Raiz';
+}
+
+function serializeDocumentWithFolderPath(
+  document: Awaited<ReturnType<typeof documentRepository.findById>> extends infer T ? NonNullable<T> : never,
+  folders: ProjectDocumentFolder[],
+) {
+  return {
+    ...serializeProjectDocument(document),
+    folderPathLabel: buildFolderPathLabel(folders, document.folderId),
+    extractedFields: document.extractedFields.map(serializeExtractedField),
+  };
+}
+
+async function removeStoredFile(storagePath: string | null | undefined) {
+  if (!storagePath) {
+    return;
+  }
+
+  try {
+    const relativePath = ensureRelativeStoragePath(storagePath);
+    const absolutePath = path.resolve(env.APP_ROOT, relativePath);
+    await rm(absolutePath, { force: true });
+  } catch {
+    // Ignore file cleanup errors for regenerated documents.
+  }
+}
+
 class DocumentService {
   async createProjectDocument(projectId: string, input: CreateProjectDocumentServiceInput) {
     await ensureProjectExists(projectId);
@@ -107,6 +158,7 @@ class DocumentService {
       {
         projectId,
         folderId: input.folderId ?? null,
+        purchaseOrderId: input.purchaseOrderId ?? null,
         documentType: input.documentType,
         originalFileName: input.originalFileName,
         storagePath: storage.relativePath,
@@ -114,6 +166,7 @@ class DocumentService {
         fileSizeBytes: storage.fileSizeBytes,
         checksum: input.checksum ?? null,
         documentDate: parseOptionalDate(input.documentDate),
+        searchText: input.searchText ?? input.contentText ?? null,
         processingStatus: input.processingStatus ?? 'PROCESSED',
         reviewStatus:
           input.reviewStatus ??
@@ -123,16 +176,53 @@ class DocumentService {
       },
       extractedFields,
     );
+    const folders = await documentFolderRepository.listByProject(projectId);
 
-    return {
-      ...serializeProjectDocument(document),
-      extractedFields: document.extractedFields.map(serializeExtractedField),
-    };
+    return serializeDocumentWithFolderPath(document, folders);
+  }
+
+  async replaceProjectDocument(
+    projectId: string,
+    documentId: string,
+    input: CreateProjectDocumentServiceInput,
+  ) {
+    await ensureProjectExists(projectId);
+    await validateFolderForProject(projectId, input.folderId ?? null);
+
+    const existing = await documentRepository.findById(documentId);
+    if (!existing || existing.projectId !== projectId) {
+      throw new AppError('Document not found', 404);
+    }
+
+    const storage = await resolveStoragePath(projectId, input);
+    const updated = await documentRepository.updateById(documentId, {
+      folderId: input.folderId ?? null,
+      purchaseOrderId: input.purchaseOrderId ?? null,
+      documentType: input.documentType,
+      originalFileName: input.originalFileName,
+      storagePath: storage.relativePath,
+      mimeType: input.mimeType ?? null,
+      fileSizeBytes: storage.fileSizeBytes,
+      checksum: input.checksum ?? null,
+      documentDate: parseOptionalDate(input.documentDate),
+      searchText: input.searchText ?? input.contentText ?? null,
+      processingStatus: input.processingStatus ?? 'PROCESSED',
+      reviewStatus: input.reviewStatus ?? 'REVIEWED',
+      processingError: input.processingError ?? null,
+      notes: input.notes ?? null,
+    });
+
+    if (existing.storagePath !== updated.storagePath) {
+      await removeStoredFile(existing.storagePath);
+    }
+
+    const folders = await documentFolderRepository.listByProject(projectId);
+    return serializeDocumentWithFolderPath(updated, folders);
   }
 
   async listProjectDocuments(
     projectId: string,
-    options?: { folderScope?: 'all' | { folderId: string | null } },
+    options?: { folderScope?: 'all' | { folderId: string | null }; search?: string | null },
   ) {
     await ensureProjectExists(projectId);
 
@@ -140,12 +230,11 @@ class DocumentService {
     const documents = await documentRepository.findByProject(
       projectId,
       scope === 'all' ? undefined : { mode: 'folder', folderId: scope.folderId },
+      options?.search ?? null,
     );
+    const folders = await documentFolderRepository.listByProject(projectId);
 
-    return documents.map((document) => ({
-      ...serializeProjectDocument(document),
-      extractedFields: document.extractedFields.map(serializeExtractedField),
-    }));
+    return documents.map((document) => serializeDocumentWithFolderPath(document, folders));
   }
 
   async moveProjectDocument(projectId: string, documentId: string, folderId: string | null) {
@@ -163,10 +252,10 @@ class DocumentService {
       throw new AppError('Document not found', 404);
     }
 
-    return {
-      ...serializeProjectDocument(updated),
-      extractedFields: updated.extractedFields.map(serializeExtractedField),
-    };
+    return serializeDocumentWithFolderPath(
+      updated,
+      await documentFolderRepository.listByProject(projectId),
+    );
   }
 
   /**

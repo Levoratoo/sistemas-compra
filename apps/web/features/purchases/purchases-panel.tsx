@@ -34,6 +34,7 @@ import { usePurchasesMutations, usePurchasesQuery } from '@/hooks/use-purchases'
 import { useProjectQuery } from '@/hooks/use-projects';
 import { useSuppliersQuery } from '@/hooks/use-suppliers';
 import type { BudgetItemPayload } from '@/services/budget-items-service';
+import { getProjectDocumentDownloadUrl } from '@/services/documents-service';
 
 const purchaseOrderSchema = z.object({
   supplierId: z.string().optional(),
@@ -776,11 +777,23 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
                   </div>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3">
                   <div className="rounded-2xl bg-secondary px-4 py-3">
                     <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Total real</p>
                     <p className="mt-1 font-black text-card-foreground">{formatCurrency(order.totalRealValue)}</p>
                   </div>
+                  {order.generatedDocument ? (
+                    <Button asChild type="button" variant="secondary">
+                      <a
+                        href={getProjectDocumentDownloadUrl(projectId, order.generatedDocument.id)}
+                        rel="noopener noreferrer"
+                        target="_blank"
+                      >
+                        <FileText className="size-4" />
+                        Ordem de compra
+                      </a>
+                    </Button>
+                  ) : null}
                   <Button
                     onClick={() => {
                       setSelectedOrderId(order.id);

@@ -10,6 +10,7 @@ export type DocumentType =
   | 'IMPLEMENTATION_MAP'
   | 'COST_SPREADSHEET'
   | 'CONTROL_SPREADSHEET'
+  | 'PURCHASE_ORDER_PDF'
   | 'OTHER_ATTACHMENT';
 export type DocumentProcessingStatus = 'PENDING' | 'PROCESSING' | 'PROCESSED' | 'FAILED';
 export type DocumentReviewStatus = 'PENDING_REVIEW' | 'REVIEWED' | 'CONFLICT' | 'REJECTED';
@@ -138,6 +139,7 @@ export interface Project extends EntityTimestamps {
   actualStartDate: string | null;
   contractDurationMonths: number;
   monthlyContractValue: number | null;
+  selectedQuoteSlotNumber: number | null;
   notes: string | null;
 }
 
@@ -188,6 +190,7 @@ export interface ProjectDocument extends EntityTimestamps {
   id: string;
   projectId: string;
   folderId: string | null;
+  purchaseOrderId: string | null;
   documentType: DocumentType;
   originalFileName: string;
   storagePath: string;
@@ -195,10 +198,12 @@ export interface ProjectDocument extends EntityTimestamps {
   fileSizeBytes: number | null;
   checksum: string | null;
   documentDate: string | null;
+  searchText?: string | null;
   processingStatus: DocumentProcessingStatus;
   reviewStatus: DocumentReviewStatus;
   processingError: string | null;
   notes: string | null;
+  folderPathLabel?: string | null;
   extractedFields: ExtractedField[];
 }
 
@@ -274,6 +279,7 @@ export interface ProjectQuoteSlot extends EntityTimestamps {
   filledItemCount: number;
   totalValue: number | null;
   isComplete: boolean;
+  isSelected: boolean;
 }
 
 export interface ProjectQuoteComparison {
@@ -298,9 +304,18 @@ export interface ProjectQuoteComparison {
 
 export interface ProjectQuoteState {
   projectId: string;
+  selectedSlotNumber: number | null;
   slots: ProjectQuoteSlot[];
   rows: ProjectQuoteRow[];
   comparison: ProjectQuoteComparison;
+}
+
+export interface ProjectQuotePurchaseOrderResult {
+  slotNumber: number;
+  purchaseOrderId: string;
+  documentId: string;
+  documentFileName: string;
+  folderPathLabel: string | null;
 }
 
 export interface PurchaseOrderItem extends EntityTimestamps {
@@ -409,9 +424,19 @@ export interface PurchaseOrder extends EntityTimestamps {
   purchaseDate: string | null;
   internalReference: string | null;
   glpiNumber: string | null;
+  deliveryAddress: string | null;
+  freightType: string | null;
+  paymentTerms: string | null;
+  responsibleName: string | null;
+  responsiblePhone: string | null;
+  expectedDeliveryDate: string | null;
   paymentSentAt: string | null;
   notes: string | null;
   supplier: Supplier | null;
+  generatedDocument: {
+    id: string;
+    originalFileName: string;
+  } | null;
   items: Array<
     PurchaseOrderItem & {
       budgetItem: Pick<BudgetItem, 'id' | 'name' | 'itemCategory' | 'bidUnitValue' | 'hasBidReference'>;

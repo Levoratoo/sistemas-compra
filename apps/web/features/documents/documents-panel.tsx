@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
 import type { DragEvent, FormEvent } from 'react';
-import { useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import {
   ChevronRight,
   Download,
@@ -13,6 +13,7 @@ import {
   GripVertical,
   Home,
   Pencil,
+  Search,
   Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -502,6 +503,7 @@ function NewFolderDialog({
 export function DocumentsPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
   const [uploadOpen, setUploadOpen] = useState(false);
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [renameFolder, setRenameFolder] = useState<ProjectDocumentFolder | null>(null);
@@ -511,6 +513,9 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
   const [renameSurfaceStyle, setRenameSurfaceStyle] = useState<FolderSurfaceStyle>(DEFAULT_FOLDER_SURFACE_STYLE);
   const [renameEmoji, setRenameEmoji] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<'root' | string | null>(null);
+  const deferredSearch = useDeferredValue(search);
+  const normalizedSearch = deferredSearch.trim();
+  const searchActive = normalizedSearch.length > 0;
 
   function openNewFolder() {
     setUploadOpen(false);
@@ -522,10 +527,11 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
     setUploadOpen(true);
   }
 
-  const folderScope = currentFolderId === null ? 'root' : currentFolderId;
+  const folderScope = searchActive ? 'all' : currentFolderId === null ? 'root' : currentFolderId;
   const { data: documents, isLoading: loadingDocs, isError: errorDocs } = useProjectDocumentsQuery(
     projectId,
     folderScope,
+    normalizedSearch,
   );
   const { data: folders, isLoading: loadingFolders, isError: errorFolders } =
     useProjectDocumentFoldersQuery(projectId);
@@ -534,9 +540,9 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
   const isError = errorDocs || errorFolders;
 
   const subfolders = useMemo(() => {
-    if (!folders) return [];
+    if (!folders || searchActive) return [];
     return folders.filter((f) => (f.parentId ?? null) === (currentFolderId ?? null));
-  }, [folders, currentFolderId]);
+  }, [folders, currentFolderId, searchActive]);
 
   const breadcrumb = useMemo(() => buildBreadcrumbPath(folders ?? [], currentFolderId), [folders, currentFolderId]);
 
@@ -630,6 +636,15 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
               </CardDescription>
             </div>
             <div className="flex shrink-0 flex-row flex-wrap gap-2 sm:pt-0.5">
+              <div className="relative min-w-[18rem] flex-1 sm:min-w-[20rem]">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="min-h-11 rounded-xl border-border/80 bg-background/85 pl-9"
+                  placeholder="Buscar por arquivo, observações ou itens do PDF"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              </div>
               <Button className="min-h-11" onClick={openNewFolder} type="button" variant="secondary">
                 <FolderPlus className="size-4 shrink-0" />
                 Nova pasta
@@ -642,6 +657,23 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
           </div>
         </CardHeader>
       </Card>
+
+      {searchActive ? (
+        <Card className="border-border/70 bg-muted/15 shadow-sm">
+          <CardContent className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Busca ativa no projeto inteiro</p>
+              <p className="text-sm text-muted-foreground">
+                Resultados planos para "{normalizedSearch}". A navegação por pasta fica só como referência enquanto a
+                busca estiver preenchida.
+              </p>
+            </div>
+            <Button type="button" variant="ghost" onClick={() => setSearch('')}>
+              Limpar busca
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <nav
         aria-label="Pasta atual"
@@ -722,11 +754,11 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
         />
       ) : !hasContent ? (
         <EmptyState
-          actionLabel="Nova pasta"
+          actionLabel={searchActive ? 'Limpar busca' : 'Nova pasta'}
           description="Crie uma pasta para organizar por tema ou envie arquivos para armazenamento (sem extração automática)."
-          onAction={openNewFolder}
-          onSecondaryAction={openUpload}
-          secondaryActionLabel="Enviar documento"
+          onAction={searchActive ? () => setSearch('') : openNewFolder}
+          onSecondaryAction={searchActive ? undefined : openUpload}
+          secondaryActionLabel={searchActive ? undefined : 'Enviar documento'}
           title="Esta pasta está vazia"
         />
       ) : (
@@ -834,9 +866,10 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                 <Table>
                   <TableHeader>
                     <TableRow variant="header">
-                      <TableHead className="w-12 pr-0" />
+                      {!searchActive ? <TableHead className="w-12 pr-0" /> : null}
                       <TableHead>Tipo</TableHead>
                       <TableHead>Arquivo</TableHead>
+                      {searchActive ? <TableHead>Pasta</TableHead> : null}
                       <TableHead>Documento</TableHead>
                       <TableHead>Processamento</TableHead>
                     </TableRow>
@@ -844,20 +877,22 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                   <TableBody>
                     {documents.map((document) => (
                       <TableRow key={document.id}>
-                        <TableCell className="w-12 pr-0 align-middle">
-                          <span
-                            className="inline-flex cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
-                            draggable
-                            onDragEnd={() => setDropTarget(null)}
-                            onDragStart={(e) => {
-                              e.dataTransfer.setData('text/plain', document.id);
-                              e.dataTransfer.effectAllowed = 'move';
-                            }}
-                            title="Arrastar para mover para outra pasta"
-                          >
-                            <GripVertical className="size-5" />
-                          </span>
-                        </TableCell>
+                        {!searchActive ? (
+                          <TableCell className="w-12 pr-0 align-middle">
+                            <span
+                              className="inline-flex cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
+                              draggable
+                              onDragEnd={() => setDropTarget(null)}
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData('text/plain', document.id);
+                                e.dataTransfer.effectAllowed = 'move';
+                              }}
+                              title="Arrastar para mover para outra pasta"
+                            >
+                              <GripVertical className="size-5" />
+                            </span>
+                          </TableCell>
+                        ) : null}
                         <TableCell>{getDocumentTypeLabel(document.documentType)}</TableCell>
                         <TableCell>
                           <div>
@@ -884,6 +919,11 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                             </div>
                           </div>
                         </TableCell>
+                        {searchActive ? (
+                          <TableCell>
+                            <p className="text-sm font-medium text-foreground">{document.folderPathLabel || 'Raiz'}</p>
+                          </TableCell>
+                        ) : null}
                         <TableCell>
                           <div className="space-y-1">
                             <p>{formatDate(document.documentDate)}</p>

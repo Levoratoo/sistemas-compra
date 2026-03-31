@@ -5,6 +5,7 @@ import { validateRequest } from '../../middlewares/validate.js';
 import { asyncHandler } from '../../utils/async-handler.js';
 import {
   applyQuoteWinnerSchema,
+  generateQuotePurchaseOrderSchema,
   quoteItemParamsSchema,
   quoteProjectParamsSchema,
   quoteSlotParamsSchema,
@@ -32,8 +33,20 @@ quoteRouter.put(
   asyncHandler((request, response) => quoteController.updateItem(request, response)),
 );
 
+quoteRouter.put(
+  '/projects/:id/quotes/:slotNumber/select',
+  validateRequest({ params: quoteSlotParamsSchema }),
+  asyncHandler((request, response) => quoteController.selectSlot(request, response)),
+);
+
 quoteRouter.post(
   '/projects/:id/quotes/apply-winner',
   validateRequest({ params: quoteProjectParamsSchema, body: applyQuoteWinnerSchema }),
   asyncHandler((request, response) => quoteController.applyWinner(request, response)),
+);
+
+quoteRouter.post(
+  '/projects/:id/quotes/generate-purchase-order',
+  validateRequest({ params: quoteProjectParamsSchema, body: generateQuotePurchaseOrderSchema }),
+  asyncHandler((request, response) => quoteController.generatePurchaseOrder(request, response)),
 );

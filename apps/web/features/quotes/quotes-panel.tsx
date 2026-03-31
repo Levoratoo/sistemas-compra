@@ -461,6 +461,172 @@ function NewQuoteItemDialog({
   );
 }
 
+function GeneratePurchaseOrderDialog({
+  open,
+  onOpenChange,
+  slot,
+  projectName,
+  onSubmit,
+  pending,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  slot: ProjectQuoteSlot | null;
+  projectName: string;
+  onSubmit: (payload: {
+    glpiNumber: string;
+    internalReference?: string | null;
+    deliveryAddress?: string | null;
+    freightType?: string | null;
+    paymentTerms?: string | null;
+    responsibleName?: string | null;
+    responsiblePhone?: string | null;
+    expectedDeliveryDate?: string | null;
+    notes?: string | null;
+  }) => Promise<void>;
+  pending: boolean;
+}) {
+  const [glpiNumber, setGlpiNumber] = useState('');
+  const [internalReference, setInternalReference] = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [freightType, setFreightType] = useState('');
+  const [paymentTerms, setPaymentTerms] = useState('');
+  const [responsibleName, setResponsibleName] = useState('');
+  const [responsiblePhone, setResponsiblePhone] = useState('');
+  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState('');
+  const [notes, setNotes] = useState('');
+
+  useEffect(() => {
+    if (!open) {
+      setGlpiNumber('');
+      setInternalReference('');
+      setDeliveryAddress('');
+      setFreightType('');
+      setPaymentTerms('');
+      setResponsibleName('');
+      setResponsiblePhone('');
+      setExpectedDeliveryDate('');
+      setNotes('');
+    }
+  }, [open]);
+
+  async function handleSubmit() {
+    if (!glpiNumber.trim()) {
+      toast.error('Informe o GLPI para gerar a ordem de compra.');
+      return;
+    }
+
+    await onSubmit({
+      glpiNumber: glpiNumber.trim(),
+      internalReference: internalReference.trim() || null,
+      deliveryAddress: deliveryAddress.trim() || null,
+      freightType: freightType.trim() || null,
+      paymentTerms: paymentTerms.trim() || null,
+      responsibleName: responsibleName.trim() || null,
+      responsiblePhone: responsiblePhone.trim() || null,
+      expectedDeliveryDate: expectedDeliveryDate || null,
+      notes: notes.trim() || null,
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Gerar ordem de compra</DialogTitle>
+          <DialogDescription>
+            O PDF será gerado para {slot ? `o orçamento ${slot.slotNumber}` : 'o orçamento selecionado'} de{' '}
+            {projectName}.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="quote-order-glpi">GLPI</Label>
+            <Input
+              id="quote-order-glpi"
+              placeholder="206021607"
+              value={glpiNumber}
+              onChange={(event) => setGlpiNumber(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="quote-order-reference">Referência interna</Label>
+            <Input
+              id="quote-order-reference"
+              value={internalReference}
+              onChange={(event) => setInternalReference(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="quote-order-delivery-address">Endereço de entrega</Label>
+            <Textarea
+              id="quote-order-delivery-address"
+              rows={3}
+              value={deliveryAddress}
+              onChange={(event) => setDeliveryAddress(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="quote-order-freight-type">Tipo de frete</Label>
+            <Input
+              id="quote-order-freight-type"
+              value={freightType}
+              onChange={(event) => setFreightType(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="quote-order-payment-terms">Condição de pagamento</Label>
+            <Input
+              id="quote-order-payment-terms"
+              value={paymentTerms}
+              onChange={(event) => setPaymentTerms(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="quote-order-responsible-name">Responsável</Label>
+            <Input
+              id="quote-order-responsible-name"
+              value={responsibleName}
+              onChange={(event) => setResponsibleName(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="quote-order-responsible-phone">Telefone do responsável</Label>
+            <Input
+              id="quote-order-responsible-phone"
+              value={responsiblePhone}
+              onChange={(event) => setResponsiblePhone(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="quote-order-expected-delivery-date">Previsão de entrega</Label>
+            <Input
+              id="quote-order-expected-delivery-date"
+              type="date"
+              value={expectedDeliveryDate}
+              onChange={(event) => setExpectedDeliveryDate(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="quote-order-notes">Observações</Label>
+            <Textarea id="quote-order-notes" rows={4} value={notes} onChange={(event) => setNotes(event.target.value)} />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button disabled={pending} type="button" onClick={() => void handleSubmit()}>
+            {pending ? 'Gerando PDF...' : 'Gerar ordem de compra'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ComparisonTable({
   rows,
   slots,
@@ -542,6 +708,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
   const [activeView, setActiveView] = useState<QuoteView>('slot-1');
   const [supplierPickerSlot, setSupplierPickerSlot] = useState<ProjectQuoteSlot | null>(null);
   const [newItemDialogOpen, setNewItemDialogOpen] = useState(false);
+  const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
 
   const loading = projectQuery.isLoading || quotesQuery.isLoading;
   const project = projectQuery.data;
@@ -553,6 +720,13 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
   const activeSlotNumber =
     activeView === 'slot-1' ? 1 : activeView === 'slot-2' ? 2 : activeView === 'slot-3' ? 3 : null;
   const activeSlot = activeSlotNumber ? slots.find((slot) => slot.slotNumber === activeSlotNumber) ?? null : null;
+  const activeSlotPricedCount = activeSlot
+    ? rows.filter(
+        (row) =>
+          row.values.find((entry) => entry.slotNumber === activeSlot.slotNumber)?.unitPrice != null &&
+          (row.quantity ?? 0) > 0,
+      ).length
+    : 0;
 
   async function handleSelectSupplier(slot: ProjectQuoteSlot, supplierId: string | null) {
     const isChanging = slot.supplierId !== supplierId;
@@ -597,6 +771,35 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível salvar a linha do orçamento.');
       throw error;
+    }
+  }
+
+  async function handleSelectQuoteSlot(slotNumber: number) {
+    try {
+      await quoteMutations.selectSlot.mutateAsync(slotNumber);
+      toast.success(`Orçamento ${slotNumber} selecionado para gerar a ordem de compra.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível selecionar o orçamento.');
+    }
+  }
+
+  async function handleGeneratePurchaseOrder(payload: {
+    glpiNumber: string;
+    internalReference?: string | null;
+    deliveryAddress?: string | null;
+    freightType?: string | null;
+    paymentTerms?: string | null;
+    responsibleName?: string | null;
+    responsiblePhone?: string | null;
+    expectedDeliveryDate?: string | null;
+    notes?: string | null;
+  }) {
+    try {
+      const result = await quoteMutations.generatePurchaseOrder.mutateAsync(payload);
+      toast.success(`PDF gerado em ${result.folderPathLabel || 'Ordens de compra'}.`);
+      setGenerateDialogOpen(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível gerar a ordem de compra.');
     }
   }
 
@@ -653,6 +856,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
 
   const canApplyOverall = comparison?.overallWinner.status === 'UNIQUE';
   const canApplyPerItem = (comparison?.resolvedRowCount ?? 0) > 0;
+  const canGeneratePurchaseOrder = Boolean(activeSlot?.isSelected && activeSlot?.supplierId && activeSlotPricedCount > 0);
 
   return (
     <div className="page-sections">
@@ -722,7 +926,10 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                 <div>
                   <p className="text-sm font-semibold text-foreground">{tab.label}</p>
                   {slot ? (
-                    <p className="mt-1 text-xs text-muted-foreground">{slotDisplayName(slot)}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <p className="text-xs text-muted-foreground">{slotDisplayName(slot)}</p>
+                      {slot.isSelected ? <Badge variant="secondary">Selecionado</Badge> : null}
+                    </div>
                   ) : (
                     <p className="mt-1 text-xs text-muted-foreground">Comparação entre os 3 orçamentos</p>
                   )}
@@ -863,11 +1070,45 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                       )}
                     </div>
 
-                    <Button type="button" onClick={() => setSupplierPickerSlot(activeSlot)}>
-                      <Building2 className="size-4" aria-hidden />
-                      {activeSlot.supplier ? 'Trocar fornecedor' : 'Selecionar fornecedor'}
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        disabled={quoteMutations.selectSlot.isPending || activeSlot.isSelected}
+                        type="button"
+                        onClick={() => void handleSelectQuoteSlot(activeSlot.slotNumber)}
+                        variant={activeSlot.isSelected ? 'secondary' : 'outline'}
+                      >
+                        {activeSlot.isSelected ? 'Orçamento selecionado' : 'Selecionar orçamento'}
+                      </Button>
+                      <Button type="button" onClick={() => setSupplierPickerSlot(activeSlot)}>
+                        <Building2 className="size-4" aria-hidden />
+                        {activeSlot.supplier ? 'Trocar fornecedor' : 'Selecionar fornecedor'}
+                      </Button>
+                    </div>
                   </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {activeSlot.isSelected ? <Badge variant="secondary">Este é o orçamento selecionado</Badge> : null}
+                  <Badge variant={activeSlotPricedCount > 0 ? 'success' : 'neutral'}>
+                    {activeSlotPricedCount} item(ns) com preço
+                  </Badge>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    className="hidden"
+                    disabled={quoteMutations.selectSlot.isPending || activeSlot.isSelected}
+                    type="button"
+                    variant="outline"
+                    onClick={() => void handleSelectQuoteSlot(activeSlot.slotNumber)}
+                  >
+                    Selecionar orçamento
+                  </Button>
+                  <Button
+                    disabled={!canGeneratePurchaseOrder || quoteMutations.generatePurchaseOrder.isPending}
+                    type="button"
+                    onClick={() => setGenerateDialogOpen(true)}
+                  >
+                    Gerar ordem de compra
+                  </Button>
                 </div>
               </CardHeader>
             </Card>
@@ -950,6 +1191,15 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
           await handleSelectSupplier(supplierPickerSlot, supplierId);
           setSupplierPickerSlot(null);
         }}
+      />
+
+      <GeneratePurchaseOrderDialog
+        open={generateDialogOpen}
+        slot={activeSlot}
+        projectName={project.name}
+        pending={quoteMutations.generatePurchaseOrder.isPending}
+        onOpenChange={setGenerateDialogOpen}
+        onSubmit={handleGeneratePurchaseOrder}
       />
 
       <NewQuoteItemDialog open={newItemDialogOpen} onOpenChange={setNewItemDialogOpen} projectId={projectId} />
