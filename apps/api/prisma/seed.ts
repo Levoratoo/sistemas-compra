@@ -81,6 +81,24 @@ async function main() {
     }),
   ]);
 
+  await prisma.supplier.create({
+    data: {
+      legalName: 'DF Distribuidora de ferragens LTDA',
+      documentNumber: '11931451000169',
+      address: 'av. brasil, N2559 - bairro região do lago',
+      phone: '45 3039-5060',
+    },
+  });
+  await prisma.supplier.create({
+    data: {
+      legalName: 'MADIS UNIFORMES',
+      tradeName: 'VEST BEM UNIFORMES',
+      documentNumber: '21080449000187',
+      address: 'RUA 716, 344 ITAPEMA SC',
+      phone: '47 997096331',
+    },
+  });
+
   const project = await prisma.project.create({
     data: {
       code: 'HUJM-2026',

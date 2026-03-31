@@ -3,10 +3,13 @@ import type { Supplier } from '@/types/api';
 
 export type SupplierPayload = {
   legalName: string;
+  tradeName?: string | null;
   documentNumber?: string | null;
   contactName?: string | null;
+  address?: string | null;
   phone?: string | null;
   email?: string | null;
+  cnd?: string | null;
   notes?: string | null;
 };
 

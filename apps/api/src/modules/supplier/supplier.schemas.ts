@@ -2,10 +2,13 @@ import { z } from 'zod';
 
 const supplierBaseSchema = z.object({
   legalName: z.string().trim().min(1),
+  tradeName: z.string().trim().optional(),
   documentNumber: z.string().trim().optional(),
   contactName: z.string().trim().optional(),
+  address: z.string().trim().optional(),
   phone: z.string().trim().optional(),
   email: z.email().optional(),
+  cnd: z.string().trim().optional(),
   notes: z.string().trim().optional(),
 });
 

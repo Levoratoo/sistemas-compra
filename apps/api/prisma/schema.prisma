@@ -414,10 +414,13 @@ model ImplementationTask {
 model Supplier {
   id             String   @id @default(cuid())
   legalName      String
+  tradeName      String?
   documentNumber String?  @unique
   contactName    String?
+  address        String?
   phone          String?
   email          String?
+  cnd            String?
   notes          String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

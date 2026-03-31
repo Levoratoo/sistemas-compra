@@ -28,10 +28,13 @@ import type { Supplier } from '@/types/api';
 
 const formSchema = z.object({
   legalName: z.string().trim().min(1, 'Informe o nome do fornecedor.'),
+  tradeName: z.string().trim().optional(),
   documentNumber: z.string().trim().optional(),
   contactName: z.string().trim().optional(),
+  address: z.string().trim().optional(),
   phone: z.string().trim().optional(),
   email: z.string().trim().email('Informe um e-mail válido.').optional().or(z.literal('')),
+  cnd: z.string().trim().optional(),
   notes: z.string().trim().optional(),
 });
 
@@ -52,10 +55,13 @@ function SupplierDialog({
     resolver: zodResolver(formSchema),
     defaultValues: {
       legalName: supplier?.legalName ?? '',
+      tradeName: supplier?.tradeName ?? '',
       documentNumber: supplier?.documentNumber ?? '',
       contactName: supplier?.contactName ?? '',
+      address: supplier?.address ?? '',
       phone: supplier?.phone ?? '',
       email: supplier?.email ?? '',
+      cnd: supplier?.cnd ?? '',
       notes: supplier?.notes ?? '',
     },
   });
@@ -63,10 +69,13 @@ function SupplierDialog({
   useEffect(() => {
     form.reset({
       legalName: supplier?.legalName ?? '',
+      tradeName: supplier?.tradeName ?? '',
       documentNumber: supplier?.documentNumber ?? '',
       contactName: supplier?.contactName ?? '',
+      address: supplier?.address ?? '',
       phone: supplier?.phone ?? '',
       email: supplier?.email ?? '',
+      cnd: supplier?.cnd ?? '',
       notes: supplier?.notes ?? '',
     });
   }, [form, supplier]);
@@ -78,10 +87,13 @@ function SupplierDialog({
           id: supplier.id,
           payload: {
             ...values,
+            tradeName: values.tradeName || null,
             documentNumber: values.documentNumber || null,
             contactName: values.contactName || null,
+            address: values.address || null,
             phone: values.phone || null,
             email: values.email || null,
+            cnd: values.cnd || null,
             notes: values.notes || null,
           },
         });
@@ -89,10 +101,13 @@ function SupplierDialog({
       } else {
         await createSupplier.mutateAsync({
           ...values,
+          tradeName: values.tradeName || null,
           documentNumber: values.documentNumber || null,
           contactName: values.contactName || null,
+          address: values.address || null,
           phone: values.phone || null,
           email: values.email || null,
+          cnd: values.cnd || null,
           notes: values.notes || null,
         });
         toast.success('Fornecedor cadastrado com sucesso.');
@@ -120,6 +135,10 @@ function SupplierDialog({
             <Label htmlFor="legalName">Razão social</Label>
             <Input id="legalName" {...form.register('legalName')} />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="tradeName">Nome fantasia</Label>
+            <Input id="tradeName" placeholder="Opcional" {...form.register('tradeName')} />
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="documentNumber">CNPJ/Documento</Label>
@@ -129,13 +148,21 @@ function SupplierDialog({
               <Label htmlFor="contactName">Contato</Label>
               <Input id="contactName" {...form.register('contactName')} />
             </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="address">Endereço</Label>
+              <Input id="address" placeholder="Logradouro, número, bairro, cidade..." {...form.register('address')} />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Telefone</Label>
               <Input id="phone" {...form.register('phone')} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">E-mail</Label>
-              <Input id="email" type="email" {...form.register('email')} />
+              <Input id="email" type="email" placeholder="Preencher quando disponível" {...form.register('email')} />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="cnd">CND (certidão negativa de débitos)</Label>
+              <Input id="cnd" placeholder="Número, validade ou observação — preencher depois" {...form.register('cnd')} />
             </div>
           </div>
           <div className="space-y-2">
@@ -229,9 +256,10 @@ export function SuppliersPageContent() {
                 <TableRow variant="header">
                   <TableHead>Fornecedor</TableHead>
                   <TableHead>Documento</TableHead>
-                  <TableHead>Contato</TableHead>
+                  <TableHead>Endereço</TableHead>
                   <TableHead>Telefone</TableHead>
                   <TableHead>E-mail</TableHead>
+                  <TableHead>CND</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -241,13 +269,19 @@ export function SuppliersPageContent() {
                     <TableCell>
                       <div>
                         <p className="font-semibold">{supplier.legalName}</p>
-                        <p className="text-xs text-muted-foreground">{supplier.notes || 'Sem observações'}</p>
+                        {supplier.tradeName ? (
+                          <p className="text-xs text-muted-foreground">{supplier.tradeName}</p>
+                        ) : null}
+                        <p className="text-xs text-muted-foreground line-clamp-2">{supplier.notes || '—'}</p>
                       </div>
                     </TableCell>
                     <TableCell>{supplier.documentNumber || '-'}</TableCell>
-                    <TableCell>{supplier.contactName || '-'}</TableCell>
+                    <TableCell className="max-w-[200px] text-sm text-muted-foreground">
+                      {supplier.address || '—'}
+                    </TableCell>
                     <TableCell>{supplier.phone || '-'}</TableCell>
-                    <TableCell>{supplier.email || '-'}</TableCell>
+                    <TableCell>{supplier.email || '—'}</TableCell>
+                    <TableCell className="max-w-[140px] truncate text-sm">{supplier.cnd || '—'}</TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-2">
                         <Button
