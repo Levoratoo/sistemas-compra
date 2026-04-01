@@ -1253,14 +1253,16 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Button
-                  className="h-11 min-w-[240px] shrink-0 justify-center rounded-2xl border-primary/20 bg-white text-slate-900 shadow-sm shadow-slate-950/5 hover:border-primary/35 hover:bg-primary/5"
+                  className="h-auto min-h-7 max-w-[min(100%,18rem)] shrink-0 gap-1.5 whitespace-normal rounded-xl px-2 py-1 text-center text-[10px] font-semibold leading-tight normal-case"
                   disabled={!activeSlot.supplierId || isGeneratingRandomValues || rows.length === 0}
+                  size="sm"
                   type="button"
-                  variant="outline"
+                  title="Preenche os valores unitários deste orçamento com dados aleatórios para testes."
+                  variant="secondary"
                   onClick={() => void handleGenerateRandomValues()}
                 >
-                  <Dices className="size-4" aria-hidden />
-                  <span>{isGeneratingRandomValues ? 'Gerando valores...' : 'Gerar valores aleatórios'}</span>
+                  <Dices className="size-3.5 shrink-0" aria-hidden />
+                  <span>{isGeneratingRandomValues ? 'Gerando valores...' : 'Gerar informações aleatórias'}</span>
                 </Button>
                 <Badge variant={activeSlot.supplierId ? 'secondary' : 'warning'}>
                   {activeSlot.supplierId ? 'Tabela habilitada' : 'Selecione um fornecedor'}
