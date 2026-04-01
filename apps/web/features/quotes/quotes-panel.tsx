@@ -1253,13 +1253,14 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Button
+                  className="h-11 min-w-[240px] shrink-0 justify-center rounded-2xl border-primary/20 bg-white text-slate-900 shadow-sm shadow-slate-950/5 hover:border-primary/35 hover:bg-primary/5"
                   disabled={!activeSlot.supplierId || isGeneratingRandomValues || rows.length === 0}
                   type="button"
                   variant="outline"
                   onClick={() => void handleGenerateRandomValues()}
                 >
                   <Dices className="size-4" aria-hidden />
-                  {isGeneratingRandomValues ? 'Gerando valores...' : 'Gerar valores aleatórios'}
+                  <span>{isGeneratingRandomValues ? 'Gerando valores...' : 'Gerar valores aleatórios'}</span>
                 </Button>
                 <Badge variant={activeSlot.supplierId ? 'secondary' : 'warning'}>
                   {activeSlot.supplierId ? 'Tabela habilitada' : 'Selecione um fornecedor'}
