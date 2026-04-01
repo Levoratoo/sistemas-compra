@@ -149,7 +149,15 @@ const RANDOM_ITEM_NAMES = [
   'Protetor auricular tipo concha',
 ];
 
-const RANDOM_STATUS_COMPRAS = ['Pendente', 'Em cotação', 'Aprovado', 'Aguardando NF', 'Pago'];
+const PURCHASE_STATUS_OPTIONS = [
+  'Iniciar orçamento',
+  'Em orçamento',
+  'Orçamento Concluído',
+  'Compra Suspensa',
+  'Em análise',
+] as const;
+
+const RANDOM_STATUS_COMPRAS = [...PURCHASE_STATUS_OPTIONS];
 
 function randomInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1));
@@ -584,12 +592,23 @@ function PurchaseControlRow({
         />
       </td>
       <td className={cell}>
-        <input
+        <select
           key={`${rk}-f2-opst`}
-          className={inp}
+          className={cn(inp, 'cursor-pointer')}
           defaultValue={item.operationalPurchaseStatus ?? ''}
-          onBlur={(e) => onPatch(item.id, { operationalPurchaseStatus: e.target.value || null })}
-        />
+          onChange={(e) => onPatch(item.id, { operationalPurchaseStatus: e.target.value || null })}
+        >
+          <option value="">—</option>
+          {item.operationalPurchaseStatus &&
+          !PURCHASE_STATUS_OPTIONS.includes(item.operationalPurchaseStatus as (typeof PURCHASE_STATUS_OPTIONS)[number]) ? (
+            <option value={item.operationalPurchaseStatus}>{item.operationalPurchaseStatus}</option>
+          ) : null}
+          {PURCHASE_STATUS_OPTIONS.map((status) => (
+            <option key={status} value={status}>
+              {status}
+            </option>
+          ))}
+        </select>
       </td>
       <td className={cn(cell, 'bg-muted/50 px-1.5 py-2 text-[11px] text-muted-foreground')}>
         {formatDate(plannedSignatureDate)}
