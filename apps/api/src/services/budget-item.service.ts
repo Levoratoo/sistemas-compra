@@ -67,12 +67,44 @@ function calculateRealTotalValue(item: BudgetItemAggregate) {
   }, 0);
 }
 
+const PURCHASE_STATUS_NORMALIZATION_MAP = new Map<string, string>([
+  ['iniciar orcamento', 'Iniciar orçamento'],
+  ['em orcamento', 'Em orçamento'],
+  ['orcamento concluido', 'Orçamento Concluído'],
+  ['compra suspensa', 'Compra Suspensa'],
+  ['em analise', 'Em análise'],
+  ['pendente', 'Iniciar orçamento'],
+  ['em cotacao', 'Em orçamento'],
+  ['aprovado', 'Orçamento Concluído'],
+  ['aguardando nf', 'Em análise'],
+  ['pago', 'Orçamento Concluído'],
+]);
+
+function normalizeOperationalPurchaseStatus(value: string | null | undefined) {
+  if (value == null) {
+    return null;
+  }
+
+  const normalizedValue = value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .trim()
+    .toLowerCase();
+
+  if (!normalizedValue) {
+    return null;
+  }
+
+  return PURCHASE_STATUS_NORMALIZATION_MAP.get(normalizedValue) ?? value.trim();
+}
+
 export function buildBudgetItemResponse(item: BudgetItemAggregate) {
   const bidTotalValue = calculateBidTotalValue(item);
   const realTotalValue = calculateRealTotalValue(item);
 
   return {
     ...serializeBudgetItem(item),
+    operationalPurchaseStatus: normalizeOperationalPurchaseStatus(item.operationalPurchaseStatus),
     bidTotalValue,
     realTotalValue,
     savingsValue: bidTotalValue === null ? null : bidTotalValue - realTotalValue,
@@ -125,7 +157,7 @@ class BudgetItemService {
       notes: input.notes ?? null,
       priority: input.priority ?? null,
       peopleCount: input.peopleCount ?? null,
-      operationalPurchaseStatus: input.operationalPurchaseStatus ?? null,
+      operationalPurchaseStatus: normalizeOperationalPurchaseStatus(input.operationalPurchaseStatus),
       editalDeliveryDeadlineDays: input.editalDeliveryDeadlineDays ?? null,
       replenishmentPeriodDaysEdital: input.replenishmentPeriodDaysEdital ?? null,
       approvedSupplierName: input.approvedSupplierName ?? null,
@@ -195,7 +227,10 @@ class BudgetItemService {
       notes: input.notes,
       priority: input.priority,
       peopleCount: input.peopleCount,
-      operationalPurchaseStatus: input.operationalPurchaseStatus,
+      operationalPurchaseStatus:
+        input.operationalPurchaseStatus !== undefined
+          ? normalizeOperationalPurchaseStatus(input.operationalPurchaseStatus)
+          : undefined,
       editalDeliveryDeadlineDays: input.editalDeliveryDeadlineDays,
       replenishmentPeriodDaysEdital: input.replenishmentPeriodDaysEdital,
       approvedSupplierName: input.approvedSupplierName,

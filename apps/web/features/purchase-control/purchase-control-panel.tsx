@@ -159,6 +159,37 @@ const PURCHASE_STATUS_OPTIONS = [
 
 const RANDOM_STATUS_COMPRAS = [...PURCHASE_STATUS_OPTIONS];
 
+const PURCHASE_STATUS_NORMALIZATION_MAP = new Map<string, (typeof PURCHASE_STATUS_OPTIONS)[number]>([
+  ['iniciar orcamento', 'Iniciar orçamento'],
+  ['em orcamento', 'Em orçamento'],
+  ['orcamento concluido', 'Orçamento Concluído'],
+  ['compra suspensa', 'Compra Suspensa'],
+  ['em analise', 'Em análise'],
+  ['pendente', 'Iniciar orçamento'],
+  ['em cotacao', 'Em orçamento'],
+  ['aprovado', 'Orçamento Concluído'],
+  ['aguardando nf', 'Em análise'],
+  ['pago', 'Orçamento Concluído'],
+]);
+
+function normalizePurchaseStatusOption(value: string | null | undefined) {
+  if (value == null) {
+    return '';
+  }
+
+  const normalizedValue = value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .trim()
+    .toLowerCase();
+
+  if (!normalizedValue) {
+    return '';
+  }
+
+  return PURCHASE_STATUS_NORMALIZATION_MAP.get(normalizedValue) ?? '';
+}
+
 function randomInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1));
 }
@@ -212,7 +243,8 @@ function buildRandomPurchaseControlPayload(): Partial<BudgetItemPayload> {
     peopleCount,
     plannedQuantity,
     rubricMaxValue,
-    operationalPurchaseStatus: RANDOM_STATUS_COMPRAS[randomInt(0, RANDOM_STATUS_COMPRAS.length - 1)] ?? 'Pendente',
+    operationalPurchaseStatus:
+      RANDOM_STATUS_COMPRAS[randomInt(0, RANDOM_STATUS_COMPRAS.length - 1)] ?? 'Iniciar orçamento',
     editalDeliveryDeadlineDays: randomInt(15, 120),
     replenishmentPeriodDaysEdital: randomInt(30, 365),
     actualUnitValue,
@@ -595,14 +627,10 @@ function PurchaseControlRow({
         <select
           key={`${rk}-f2-opst`}
           className={cn(inp, 'cursor-pointer')}
-          defaultValue={item.operationalPurchaseStatus ?? ''}
+          defaultValue={normalizePurchaseStatusOption(item.operationalPurchaseStatus)}
           onChange={(e) => onPatch(item.id, { operationalPurchaseStatus: e.target.value || null })}
         >
           <option value="">—</option>
-          {item.operationalPurchaseStatus &&
-          !PURCHASE_STATUS_OPTIONS.includes(item.operationalPurchaseStatus as (typeof PURCHASE_STATUS_OPTIONS)[number]) ? (
-            <option value={item.operationalPurchaseStatus}>{item.operationalPurchaseStatus}</option>
-          ) : null}
           {PURCHASE_STATUS_OPTIONS.map((status) => (
             <option key={status} value={status}>
               {status}
