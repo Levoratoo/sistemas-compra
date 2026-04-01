@@ -5,6 +5,7 @@ import {
   Building2,
   CheckCircle2,
   CircleDollarSign,
+  Dices,
   FilePlus2,
   LayoutGrid,
   Search,
@@ -55,6 +56,19 @@ function currencyOrDash(value: number | null | undefined) {
 
 function slotDisplayName(slot: ProjectQuoteSlot) {
   return slot.supplier?.tradeName || slot.supplier?.legalName || `Orçamento ${slot.slotNumber}`;
+}
+
+function generateRandomQuoteUnitPrice() {
+  const rawValue = Math.random() * 490 + 10;
+  return Number(rawValue.toFixed(2));
+}
+
+function getQuoteFillProgress(filledItemCount: number, itemCount: number) {
+  if (itemCount <= 0) {
+    return 0;
+  }
+
+  return Math.min(100, Math.round((filledItemCount / itemCount) * 100));
 }
 
 function SlotStatusBadge({ slot }: { slot: ProjectQuoteSlot }) {
@@ -298,7 +312,7 @@ function SupplierPickerDialog({
                           <p className="font-semibold text-foreground">{supplier.legalName}</p>
                           {supplier.tradeName ? <p className="text-sm text-muted-foreground">{supplier.tradeName}</p> : null}
                           <p className="text-xs text-muted-foreground">
-                            {[supplier.documentNumber, supplier.contactName, supplier.phone].filter(Boolean).join(' • ') || 'Sem dados complementares'}
+                            {[supplier.documentNumber, supplier.contactName, supplier.phone].filter(Boolean).join(' | ') || 'Sem dados complementares'}
                           </p>
                         </div>
                         {selected ? <Badge variant="success">Selecionado</Badge> : null}
@@ -395,7 +409,7 @@ function NewQuoteItemDialog({
 
         <div className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Label htmlFor="quote-item-category">Categoria</Label>
               <Select
                 id="quote-item-category"
@@ -409,7 +423,7 @@ function NewQuoteItemDialog({
                 ))}
               </Select>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Label htmlFor="quote-item-quantity">Quantidade</Label>
               <Input
                 id="quote-item-quantity"
@@ -686,7 +700,7 @@ function ComparisonTable({
                   <div className="space-y-1">
                     <Badge variant="warning">Empate</Badge>
                     <p className="text-xs text-muted-foreground">
-                      {row.winner.slotNumbers.map((slotNumber) => `Orçamento ${slotNumber}`).join(' • ')}
+                      {row.winner.slotNumbers.map((slotNumber) => `Orçamento ${slotNumber}`).join(' | ')}
                     </p>
                   </div>
                 ) : (
@@ -709,6 +723,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
   const [supplierPickerSlot, setSupplierPickerSlot] = useState<ProjectQuoteSlot | null>(null);
   const [newItemDialogOpen, setNewItemDialogOpen] = useState(false);
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
+  const [isGeneratingRandomValues, setIsGeneratingRandomValues] = useState(false);
 
   const loading = projectQuery.isLoading || quotesQuery.isLoading;
   const project = projectQuery.data;
@@ -803,6 +818,43 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
     }
   }
 
+  async function handleGenerateRandomValues() {
+    if (!activeSlot?.supplierId) {
+      toast.error('Selecione um fornecedor antes de gerar valores aleatórios.');
+      return;
+    }
+
+    if (rows.length === 0) {
+      toast.error('Não existem itens disponíveis para preencher neste orçamento.');
+      return;
+    }
+
+    if (
+      activeSlotPricedCount > 0 &&
+      !window.confirm('Isso vai substituir os valores unitários já preenchidos neste orçamento. Deseja continuar?')
+    ) {
+      return;
+    }
+
+    setIsGeneratingRandomValues(true);
+
+    try {
+      for (const row of rows) {
+        await quoteMutations.updateItem.mutateAsync({
+          slotNumber: activeSlot.slotNumber,
+          budgetItemId: row.budgetItemId,
+          payload: { unitPrice: generateRandomQuoteUnitPrice() },
+        });
+      }
+
+      toast.success(`Valores aleatórios gerados em ${rows.length} item(ns).`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível gerar os valores aleatórios.');
+    } finally {
+      setIsGeneratingRandomValues(false);
+    }
+  }
+
   async function handleApply(mode: 'OVERALL' | 'PER_ITEM') {
     const confirmed = window.confirm(
       mode === 'OVERALL'
@@ -857,29 +909,47 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
   const canApplyOverall = comparison?.overallWinner.status === 'UNIQUE';
   const canApplyPerItem = (comparison?.resolvedRowCount ?? 0) > 0;
   const canGeneratePurchaseOrder = Boolean(activeSlot?.isSelected && activeSlot?.supplierId && activeSlotPricedCount > 0);
+  const completedSlotsCount = slots.filter((slot) => slot.isComplete).length;
+  const selectedSlotNumber = slots.find((slot) => slot.isSelected)?.slotNumber ?? null;
+  const activeSlotProgress = activeSlot ? getQuoteFillProgress(activeSlot.filledItemCount, activeSlot.itemCount) : 0;
 
   return (
     <div className="page-sections">
-      <Card className="overflow-hidden border-border/70 shadow-md shadow-black/10">
-        <CardHeader className="border-b border-border/70 bg-gradient-to-br from-card via-card to-muted/20">
+      <Card className="relative overflow-hidden border-primary/15 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.18),transparent_36%),radial-gradient(circle_at_top_right,rgba(56,189,248,0.14),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))] shadow-xl shadow-slate-950/5">
+        <div className="pointer-events-none absolute inset-x-10 bottom-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+        <CardHeader className="relative border-b border-white/70 pb-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-2">
-              <CardTitle className="flex items-center gap-2">
-                <CircleDollarSign className="size-5 text-primary" aria-hidden />
+            <div className="space-y-3">
+              <CardTitle className="flex items-center gap-3 text-xl">
+                <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-sm shadow-primary/10 ring-1 ring-primary/15">
+                  <CircleDollarSign className="size-5" aria-hidden />
+                </div>
                 Orçamentos do projeto
               </CardTitle>
-              <CardDescription className="max-w-3xl">
+              <CardDescription className="max-w-3xl text-[15px] leading-7">
                 Cada orçamento representa um fornecedor para toda a lista do projeto. Os itens vêm automaticamente do mesmo conjunto usado em Controle de compras e Checklist.
               </CardDescription>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="secondary" className="bg-white/90 px-3 py-1 text-slate-700 ring-slate-200/90">
+                  3 orçamentos fixos
+                </Badge>
+                <Badge variant="success" className="px-3 py-1">
+                  {completedSlotsCount} completo(s)
+                </Badge>
+                <Badge variant="neutral" className="px-3 py-1">
+                  {selectedSlotNumber ? `Orçamento ${selectedSlotNumber} selecionado` : 'Nenhum orçamento selecionado'}
+                </Badge>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="secondary" onClick={() => setNewItemDialogOpen(true)}>
+            <div className="flex flex-wrap gap-2 lg:justify-end">
+              <Button className="h-11 rounded-2xl px-5 shadow-sm shadow-primary/10" type="button" variant="secondary" onClick={() => setNewItemDialogOpen(true)}>
                 <FilePlus2 className="size-4" aria-hidden />
                 Novo item
               </Button>
               {activeView === 'comparison' ? (
                 <>
                   <Button
+                    className="h-11 rounded-2xl px-5"
                     disabled={!canApplyOverall || quoteMutations.applyWinner.isPending}
                     type="button"
                     variant="outline"
@@ -889,6 +959,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                     Aplicar vencedor geral
                   </Button>
                   <Button
+                    className="h-11 rounded-2xl px-5 shadow-sm shadow-primary/15"
                     disabled={!canApplyPerItem || quoteMutations.applyWinner.isPending}
                     type="button"
                     onClick={() => void handleApply('PER_ITEM')}
@@ -903,32 +974,55 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
         </CardHeader>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {viewTabs.map((tab) => {
           const slot = tab.value.startsWith('slot-')
             ? slots.find((entry) => entry.slotNumber === Number(tab.value.replace('slot-', ''))) ?? null
             : null;
           const active = activeView === tab.value;
+          const slotProgress = slot ? getQuoteFillProgress(slot.filledItemCount, slot.itemCount) : 0;
 
           return (
             <button
               key={tab.value}
               className={cn(
-                'rounded-2xl border px-4 py-4 text-left transition',
+                'relative overflow-hidden rounded-[28px] border px-5 py-5 text-left transition duration-200',
                 active
-                  ? 'border-primary bg-primary/8 shadow-md shadow-primary/10'
-                  : 'border-border/70 bg-card hover:border-primary/30 hover:bg-muted/15',
+                  ? 'border-primary/35 bg-[linear-gradient(180deg,rgba(20,184,166,0.14),rgba(255,255,255,0.96))] shadow-xl shadow-primary/10'
+                  : 'border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.92))] hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-lg hover:shadow-slate-950/5',
               )}
               type="button"
               onClick={() => setActiveView(tab.value)}
             >
+              <div
+                className={cn(
+                  'absolute inset-x-5 top-0 h-1 rounded-b-full transition-opacity',
+                  active ? 'bg-gradient-to-r from-primary via-teal-400 to-sky-400 opacity-100' : 'bg-gradient-to-r from-primary/60 to-sky-300/70 opacity-0',
+                )}
+              />
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">{tab.label}</p>
+                <div className="min-w-0 flex-1 space-y-3">
+                  <p className="text-base font-semibold text-foreground">{tab.label}</p>
                   {slot ? (
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      <p className="text-xs text-muted-foreground">{slotDisplayName(slot)}</p>
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-sm font-medium text-foreground">{slotDisplayName(slot)}</p>
                       {slot.isSelected ? <Badge variant="secondary">Selecionado</Badge> : null}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      <span>{slot.filledItemCount}/{slot.itemCount} itens</span>
+                      <span>{slotProgress}% concluído</span>
+                      <span>{currencyOrDash(slot.totalValue)}</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-slate-200/80">
+                      <div
+                        className={cn(
+                          'h-full rounded-full transition-all',
+                          active ? 'bg-gradient-to-r from-primary to-sky-400' : 'bg-gradient-to-r from-primary/80 to-sky-300',
+                        )}
+                        style={{ width: `${slotProgress}%` }}
+                      />
+                    </div>
                     </div>
                   ) : (
                     <p className="mt-1 text-xs text-muted-foreground">Comparação entre os 3 orçamentos</p>
@@ -1020,7 +1114,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                     <>
                       <Badge variant="warning">Empate geral</Badge>
                       <span className="text-muted-foreground">
-                        {comparison.overallWinner.slotNumbers.map((slotNumber) => `Orçamento ${slotNumber}`).join(' • ')}
+                        {comparison.overallWinner.slotNumbers.map((slotNumber) => `Orçamento ${slotNumber}`).join(' | ')}
                       </span>
                     </>
                   ) : (
@@ -1038,10 +1132,10 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
         </>
       ) : activeSlot ? (
         <>
-          <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-            <Card className="border-border/70 shadow-sm">
-              <CardHeader className="space-y-4">
-                <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1.18fr)_minmax(320px,0.82fr)]">
+            <Card className="relative overflow-hidden border-primary/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(240,253,250,0.9))] shadow-xl shadow-slate-950/5">
+              <CardHeader className="space-y-5">
+                <div className="flex flex-wrap items-start justify-between gap-4 rounded-[28px] border border-white/70 bg-white/60 p-5 backdrop-blur-sm">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <Store className="size-5 text-primary" aria-hidden />
@@ -1054,7 +1148,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                   <SlotStatusBadge slot={activeSlot} />
                 </div>
 
-                <div className="rounded-3xl border border-border/70 bg-muted/15 p-5">
+                <div className="rounded-[28px] border border-primary/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(236,253,245,0.88))] p-6 shadow-inner shadow-primary/5">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div className="space-y-1">
                       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Fornecedor atual</p>
@@ -1063,15 +1157,16 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                         <p className="text-sm text-muted-foreground">
                           {[activeSlot.supplier.documentNumber, activeSlot.supplier.phone, activeSlot.supplier.email]
                             .filter(Boolean)
-                            .join(' • ') || 'Sem dados complementares'}
+                            .join(' | ') || 'Sem dados complementares'}
                         </p>
                       ) : (
                         <p className="text-sm text-muted-foreground">Selecione um fornecedor para habilitar a tabela.</p>
                       )}
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2 lg:justify-end">
                       <Button
+                        className="h-11 rounded-2xl px-5"
                         disabled={quoteMutations.selectSlot.isPending || activeSlot.isSelected}
                         type="button"
                         onClick={() => void handleSelectQuoteSlot(activeSlot.slotNumber)}
@@ -1079,20 +1174,20 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                       >
                         {activeSlot.isSelected ? 'Orçamento selecionado' : 'Selecionar orçamento'}
                       </Button>
-                      <Button type="button" onClick={() => setSupplierPickerSlot(activeSlot)}>
+                      <Button className="h-11 rounded-2xl px-5 shadow-sm shadow-primary/15" type="button" onClick={() => setSupplierPickerSlot(activeSlot)}>
                         <Building2 className="size-4" aria-hidden />
                         {activeSlot.supplier ? 'Trocar fornecedor' : 'Selecionar fornecedor'}
                       </Button>
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {activeSlot.isSelected ? <Badge variant="secondary">Este é o orçamento selecionado</Badge> : null}
                   <Badge variant={activeSlotPricedCount > 0 ? 'success' : 'neutral'}>
                     {activeSlotPricedCount} item(ns) com preço
                   </Badge>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     className="hidden"
                     disabled={quoteMutations.selectSlot.isPending || activeSlot.isSelected}
@@ -1103,6 +1198,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                     Selecionar orçamento
                   </Button>
                   <Button
+                    className="h-11 rounded-2xl px-5 shadow-sm shadow-primary/15"
                     disabled={!canGeneratePurchaseOrder || quoteMutations.generatePurchaseOrder.isPending}
                     type="button"
                     onClick={() => setGenerateDialogOpen(true)}
@@ -1113,19 +1209,32 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
               </CardHeader>
             </Card>
 
-            <Card className="border-border/70 shadow-sm">
-              <CardHeader className="space-y-4">
+            <Card className="relative overflow-hidden border-sky-200/60 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.16),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.99),rgba(241,245,249,0.93))] shadow-xl shadow-slate-950/5">
+              <CardHeader className="space-y-5">
+                <div className="flex items-start justify-between gap-4 rounded-[28px] border border-white/70 bg-white/70 px-5 py-4 backdrop-blur-sm">
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700/80">Preenchimento</p>
+                    <p className="text-sm text-muted-foreground">Acompanhe a evolução deste orçamento em tempo real.</p>
+                  </div>
+                  <div className="rounded-2xl bg-sky-50 px-4 py-3 text-right ring-1 ring-sky-100">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sky-700/80">Progresso</p>
+                    <p className="mt-1 text-2xl font-semibold text-slate-900">{activeSlotProgress}%</p>
+                  </div>
+                </div>
                 <CardTitle className="text-lg">Resumo deste orçamento</CardTitle>
+                <div className="h-2 overflow-hidden rounded-full bg-slate-200/80">
+                  <div className="h-full rounded-full bg-gradient-to-r from-sky-400 via-primary to-teal-400 transition-all" style={{ width: `${activeSlotProgress}%` }} />
+                </div>
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-2xl bg-muted/20 px-4 py-4">
+                  <div className="rounded-[24px] bg-white/80 px-4 py-4 ring-1 ring-slate-200/80">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Itens</p>
                     <p className="mt-2 text-2xl font-semibold text-foreground">{activeSlot.itemCount}</p>
                   </div>
-                  <div className="rounded-2xl bg-muted/20 px-4 py-4">
+                  <div className="rounded-[24px] bg-emerald-50/80 px-4 py-4 ring-1 ring-emerald-100">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Preenchidos</p>
                     <p className="mt-2 text-2xl font-semibold text-foreground">{activeSlot.filledItemCount}</p>
                   </div>
-                  <div className="rounded-2xl bg-muted/20 px-4 py-4">
+                  <div className="rounded-[24px] bg-sky-50/80 px-4 py-4 ring-1 ring-sky-100">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Total</p>
                     <p className="mt-2 text-2xl font-semibold text-foreground">{currencyOrDash(activeSlot.totalValue)}</p>
                   </div>
@@ -1142,9 +1251,20 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                   Descrição e quantidade vêm automaticamente do projeto. Preencha o valor unitário e observações deste fornecedor.
                 </CardDescription>
               </div>
-              <Badge variant={activeSlot.supplierId ? 'secondary' : 'warning'}>
-                {activeSlot.supplierId ? 'Tabela habilitada' : 'Selecione um fornecedor'}
-              </Badge>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  disabled={!activeSlot.supplierId || isGeneratingRandomValues || rows.length === 0}
+                  type="button"
+                  variant="outline"
+                  onClick={() => void handleGenerateRandomValues()}
+                >
+                  <Dices className="size-4" aria-hidden />
+                  {isGeneratingRandomValues ? 'Gerando valores...' : 'Gerar valores aleatórios'}
+                </Button>
+                <Badge variant={activeSlot.supplierId ? 'secondary' : 'warning'}>
+                  {activeSlot.supplierId ? 'Tabela habilitada' : 'Selecione um fornecedor'}
+                </Badge>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto rounded-2xl border border-border/70">
@@ -1162,7 +1282,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                     {rows.map((row) => (
                       <QuoteLineRow
                         key={`${activeSlot.slotNumber}-${row.budgetItemId}`}
-                        disabled={!activeSlot.supplierId}
+                        disabled={!activeSlot.supplierId || isGeneratingRandomValues}
                         row={row}
                         slotNumber={activeSlot.slotNumber}
                         onSave={(budgetItemId, payload) => handleSaveRow(activeSlot.slotNumber, budgetItemId, payload)}
