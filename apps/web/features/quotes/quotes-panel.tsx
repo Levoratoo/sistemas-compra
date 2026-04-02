@@ -1,6 +1,6 @@
 'use client';
 
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { type ChangeEvent, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowUpFromLine,
@@ -12,6 +12,7 @@ import {
   FileText,
   FilePlus2,
   LayoutGrid,
+  LoaderCircle,
   Search,
   Store,
   Trophy,
@@ -749,6 +750,7 @@ function SupplierQuoteImportDialog({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [decisions, setDecisions] = useState<QuoteImportDecisionMap>({});
   const [reviewPopupOpen, setReviewPopupOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -826,13 +828,27 @@ function SupplierQuoteImportDialog({
     });
   }
 
-  async function handleUpload() {
-    if (!selectedFile) {
-      toast.error('Selecione um PDF do fornecedor para importar.');
+  function openFilePicker() {
+    if (!slot?.supplierId || uploadPending) {
       return;
     }
 
-    await onUpload(selectedFile);
+    fileInputRef.current?.click();
+  }
+
+  async function handleFileSelection(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    setSelectedFile(file);
+
+    if (!file) {
+      return;
+    }
+
+    try {
+      await onUpload(file);
+    } finally {
+      event.target.value = '';
+    }
   }
 
   async function handleApply() {
@@ -868,14 +884,29 @@ function SupplierQuoteImportDialog({
         </DialogHeader>
 
         <div className="space-y-5">
-          <div className="rounded-[28px] border border-primary/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(240,253,250,0.9))] p-5 shadow-sm">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="rounded-[30px] border border-primary/15 bg-[linear-gradient(135deg,rgba(236,253,245,0.95),rgba(255,255,255,0.98)_42%,rgba(239,246,255,0.92))] p-5 shadow-sm shadow-primary/10">
+            <input
+              ref={fileInputRef}
+              accept="application/pdf,.pdf"
+              className="hidden"
+              disabled={!slot?.supplierId || uploadPending}
+              type="file"
+              onChange={(event) => void handleFileSelection(event)}
+            />
+
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-stretch xl:justify-between">
               <div className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Upload</p>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant={slot?.supplierId ? 'secondary' : 'warning'}>
                     {slot?.supplierId ? `Fornecedor: ${slotDisplayName(slot)}` : 'Selecione um fornecedor primeiro'}
                   </Badge>
+                  {uploadPending ? (
+                    <Badge variant="warning">
+                      <LoaderCircle className="mr-1 size-3 animate-spin" aria-hidden />
+                      Analisando PDF
+                    </Badge>
+                  ) : null}
                   {preview ? (
                     <Badge variant={preview.extractionMode === 'OCR' ? 'warning' : 'success'}>
                       {preview.extractionMode === 'OCR' ? 'Lido com OCR' : 'Texto direto'}
@@ -894,27 +925,51 @@ function SupplierQuoteImportDialog({
                 </p>
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <Input
-                  accept="application/pdf,.pdf"
-                  className="max-w-sm"
-                  disabled={!slot?.supplierId || uploadPending}
-                  type="file"
-                  onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-                />
-                <Button
-                  className="h-11 rounded-2xl px-5 shadow-sm shadow-primary/15"
-                  disabled={!slot?.supplierId || !selectedFile || uploadPending}
-                  type="button"
-                  onClick={() => void handleUpload()}
-                >
-                  <ArrowUpFromLine className="size-4" aria-hidden />
-                  {uploadPending ? 'Lendo PDF...' : 'Importar PDF'}
-                </Button>
-              </div>
-            </div>
+              <button
+                className={cn(
+                  'group flex min-h-[152px] w-full flex-col justify-between rounded-[28px] border border-white/70 bg-white/80 p-5 text-left shadow-[0_18px_45px_-28px_rgba(15,23,42,0.35)] transition-all xl:max-w-[440px]',
+                  slot?.supplierId && !uploadPending && 'hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[0_24px_50px_-26px_rgba(13,148,136,0.38)]',
+                  (!slot?.supplierId || uploadPending) && 'cursor-not-allowed opacity-85',
+                )}
+                disabled={!slot?.supplierId || uploadPending}
+                type="button"
+                onClick={openFilePicker}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-primary/12 text-primary">
+                    {uploadPending ? <LoaderCircle className="size-6 animate-spin" aria-hidden /> : <ArrowUpFromLine className="size-6" aria-hidden />}
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="text-base font-semibold text-foreground">
+                      {uploadPending
+                        ? 'Lendo o PDF do fornecedor'
+                        : selectedFile
+                          ? 'Trocar PDF e importar novamente'
+                          : 'Clique para escolher o PDF'}
+                    </p>
+                    <p className="text-sm leading-relaxed text-muted-foreground">
+                      {slot?.supplierId
+                        ? uploadPending
+                          ? 'O sistema esta extraindo os itens, conferindo os valores e montando a previa automaticamente.'
+                          : 'Upload em 1 clique. Escolha o arquivo e a leitura comeca na hora, sem precisar confirmar em outro botao.'
+                        : 'Defina o fornecedor deste orcamento para habilitar a importacao do PDF.'}
+                    </p>
+                  </div>
+                </div>
 
-            {selectedFile ? <p className="mt-3 text-xs text-muted-foreground">Arquivo selecionado: {selectedFile.name}</p> : null}
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Arquivo</p>
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {selectedFile?.name ?? (preview?.document.originalFileName || 'Nenhum PDF selecionado ainda')}
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center rounded-full border border-primary/15 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                    {uploadPending ? 'Processando' : '1 clique'}
+                  </span>
+                </div>
+              </button>
+            </div>
 
             {preview ? (
               <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-border/70 bg-white/80 px-4 py-3">
@@ -937,9 +992,29 @@ function SupplierQuoteImportDialog({
                 </a>
               </div>
             ) : null}
+
+            {!preview && selectedFile && !uploadPending ? (
+              <p className="mt-3 text-xs text-muted-foreground">Arquivo pronto para leitura: {selectedFile.name}</p>
+            ) : null}
           </div>
 
-          {preview ? (
+          {uploadPending ? (
+            <div className="rounded-[30px] border border-primary/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(240,253,250,0.88))] px-8 py-14 shadow-sm">
+              <div className="mx-auto flex max-w-xl flex-col items-center text-center">
+                <div className="flex size-20 items-center justify-center rounded-[28px] bg-primary/12 text-primary shadow-inner">
+                  <LoaderCircle className="size-10 animate-spin" aria-hidden />
+                </div>
+                <p className="mt-6 text-xl font-semibold text-foreground">Importando e analisando o PDF</p>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  Estamos lendo o arquivo, extraindo os itens do fornecedor e comparando com os itens do projeto para montar a revisao.
+                </p>
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+                  <Badge variant="secondary">{slot?.supplierId ? slotDisplayName(slot) : 'Fornecedor'}</Badge>
+                  {selectedFile ? <Badge variant="neutral">{selectedFile.name}</Badge> : null}
+                </div>
+              </div>
+            </div>
+          ) : preview ? (
             <>
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                 <div className="rounded-2xl border border-border/70 bg-card px-4 py-4">
@@ -1101,11 +1176,26 @@ function SupplierQuoteImportDialog({
               </div>
             </>
           ) : (
-            <EmptyState
-              description="Selecione um PDF do fornecedor para gerar a previa de correspondencia com os itens do projeto."
-              icon={FileText}
-              title="Nenhum PDF importado ainda"
-            />
+            <div className="rounded-[30px] border border-dashed border-primary/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.94))] px-8 py-14 shadow-sm">
+              <div className="mx-auto flex max-w-xl flex-col items-center text-center">
+                <div className="flex size-20 items-center justify-center rounded-[28px] bg-primary/10 text-primary">
+                  <FileText className="size-10" aria-hidden />
+                </div>
+                <p className="mt-6 text-xl font-semibold text-foreground">Nenhum PDF importado ainda</p>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  Escolha o PDF do fornecedor e a previa sera gerada automaticamente para voce revisar os itens antes de aplicar.
+                </p>
+                <Button
+                  className="mt-6 rounded-2xl px-5"
+                  disabled={!slot?.supplierId}
+                  type="button"
+                  onClick={openFilePicker}
+                >
+                  <ArrowUpFromLine className="size-4" aria-hidden />
+                  {slot?.supplierId ? 'Escolher PDF agora' : 'Selecione um fornecedor primeiro'}
+                </Button>
+              </div>
+            </div>
           )}
         </div>
 
