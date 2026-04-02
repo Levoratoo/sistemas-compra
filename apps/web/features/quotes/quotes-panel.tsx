@@ -2,10 +2,14 @@
 
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
+  ArrowUpFromLine,
   Building2,
   CheckCircle2,
   CircleDollarSign,
   Dices,
+  ExternalLink,
+  FileText,
   FilePlus2,
   LayoutGrid,
   Search,
@@ -37,9 +41,18 @@ import { useProjectQuery } from '@/hooks/use-projects';
 import { useProjectQuotesMutations, useProjectQuotesQuery } from '@/hooks/use-project-quotes';
 import { useSuppliersQuery } from '@/hooks/use-suppliers';
 import { getItemCategoryLabel, itemCategoryOptions } from '@/lib/constants';
-import { formatCurrency, formatNumber } from '@/lib/format';
+import { formatCurrency, formatDate, formatNumber } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import type { ItemCategory, ProjectQuoteRow, ProjectQuoteSlot } from '@/types/api';
+import { getProjectDocumentDownloadUrl } from '@/services/documents-service';
+import type {
+  ItemCategory,
+  ProjectQuoteImportAction,
+  ProjectQuoteImportApplyPayload,
+  ProjectQuoteImportPreview,
+  ProjectQuoteImportRow,
+  ProjectQuoteRow,
+  ProjectQuoteSlot,
+} from '@/types/api';
 
 type QuoteView = 'slot-1' | 'slot-2' | 'slot-3' | 'comparison';
 
@@ -49,6 +62,58 @@ const viewTabs: Array<{ value: QuoteView; label: string }> = [
   { value: 'slot-3', label: 'Orçamento 3' },
   { value: 'comparison', label: 'Mapa comparativo' },
 ];
+
+type QuoteImportDecisionMap = Record<
+  number,
+  {
+    action: ProjectQuoteImportAction;
+    matchedBudgetItemId: string | null;
+    validationChoice: 'YES' | 'NO' | null;
+  }
+>;
+
+function buildInitialQuoteImportDecisions(preview: ProjectQuoteImportPreview | null): QuoteImportDecisionMap {
+  if (!preview) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    preview.rows.map((row) => [
+      row.rowIndex,
+      {
+        action: row.suggestedAction,
+        matchedBudgetItemId: row.matchedBudgetItemId,
+        validationChoice: row.requiresNameValidation ? null : 'YES',
+      },
+    ]),
+  );
+}
+
+function isReviewValidationResolved(
+  row: ProjectQuoteImportRow,
+  decision: QuoteImportDecisionMap[number] | undefined,
+) {
+  if (!row.requiresNameValidation) {
+    return true;
+  }
+
+  const action = decision?.action ?? row.suggestedAction;
+  const matchedBudgetItemId = decision?.matchedBudgetItemId ?? row.matchedBudgetItemId;
+
+  if (action === 'CREATE_EXTRA' || action === 'IGNORE') {
+    return true;
+  }
+
+  if (action !== 'APPLY' || !matchedBudgetItemId) {
+    return false;
+  }
+
+  if (matchedBudgetItemId !== row.matchedBudgetItemId) {
+    return true;
+  }
+
+  return decision?.validationChoice === 'YES';
+}
 
 function currencyOrDash(value: number | null | undefined) {
   return value == null ? '—' : formatCurrency(value);
@@ -149,12 +214,29 @@ function QuoteLineRow({
   }
 
   return (
-    <tr className="border-b border-border/70 transition-colors hover:bg-muted/20">
+    <tr
+      className={cn(
+        'border-b border-border/70 transition-colors hover:bg-muted/20',
+        row.supplierQuoteExtraItem && 'bg-amber-50/70 hover:bg-amber-100/70',
+      )}
+    >
       <td className="px-3 py-3 align-top">
         <div className="space-y-1">
-          <p className="font-medium text-foreground">{row.description}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-medium text-foreground">{row.description}</p>
+            {row.supplierQuoteExtraItem ? (
+              <Badge className="border-amber-300/80 bg-amber-100 text-amber-950" variant="warning">
+                Item extra do fornecedor
+              </Badge>
+            ) : null}
+          </div>
           {row.specification ? <p className="text-xs leading-relaxed text-muted-foreground">{row.specification}</p> : null}
           <p className="text-xs text-muted-foreground">{getItemCategoryLabel(row.itemCategory)}</p>
+          {row.supplierQuoteExtraItem ? (
+            <p className="text-xs font-medium text-amber-900">
+              Nao encontrada no edital, mas presente no orcamento
+            </p>
+          ) : null}
         </div>
       </td>
       <td className="px-3 py-3 text-center align-top tabular-nums text-foreground">{formatNumber(row.quantity)}</td>
@@ -641,6 +723,562 @@ function GeneratePurchaseOrderDialog({
   );
 }
 
+function SupplierQuoteImportDialog({
+  open,
+  onOpenChange,
+  slot,
+  projectId,
+  budgetRows,
+  preview,
+  uploadPending,
+  applyPending,
+  onUpload,
+  onApply,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  slot: ProjectQuoteSlot | null;
+  projectId: string;
+  budgetRows: ProjectQuoteRow[];
+  preview: ProjectQuoteImportPreview | null;
+  uploadPending: boolean;
+  applyPending: boolean;
+  onUpload: (file: File) => Promise<void>;
+  onApply: (payload: ProjectQuoteImportApplyPayload) => Promise<void>;
+}) {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [decisions, setDecisions] = useState<QuoteImportDecisionMap>({});
+  const [reviewPopupOpen, setReviewPopupOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setSelectedFile(null);
+      setDecisions({});
+      setReviewPopupOpen(false);
+      return;
+    }
+
+    if (preview) {
+      setDecisions(buildInitialQuoteImportDecisions(preview));
+      setSelectedFile(null);
+      setReviewPopupOpen(preview.rows.some((row) => row.requiresNameValidation));
+    } else {
+      setDecisions({});
+      setReviewPopupOpen(false);
+    }
+  }, [open, preview]);
+
+  const itemOptions = useMemo(
+    () =>
+      budgetRows.map((row) => ({
+        id: row.budgetItemId,
+        label: row.description,
+        detail: row.specification,
+      })),
+    [budgetRows],
+  );
+  const reviewRows = useMemo(() => preview?.rows.filter((row) => row.requiresNameValidation) ?? [], [preview]);
+  const unresolvedReviewRows = useMemo(
+    () => reviewRows.filter((row) => !isReviewValidationResolved(row, decisions[row.rowIndex])),
+    [decisions, reviewRows],
+  );
+  const unresolvedReviewCount = unresolvedReviewRows.length;
+
+  function getDecision(row: ProjectQuoteImportRow) {
+    return (
+      decisions[row.rowIndex] ?? {
+        action: row.suggestedAction,
+        matchedBudgetItemId: row.matchedBudgetItemId,
+        validationChoice: row.requiresNameValidation ? null : 'YES',
+      }
+    );
+  }
+
+  function updateDecision(row: ProjectQuoteImportRow, updates: Partial<QuoteImportDecisionMap[number]>) {
+    setDecisions((current) => ({
+      ...current,
+      [row.rowIndex]: {
+        ...(current[row.rowIndex] ?? {
+          action: row.suggestedAction,
+          matchedBudgetItemId: row.matchedBudgetItemId,
+          validationChoice: row.requiresNameValidation ? null : 'YES',
+        }),
+        ...updates,
+      },
+    }));
+  }
+
+  function approveAllSuggestedReviewRows() {
+    if (!preview) {
+      return;
+    }
+
+    setDecisions((current) => {
+      const next = { ...current };
+      for (const row of preview.rows.filter((entry) => entry.requiresNameValidation && entry.matchedBudgetItemId)) {
+        next[row.rowIndex] = {
+          action: 'APPLY',
+          matchedBudgetItemId: row.matchedBudgetItemId,
+          validationChoice: 'YES',
+        };
+      }
+      return next;
+    });
+  }
+
+  async function handleUpload() {
+    if (!selectedFile) {
+      toast.error('Selecione um PDF do fornecedor para importar.');
+      return;
+    }
+
+    await onUpload(selectedFile);
+  }
+
+  async function handleApply() {
+    if (!preview) {
+      toast.error('Importe um PDF antes de aplicar a revisao.');
+      return;
+    }
+
+    if (unresolvedReviewCount > 0) {
+      toast.error('Valide os nomes parecidos antes de aplicar a importacao.');
+      setReviewPopupOpen(true);
+      return;
+    }
+
+    await onApply({
+      rows: preview.rows.map((row) => ({
+        rowIndex: row.rowIndex,
+        action: getDecision(row).action,
+        matchedBudgetItemId: getDecision(row).matchedBudgetItemId,
+      })),
+    });
+  }
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-6xl">
+        <DialogHeader>
+          <DialogTitle>Importar PDF do fornecedor</DialogTitle>
+          <DialogDescription>
+            Envie o PDF do fornecedor para o orcamento {slot?.slotNumber ?? 'selecionado'} e revise o casamento dos itens antes de aplicar.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-5">
+          <div className="rounded-[28px] border border-primary/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(240,253,250,0.9))] p-5 shadow-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Upload</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={slot?.supplierId ? 'secondary' : 'warning'}>
+                    {slot?.supplierId ? `Fornecedor: ${slotDisplayName(slot)}` : 'Selecione um fornecedor primeiro'}
+                  </Badge>
+                  {preview ? (
+                    <Badge variant={preview.extractionMode === 'OCR' ? 'warning' : 'success'}>
+                      {preview.extractionMode === 'OCR' ? 'Lido com OCR' : 'Texto direto'}
+                    </Badge>
+                  ) : null}
+                  {reviewRows.length > 0 ? (
+                    <Badge variant={unresolvedReviewCount > 0 ? 'warning' : 'success'}>
+                      {unresolvedReviewCount > 0
+                        ? `${unresolvedReviewCount} nome(s) parecidos pendentes`
+                        : 'Nomes parecidos validados'}
+                    </Badge>
+                  ) : null}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  O arquivo fica salvo em Documentos e o sistema sugere o casamento dos itens com o orcamento atual.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Input
+                  accept="application/pdf,.pdf"
+                  className="max-w-sm"
+                  disabled={!slot?.supplierId || uploadPending}
+                  type="file"
+                  onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+                />
+                <Button
+                  className="h-11 rounded-2xl px-5 shadow-sm shadow-primary/15"
+                  disabled={!slot?.supplierId || !selectedFile || uploadPending}
+                  type="button"
+                  onClick={() => void handleUpload()}
+                >
+                  <ArrowUpFromLine className="size-4" aria-hidden />
+                  {uploadPending ? 'Lendo PDF...' : 'Importar PDF'}
+                </Button>
+              </div>
+            </div>
+
+            {selectedFile ? <p className="mt-3 text-xs text-muted-foreground">Arquivo selecionado: {selectedFile.name}</p> : null}
+
+            {preview ? (
+              <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-border/70 bg-white/80 px-4 py-3">
+                <FileText className="size-4 text-primary" aria-hidden />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">{preview.document.originalFileName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {preview.document.folderPathLabel || 'Documentos'}
+                    {preview.quoteNumber ? ` | Orcamento ${preview.quoteNumber}` : ''}
+                  </p>
+                </div>
+                <a
+                  className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                  href={getProjectDocumentDownloadUrl(projectId, preview.document.id)}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  Abrir PDF
+                  <ExternalLink className="size-3.5" aria-hidden />
+                </a>
+              </div>
+            ) : null}
+          </div>
+
+          {preview ? (
+            <>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <div className="rounded-2xl border border-border/70 bg-card px-4 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Itens lidos</p>
+                  <p className="mt-2 text-2xl font-semibold text-foreground">{preview.summary.rowCount}</p>
+                </div>
+                <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/70 px-4 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800/80">Alta confianca</p>
+                  <p className="mt-2 text-2xl font-semibold text-foreground">{preview.summary.highConfidenceCount}</p>
+                </div>
+                <div className="rounded-2xl border border-amber-200/70 bg-amber-50/80 px-4 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-900/80">Revisar</p>
+                  <p className="mt-2 text-2xl font-semibold text-foreground">{preview.summary.reviewCount}</p>
+                </div>
+                <div className="rounded-2xl border border-sky-200/70 bg-sky-50/80 px-4 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sky-900/80">Itens extras</p>
+                  <p className="mt-2 text-2xl font-semibold text-foreground">{preview.summary.extraCandidateCount}</p>
+                </div>
+                <div className="rounded-2xl border border-border/70 bg-card px-4 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Data / fornecedor</p>
+                  <p className="mt-2 text-sm font-medium text-foreground">{preview.detectedSupplierName || preview.supplierName}</p>
+                  <p className="text-xs text-muted-foreground">{preview.quoteDate ? formatDate(preview.quoteDate) : 'Sem data'}</p>
+                </div>
+              </div>
+
+              {preview.summary.hasExistingValues ? (
+                <div className="flex items-start gap-3 rounded-2xl border border-amber-200/80 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  <p>Este slot ja possui valores preenchidos. Ao aplicar a importacao, os valores atuais serao substituidos mediante confirmacao.</p>
+                </div>
+              ) : null}
+
+              {reviewRows.length > 0 ? (
+                <div className="flex flex-col gap-3 rounded-2xl border border-sky-200/80 bg-sky-50/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-sky-950">Validacao de nomes parecidos</p>
+                    <p className="text-xs text-sky-900/85">
+                      Confirme os itens similares do edital antes de aplicar a importacao.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={unresolvedReviewCount > 0 ? 'warning' : 'success'}>
+                      {unresolvedReviewCount > 0 ? `${unresolvedReviewCount} pendente(s)` : 'Validacao concluida'}
+                    </Badge>
+                    <Button className="rounded-2xl" size="sm" type="button" variant="outline" onClick={() => setReviewPopupOpen(true)}>
+                      Validar nomes parecidos
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="overflow-x-auto rounded-2xl border border-border/70">
+                <table className="w-full min-w-[1200px] border-collapse text-sm">
+                  <thead className="bg-muted/35">
+                    <tr>
+                      <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Linha do PDF</th>
+                      <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Valores</th>
+                      <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Confianca</th>
+                      <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Acao</th>
+                      <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Item do projeto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.rows.map((row) => {
+                      const decision = getDecision(row);
+                      const validationResolved = isReviewValidationResolved(row, decision);
+
+                      return (
+                        <tr
+                          key={row.rowIndex}
+                          className={cn(
+                            'border-b border-border/60 align-top',
+                            row.confidence === 'HIGH' && 'bg-emerald-500/[0.04]',
+                            row.confidence === 'REVIEW' && 'bg-amber-500/[0.06]',
+                            row.confidence === 'UNMATCHED' && 'bg-sky-500/[0.05]',
+                          )}
+                        >
+                          <td className="px-3 py-3">
+                            <div className="space-y-1">
+                              <p className="font-medium text-foreground">{row.description}</p>
+                              <p className="text-xs leading-relaxed text-muted-foreground">{row.rawText}</p>
+                            </div>
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="space-y-1 text-sm">
+                              <p className="font-medium text-foreground">{currencyOrDash(row.unitPrice)}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Qtd. fornecedor: {formatNumber(row.quantity)} | Total: {currencyOrDash(row.totalValue)}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="flex flex-wrap gap-2">
+                              <Badge variant={row.confidence === 'HIGH' ? 'success' : row.confidence === 'REVIEW' ? 'warning' : 'neutral'}>
+                                {row.confidence === 'HIGH' ? 'Alta' : row.confidence === 'REVIEW' ? 'Revisar' : 'Nao encontrado'}
+                              </Badge>
+                              {row.quantityConflict ? <Badge variant="warning">Qtd. divergente</Badge> : null}
+                              {row.requiresNameValidation ? (
+                                <Badge variant={validationResolved ? 'success' : 'warning'}>
+                                  {validationResolved ? 'Validado' : 'Validacao pendente'}
+                                </Badge>
+                              ) : null}
+                            </div>
+                            {row.matchScore != null ? (
+                              <p className="mt-2 text-xs text-muted-foreground">Score: {(row.matchScore * 100).toFixed(0)}%</p>
+                            ) : null}
+                            {row.requiresNameValidation && !validationResolved ? (
+                              <p className="mt-2 text-xs font-medium text-amber-900">
+                                Abra o popup de nomes parecidos para confirmar este item.
+                              </p>
+                            ) : null}
+                          </td>
+                          <td className="px-3 py-3">
+                            <Select
+                              className="min-w-[180px]"
+                              value={decision.action}
+                              onChange={(event) =>
+                                updateDecision(row, {
+                                  action: event.target.value as ProjectQuoteImportAction,
+                                })
+                              }
+                            >
+                              <option value="APPLY">Aplicar no item</option>
+                              <option value="CREATE_EXTRA">Criar item extra</option>
+                              <option value="IGNORE">Ignorar linha</option>
+                            </Select>
+                          </td>
+                          <td className="px-3 py-3">
+                            <Select
+                              className="min-w-[320px]"
+                              disabled={decision.action !== 'APPLY'}
+                              value={decision.matchedBudgetItemId ?? ''}
+                              onChange={(event) =>
+                                updateDecision(row, {
+                                  matchedBudgetItemId: event.target.value || null,
+                                  ...(row.requiresNameValidation && event.target.value && event.target.value !== row.matchedBudgetItemId
+                                    ? { validationChoice: 'NO' as const }
+                                    : {}),
+                                })
+                              }
+                            >
+                              <option value="">Selecionar item do projeto</option>
+                              {itemOptions.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.label}
+                                  {item.detail ? ` | ${item.detail}` : ''}
+                                </option>
+                              ))}
+                            </Select>
+                            {decision.action === 'CREATE_EXTRA' ? (
+                              <p className="mt-2 text-xs font-medium text-amber-900">Nao encontrada no edital, mas presente no orcamento</p>
+                            ) : null}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <EmptyState
+              description="Selecione um PDF do fornecedor para gerar a previa de correspondencia com os itens do projeto."
+              icon={FileText}
+              title="Nenhum PDF importado ainda"
+            />
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            Fechar
+          </Button>
+          <Button disabled={!preview || applyPending || unresolvedReviewCount > 0} type="button" onClick={() => void handleApply()}>
+            {applyPending ? 'Aplicando...' : 'Aplicar importacao'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+      <Dialog open={reviewPopupOpen} onOpenChange={setReviewPopupOpen}>
+        <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>Validar nomes parecidos</DialogTitle>
+            <DialogDescription>
+              Compare o nome vindo do PDF com a sugestao do edital e marque sim ou nao antes de aplicar.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="warning">{reviewRows.length} linha(s) para validar</Badge>
+                <Badge variant={unresolvedReviewCount > 0 ? 'warning' : 'success'}>
+                  {unresolvedReviewCount > 0 ? `${unresolvedReviewCount} pendente(s)` : 'Tudo validado'}
+                </Badge>
+              </div>
+              <Button
+                disabled={reviewRows.length === 0}
+                type="button"
+                variant="secondary"
+                onClick={() => approveAllSuggestedReviewRows()}
+              >
+                Selecionar todos os parecidos
+              </Button>
+            </div>
+
+            <div className="overflow-x-auto rounded-2xl border border-border/70">
+              <table className="w-full min-w-[980px] border-collapse text-sm">
+                <thead className="bg-muted/35">
+                  <tr>
+                    <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Nome do orcamento / PDF</th>
+                    <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Sugestao do edital</th>
+                    <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Flag</th>
+                    <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Escolha manual</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reviewRows.map((row) => {
+                    const decision = getDecision(row);
+                    const candidateIds = new Set(row.candidateMatches.map((candidate) => candidate.budgetItemId));
+                    const prioritizedOptions = row.candidateMatches.map((candidate) => {
+                      const item = itemOptions.find((option) => option.id === candidate.budgetItemId);
+                      return {
+                        id: candidate.budgetItemId,
+                        label: item?.label ?? candidate.name,
+                        detail: item?.detail ?? candidate.specification,
+                        score: candidate.score,
+                      };
+                    });
+                    const remainingOptions = itemOptions
+                      .filter((item) => !candidateIds.has(item.id))
+                      .map((item) => ({
+                        ...item,
+                        score: null as number | null,
+                      }));
+                    const orderedOptions = [...prioritizedOptions, ...remainingOptions];
+
+                    return (
+                      <tr key={`review-${row.rowIndex}`} className="border-b border-border/60 align-top">
+                        <td className="px-3 py-3">
+                          <div className="space-y-1">
+                            <p className="font-medium text-foreground">{row.description}</p>
+                            <p className="text-xs text-muted-foreground">{row.rawText}</p>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="space-y-2">
+                            <p className="font-medium text-foreground">{row.matchedBudgetItemName || 'Sem sugestao automatica'}</p>
+                            <div className="flex flex-wrap gap-2">
+                              {row.matchScore != null ? (
+                                <Badge variant="warning">Score {(row.matchScore * 100).toFixed(0)}%</Badge>
+                              ) : null}
+                              {row.candidateMatches.map((candidate) => (
+                                <Badge key={`${row.rowIndex}-${candidate.budgetItemId}`} variant="secondary">
+                                  {candidate.name}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              className="rounded-2xl"
+                              size="sm"
+                              type="button"
+                              variant={decision.validationChoice === 'YES' ? 'default' : 'outline'}
+                              onClick={() =>
+                                updateDecision(row, {
+                                  action: 'APPLY',
+                                  matchedBudgetItemId: row.matchedBudgetItemId,
+                                  validationChoice: 'YES',
+                                })
+                              }
+                            >
+                              Sim
+                            </Button>
+                            <Button
+                              className="rounded-2xl"
+                              size="sm"
+                              type="button"
+                              variant={decision.validationChoice === 'NO' ? 'default' : 'outline'}
+                              onClick={() =>
+                                updateDecision(row, {
+                                  action: 'APPLY',
+                                  matchedBudgetItemId: null,
+                                  validationChoice: 'NO',
+                                })
+                              }
+                            >
+                              Nao
+                            </Button>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">
+                          <Select
+                            className="min-w-[320px]"
+                            disabled={decision.validationChoice !== 'NO'}
+                            value={decision.validationChoice === 'NO' ? decision.matchedBudgetItemId ?? '' : ''}
+                            onChange={(event) =>
+                              updateDecision(row, {
+                                action: 'APPLY',
+                                matchedBudgetItemId: event.target.value || null,
+                                validationChoice: 'NO',
+                              })
+                            }
+                          >
+                            <option value="">Escolher outro item do edital</option>
+                            {orderedOptions.map((item) => (
+                              <option key={`${row.rowIndex}-${item.id}`} value={item.id}>
+                                {item.label}
+                                {item.detail ? ` | ${item.detail}` : ''}
+                                {'score' in item && item.score != null ? ` | ${(item.score * 100).toFixed(0)}%` : ''}
+                              </option>
+                            ))}
+                          </Select>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={() => setReviewPopupOpen(false)}>
+              Voltar para a revisao
+            </Button>
+            <Button disabled={unresolvedReviewCount > 0} type="button" onClick={() => setReviewPopupOpen(false)}>
+              Continuar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function ComparisonTable({
   rows,
   slots,
@@ -668,8 +1306,20 @@ function ComparisonTable({
             <tr key={row.budgetItemId} className="border-b border-border/60 align-top hover:bg-muted/15">
               <td className="px-3 py-3">
                 <div className="space-y-1">
-                  <p className="font-medium text-foreground">{row.description}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-medium text-foreground">{row.description}</p>
+                    {row.supplierQuoteExtraItem ? (
+                      <Badge className="border-amber-300/80 bg-amber-100 text-amber-950" variant="warning">
+                        Extra
+                      </Badge>
+                    ) : null}
+                  </div>
                   {row.specification ? <p className="text-xs text-muted-foreground">{row.specification}</p> : null}
+                  {row.supplierQuoteExtraItem ? (
+                    <p className="text-xs font-medium text-amber-900">
+                      Nao encontrada no edital, mas presente no orcamento
+                    </p>
+                  ) : null}
                 </div>
               </td>
               <td className="px-3 py-3 text-center tabular-nums text-foreground">{formatNumber(row.quantity)}</td>
@@ -723,6 +1373,8 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
   const [supplierPickerSlot, setSupplierPickerSlot] = useState<ProjectQuoteSlot | null>(null);
   const [newItemDialogOpen, setNewItemDialogOpen] = useState(false);
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState<ProjectQuoteImportPreview | null>(null);
   const [isGeneratingRandomValues, setIsGeneratingRandomValues] = useState(false);
 
   const loading = projectQuery.isLoading || quotesQuery.isLoading;
@@ -742,6 +1394,10 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
           (row.quantity ?? 0) > 0,
       ).length
     : 0;
+
+  useEffect(() => {
+    setImportPreview(null);
+  }, [activeSlotNumber]);
 
   async function handleSelectSupplier(slot: ProjectQuoteSlot, supplierId: string | null) {
     const isChanging = slot.supplierId !== supplierId;
@@ -852,6 +1508,62 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível gerar os valores aleatórios.');
     } finally {
       setIsGeneratingRandomValues(false);
+    }
+  }
+
+  async function handleUploadSupplierQuotePdf(file: File) {
+    if (!activeSlot) {
+      toast.error('Selecione um orcamento antes de importar o PDF.');
+      return;
+    }
+
+    try {
+      const nextPreview = await quoteMutations.uploadImportPdf.mutateAsync({
+        slotNumber: activeSlot.slotNumber,
+        file,
+      });
+      setImportPreview(nextPreview);
+      toast.success(`PDF lido com ${nextPreview.rows.length} linha(s) para revisao.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel importar o PDF do fornecedor.');
+      throw error;
+    }
+  }
+
+  async function handleApplySupplierQuotePdf(payload: ProjectQuoteImportApplyPayload) {
+    if (!activeSlot || !importPreview) {
+      toast.error('Importe um PDF antes de aplicar a revisao.');
+      return;
+    }
+
+    let nextPayload = payload;
+    if (importPreview.summary.hasExistingValues) {
+      const confirmed = window.confirm(
+        'Aplicar este PDF vai substituir os valores ja preenchidos neste orcamento. Deseja continuar?',
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      nextPayload = {
+        ...payload,
+        confirmReplace: true,
+      };
+    }
+
+    try {
+      await quoteMutations.applyImportPdf.mutateAsync({
+        slotNumber: activeSlot.slotNumber,
+        documentId: importPreview.document.id,
+        payload: nextPayload,
+      });
+      toast.success('PDF aplicado ao orcamento com sucesso.');
+      setImportDialogOpen(false);
+      setImportPreview(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel aplicar a importacao do PDF.');
+      throw error;
     }
   }
 
@@ -1178,9 +1890,55 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                         <Building2 className="size-4" aria-hidden />
                         {activeSlot.supplier ? 'Trocar fornecedor' : 'Selecionar fornecedor'}
                       </Button>
+                      <Button
+                        className="h-11 rounded-2xl px-5"
+                        disabled={!activeSlot.supplierId}
+                        type="button"
+                        variant="outline"
+                        onClick={() => setImportDialogOpen(true)}
+                      >
+                        <ArrowUpFromLine className="size-4" aria-hidden />
+                        Importar PDF do fornecedor
+                      </Button>
                     </div>
                   </div>
+                  {activeSlot.latestImportedDocument ? (
+                    <a
+                      className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-900 transition-colors hover:bg-sky-100"
+                      href={getProjectDocumentDownloadUrl(projectId, activeSlot.latestImportedDocument.id)}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      <FileText className="size-3.5" aria-hidden />
+                      Ultimo PDF importado
+                      <ExternalLink className="size-3.5" aria-hidden />
+                    </a>
+                  ) : null}
                 </div>
+                {activeSlot.latestImportedDocument ? (
+                  <div className="rounded-2xl border border-sky-200/70 bg-sky-50/70 px-4 py-3 text-sm text-sky-950">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{activeSlot.latestImportedDocument.originalFileName}</p>
+                        <p className="text-xs text-sky-900/80">
+                          {activeSlot.latestImportedDocument.folderPathLabel || 'Documentos'}
+                          {activeSlot.latestImportedDocument.documentDate
+                            ? ` | ${formatDate(activeSlot.latestImportedDocument.documentDate)}`
+                            : ''}
+                        </p>
+                      </div>
+                      <a
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-sky-900 underline-offset-4 hover:underline"
+                        href={getProjectDocumentDownloadUrl(projectId, activeSlot.latestImportedDocument.id)}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        Abrir PDF
+                        <ExternalLink className="size-3.5" aria-hidden />
+                      </a>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="flex flex-wrap items-center gap-2">
                   {activeSlot.isSelected ? <Badge variant="secondary">Este é o orçamento selecionado</Badge> : null}
                   <Badge variant={activeSlotPricedCount > 0 ? 'success' : 'neutral'}>
@@ -1254,6 +2012,18 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
               <div className="flex flex-wrap items-center gap-2">
                 <Button
                   className="h-auto min-h-7 max-w-[min(100%,18rem)] shrink-0 gap-1.5 whitespace-normal rounded-xl px-2 py-1 text-center text-[10px] font-semibold leading-tight normal-case"
+                  disabled={!activeSlot.supplierId || quoteMutations.uploadImportPdf.isPending}
+                  size="sm"
+                  type="button"
+                  title="Importa um PDF do fornecedor, interpreta os valores e abre a revisao antes de aplicar."
+                  variant="secondary"
+                  onClick={() => setImportDialogOpen(true)}
+                >
+                  <ArrowUpFromLine className="size-3.5 shrink-0" aria-hidden />
+                  <span>{quoteMutations.uploadImportPdf.isPending ? 'Lendo PDF...' : 'Importar PDF do fornecedor'}</span>
+                </Button>
+                <Button
+                  className="h-auto min-h-7 max-w-[min(100%,18rem)] shrink-0 gap-1.5 whitespace-normal rounded-xl px-2 py-1 text-center text-[10px] font-semibold leading-tight normal-case"
                   disabled={!activeSlot.supplierId || isGeneratingRandomValues || rows.length === 0}
                   size="sm"
                   type="button"
@@ -1323,6 +2093,24 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
         pending={quoteMutations.generatePurchaseOrder.isPending}
         onOpenChange={setGenerateDialogOpen}
         onSubmit={handleGeneratePurchaseOrder}
+      />
+
+      <SupplierQuoteImportDialog
+        open={importDialogOpen}
+        slot={activeSlot}
+        projectId={projectId}
+        budgetRows={rows}
+        preview={importPreview}
+        uploadPending={quoteMutations.uploadImportPdf.isPending}
+        applyPending={quoteMutations.applyImportPdf.isPending}
+        onOpenChange={(next) => {
+          setImportDialogOpen(next);
+          if (!next) {
+            setImportPreview(null);
+          }
+        }}
+        onUpload={handleUploadSupplierQuotePdf}
+        onApply={handleApplySupplierQuotePdf}
       />
 
       <NewQuoteItemDialog open={newItemDialogOpen} onOpenChange={setNewItemDialogOpen} projectId={projectId} />

@@ -515,7 +515,7 @@ function PurchaseControlRow({
     item.opDeliveredAt != null ? nextReplenishmentIsoFromDelivered(item.opDeliveredAt) : null;
 
   return (
-    <tr className="hover:bg-muted/40">
+    <tr className={cn('hover:bg-muted/40', item.supplierQuoteExtraItem && 'bg-amber-50/80 hover:bg-amber-100/70')}>
       <td className={cn(cell, 'bg-muted/50 px-1.5 py-2 text-[11px] text-muted-foreground')}>{orgName}</td>
       <td className={cell}>
         <select
@@ -540,6 +540,11 @@ function PurchaseControlRow({
           rows={2}
           onBlur={(e) => onPatch(item.id, { name: e.target.value.trim() || item.name })}
         />
+        {item.supplierQuoteExtraItem ? (
+          <div className="border-t border-amber-200/80 bg-amber-100/80 px-1.5 py-1 text-[10px] font-semibold text-amber-950">
+            Nao encontrada no edital, mas presente no orcamento
+          </div>
+        ) : null}
       </td>
       <td className={cell}>
         <textarea

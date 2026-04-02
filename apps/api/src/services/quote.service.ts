@@ -1,3 +1,4 @@
+import type { Express } from 'express';
 import { Prisma } from '@prisma/client';
 
 import { prisma } from '../config/prisma.js';
@@ -7,6 +8,7 @@ import { purchaseRepository } from '../repositories/purchase.repository.js';
 import { supplierRepository } from '../repositories/supplier.repository.js';
 import type {
   ApplyQuoteWinnerInput,
+  ApplyQuoteImportInput,
   GenerateQuotePurchaseOrderInput,
   UpdateQuoteItemInput,
   UpdateQuoteSupplierInput,
@@ -14,8 +16,14 @@ import type {
 import { AppError } from '../utils/app-error.js';
 import { parseOptionalDate, toIsoString } from '../utils/date.js';
 import { decimalToNumber, toDecimal } from '../utils/decimal.js';
-import { serializeSupplier } from '../utils/serializers.js';
+import { serializeProjectDocument, serializeSupplier } from '../utils/serializers.js';
 import { buildPurchaseOrderPdf, buildPurchaseOrderSearchText } from '../utils/purchase-order-pdf.js';
+import {
+  extractSupplierQuotePdfPreview,
+  normalizeSupplierQuoteMatchText,
+  tokenizeSupplierQuoteMatchText,
+  type SupplierQuoteExtractionMode,
+} from '../utils/supplier-quote-pdf.js';
 import { documentService } from './document.service.js';
 
 const QUOTE_SLOT_NUMBERS = [1, 2, 3] as const;
@@ -39,6 +47,7 @@ const MONTH_LABELS_PT_BR = [
 const quoteInclude = {
   supplier: true,
   items: true,
+  latestImportedDocument: true,
 } satisfies Prisma.ProjectQuoteInclude;
 
 const quoteBudgetItemSelect = {
@@ -48,6 +57,7 @@ const quoteBudgetItemSelect = {
   unit: true,
   itemCategory: true,
   plannedQuantity: true,
+  supplierQuoteExtraItem: true,
   createdAt: true,
 } satisfies Prisma.BudgetItemSelect;
 
@@ -96,6 +106,48 @@ type QuotePurchaseOrderRow = {
   unitPrice: number;
   totalValue: number;
   notes: string | null;
+};
+
+type QuoteImportConfidence = 'HIGH' | 'REVIEW' | 'UNMATCHED';
+type QuoteImportAction = 'APPLY' | 'IGNORE' | 'CREATE_EXTRA';
+
+type QuoteImportCandidateMatch = {
+  budgetItemId: string;
+  name: string;
+  specification: string | null;
+  score: number;
+};
+
+type QuoteImportPreviewRow = {
+  rowIndex: number;
+  rawText: string;
+  description: string;
+  quantity: number | null;
+  unit: string | null;
+  unitPrice: number;
+  totalValue: number | null;
+  confidence: QuoteImportConfidence;
+  quantityConflict: boolean;
+  matchedBudgetItemId: string | null;
+  matchedBudgetItemName: string | null;
+  matchScore: number | null;
+  suggestedAction: QuoteImportAction;
+  requiresNameValidation: boolean;
+  candidateMatches: QuoteImportCandidateMatch[];
+};
+
+type StoredQuoteImportPreview = {
+  kind: 'SUPPLIER_QUOTE_IMPORT';
+  projectId: string;
+  slotNumber: number;
+  supplierId: string;
+  supplierName: string;
+  extractionMode: SupplierQuoteExtractionMode;
+  quoteNumber: string | null;
+  quoteDate: string | null;
+  detectedSupplierName: string | null;
+  importedAt: string;
+  rows: QuoteImportPreviewRow[];
 };
 
 function supplierDisplayName(supplier: QuoteRecord['supplier'] | null) {
@@ -234,6 +286,215 @@ function toSaoPauloNoonDate(isoDate: string) {
   return new Date(`${isoDate}T12:00:00-03:00`);
 }
 
+function buildBudgetItemMatchText(item: QuoteBudgetItem) {
+  return [item.name, item.specification, item.unit].filter(Boolean).join(' ');
+}
+
+function calculateTokenOverlapScore(left: string[], right: string[]) {
+  if (left.length === 0 || right.length === 0) {
+    return 0;
+  }
+
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  const intersection = [...leftSet].filter((token) => rightSet.has(token)).length;
+
+  if (intersection === 0) {
+    return 0;
+  }
+
+  return intersection / Math.max(leftSet.size, rightSet.size);
+}
+
+function quantityConflictWithBudgetItem(importedQuantity: number | null, budgetQuantity: number | null) {
+  if (importedQuantity === null || budgetQuantity === null || importedQuantity <= 0 || budgetQuantity <= 0) {
+    return false;
+  }
+
+  return !sameMoney(importedQuantity, budgetQuantity);
+}
+
+function scoreQuoteImportMatch(
+  row: Pick<QuoteImportPreviewRow, 'description' | 'quantity'>,
+  item: QuoteBudgetItem,
+) {
+  const rowNormalized = normalizeSupplierQuoteMatchText(row.description);
+  const itemNormalized = normalizeSupplierQuoteMatchText(buildBudgetItemMatchText(item));
+  const rowTokens = tokenizeSupplierQuoteMatchText(row.description);
+  const itemTokens = tokenizeSupplierQuoteMatchText(buildBudgetItemMatchText(item));
+  const overlapScore = calculateTokenOverlapScore(rowTokens, itemTokens);
+  const quantityConflict = quantityConflictWithBudgetItem(row.quantity, decimalToNumber(item.plannedQuantity));
+
+  let score = overlapScore;
+
+  if (rowNormalized && itemNormalized) {
+    if (rowNormalized === itemNormalized) {
+      score = 1;
+    } else if (
+      rowNormalized.length >= 8 &&
+      itemNormalized.length >= 8 &&
+      (rowNormalized.includes(itemNormalized) || itemNormalized.includes(rowNormalized))
+    ) {
+      score = Math.max(score, 0.93);
+    }
+  }
+
+  if (quantityConflict && score >= 0.8) {
+    score = Math.max(0.55, score - 0.2);
+  }
+
+  return {
+    score,
+    quantityConflict,
+  };
+}
+
+function rankQuoteImportMatches(
+  row: Pick<QuoteImportPreviewRow, 'description' | 'quantity'>,
+  budgetItems: QuoteBudgetItem[],
+) {
+  return budgetItems
+    .map((item) => ({
+      item,
+      ...scoreQuoteImportMatch(row, item),
+    }))
+    .sort((left, right) => right.score - left.score);
+}
+
+function buildQuoteImportPreviewRow(
+  row: Omit<
+    QuoteImportPreviewRow,
+    | 'confidence'
+    | 'quantityConflict'
+    | 'matchedBudgetItemId'
+    | 'matchedBudgetItemName'
+    | 'matchScore'
+    | 'suggestedAction'
+    | 'requiresNameValidation'
+    | 'candidateMatches'
+  >,
+  budgetItems: QuoteBudgetItem[],
+): QuoteImportPreviewRow {
+  const ranked = rankQuoteImportMatches(row, budgetItems);
+
+  const best = ranked[0] ?? null;
+  const second = ranked[1] ?? null;
+  const bestScore = best?.score ?? 0;
+  const gap = best && second ? best.score - second.score : bestScore;
+
+  let confidence: QuoteImportConfidence = 'UNMATCHED';
+  let suggestedAction: QuoteImportAction = 'CREATE_EXTRA';
+
+  if (best && bestScore >= 0.86 && gap >= 0.08 && !best.quantityConflict) {
+    confidence = 'HIGH';
+    suggestedAction = 'APPLY';
+  } else if (best && bestScore >= 0.48) {
+    confidence = 'REVIEW';
+    suggestedAction = 'APPLY';
+  }
+
+  const candidateMatches = ranked
+    .filter((candidate) => candidate.score >= 0.2)
+    .slice(0, 3)
+    .map((candidate) => ({
+      budgetItemId: candidate.item.id,
+      name: candidate.item.name,
+      specification: candidate.item.specification,
+      score: Number(candidate.score.toFixed(4)),
+    }));
+
+  return {
+    ...row,
+    confidence,
+    quantityConflict: best?.quantityConflict ?? false,
+    matchedBudgetItemId: confidence === 'UNMATCHED' ? null : (best?.item.id ?? null),
+    matchedBudgetItemName: confidence === 'UNMATCHED' ? null : (best?.item.name ?? null),
+    matchScore: best ? Number(best.score.toFixed(4)) : null,
+    suggestedAction,
+    requiresNameValidation: confidence === 'REVIEW',
+    candidateMatches,
+  };
+}
+
+function isStoredQuoteImportPreview(value: Prisma.JsonValue | null): value is StoredQuoteImportPreview {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  return (
+    record.kind === 'SUPPLIER_QUOTE_IMPORT' &&
+    typeof record.projectId === 'string' &&
+    typeof record.slotNumber === 'number' &&
+    typeof record.supplierId === 'string' &&
+    Array.isArray(record.rows)
+  );
+}
+
+function buildStoredQuoteImportPreview(
+  projectId: string,
+  slotNumber: number,
+  supplierId: string,
+  supplierName: string,
+  extractionMode: SupplierQuoteExtractionMode,
+  quoteNumber: string | null,
+  quoteDate: string | null,
+  detectedSupplierName: string | null,
+  rows: QuoteImportPreviewRow[],
+): StoredQuoteImportPreview {
+  return {
+    kind: 'SUPPLIER_QUOTE_IMPORT',
+    projectId,
+    slotNumber,
+    supplierId,
+    supplierName,
+    extractionMode,
+    quoteNumber,
+    quoteDate,
+    detectedSupplierName,
+    importedAt: new Date().toISOString(),
+    rows,
+  };
+}
+
+function buildQuoteImportSummary(rows: QuoteImportPreviewRow[], hasExistingValues: boolean) {
+  return {
+    rowCount: rows.length,
+    highConfidenceCount: rows.filter((row) => row.confidence === 'HIGH').length,
+    reviewCount: rows.filter((row) => row.confidence === 'REVIEW').length,
+    unmatchedCount: rows.filter((row) => row.confidence === 'UNMATCHED').length,
+    extraCandidateCount: rows.filter((row) => row.suggestedAction === 'CREATE_EXTRA').length,
+    hasExistingValues,
+  };
+}
+
+function buildImportedQuoteItemNotes(
+  fileName: string,
+  preview: Pick<StoredQuoteImportPreview, 'quoteNumber' | 'quoteDate'>,
+  row: Pick<QuoteImportPreviewRow, 'quantity' | 'totalValue'>,
+) {
+  const parts = [`Importado de ${fileName}`];
+
+  if (preview.quoteNumber) {
+    parts.push(`Orcamento ${preview.quoteNumber}`);
+  }
+
+  const quoteDateLabel = formatDateLabel(preview.quoteDate);
+  if (quoteDateLabel) {
+    parts.push(`Data ${quoteDateLabel}`);
+  }
+
+  if (row.quantity !== null) {
+    parts.push(`Qtd. fornecedor: ${String(row.quantity).replace('.', ',')}`);
+  }
+
+  if (row.totalValue !== null) {
+    parts.push(`Total PDF: ${row.totalValue.toFixed(2).replace('.', ',')}`);
+  }
+
+  return parts.join(' | ').slice(0, 500);
+}
+
 function buildPurchaseOrderRows(
   rows: ReturnType<typeof buildQuoteState>['rows'],
   slotNumber: number,
@@ -298,6 +559,7 @@ export function buildQuoteState(
       quantity,
       unit: item.unit ?? null,
       itemCategory: item.itemCategory,
+      supplierQuoteExtraItem: item.supplierQuoteExtraItem,
       values,
       winner: buildRowWinner(values),
     };
@@ -327,6 +589,7 @@ export function buildQuoteState(
       totalValue,
       isComplete,
       isSelected: selectedSlotNumber === slotNumber,
+      latestImportedDocument: quote?.latestImportedDocument ? serializeProjectDocument(quote.latestImportedDocument) : null,
       createdAt: toIsoString(quote?.createdAt),
       updatedAt: toIsoString(quote?.updatedAt),
     };
@@ -512,6 +775,37 @@ async function ensurePurchaseOrderFolders(projectId: string, monthFolderName: st
   };
 }
 
+async function ensureSupplierQuoteFolders(projectId: string, supplierName: string) {
+  const rootFolder = await ensureDocumentFolder(projectId, null, 'Orcamentos de fornecedores');
+  const supplierFolder = await ensureDocumentFolder(projectId, rootFolder.id, supplierName);
+
+  return {
+    rootFolder,
+    supplierFolder,
+  };
+}
+
+function findReusableExtraBudgetItem(
+  budgetItems: QuoteBudgetItem[],
+  row: Pick<QuoteImportPreviewRow, 'description'>,
+) {
+  const normalizedRow = normalizeSupplierQuoteMatchText(row.description);
+  if (!normalizedRow) {
+    return null;
+  }
+
+  const candidates = budgetItems
+    .filter((item) => item.supplierQuoteExtraItem)
+    .map((item) => ({
+      item,
+      score: scoreQuoteImportMatch({ description: row.description, quantity: null }, item).score,
+    }))
+    .sort((left, right) => right.score - left.score);
+
+  const best = candidates[0] ?? null;
+  return best && best.score >= 0.92 ? best.item : null;
+}
+
 class QuoteService {
   async listProjectQuotes(projectId: string) {
     return buildProjectQuoteState(projectId);
@@ -550,6 +844,7 @@ class QuoteService {
         where: { id: quote.id },
         data: {
           supplierId: nextSupplierId,
+          latestImportedDocumentId: isChangingSupplier ? null : quote.latestImportedDocumentId,
         },
       });
     });
@@ -629,6 +924,256 @@ class QuoteService {
       data: {
         selectedQuoteSlotNumber: slotNumber,
       },
+    });
+
+    return buildProjectQuoteState(projectId);
+  }
+
+  async importSupplierQuotePdf(projectId: string, slotNumber: number, file: Express.Multer.File) {
+    await ensureProjectExists(projectId);
+
+    const [quote, budgetItems] = await Promise.all([findQuoteBySlot(projectId, slotNumber), findQuoteBudgetItems(projectId)]);
+
+    if (!quote.supplierId || !quote.supplier) {
+      throw new AppError('Selecione um fornecedor antes de importar o PDF deste orcamento.', 409);
+    }
+
+    const extracted = await extractSupplierQuotePdfPreview(file.buffer, file.originalname);
+    const parsedRows = extracted.rows.filter((row) => row.description.trim().length > 0 && row.unitPrice !== null);
+
+    if (parsedRows.length === 0) {
+      throw new AppError('Nao foi possivel identificar itens com preco neste PDF.', 422);
+    }
+
+    const previewRows = parsedRows.map((row) =>
+      buildQuoteImportPreviewRow(
+        {
+          rowIndex: row.rowIndex,
+          rawText: row.rawText,
+          description: row.description,
+          quantity: row.quantity,
+          unit: row.unit,
+          unitPrice: row.unitPrice ?? 0,
+          totalValue: row.totalValue,
+        },
+        budgetItems,
+      ),
+    );
+
+    const supplierName = supplierDisplayName(quote.supplier) ?? 'Fornecedor';
+    const hasExistingValues = quote.items.some(hasMeaningfulQuoteItemData);
+    const previewJson = buildStoredQuoteImportPreview(
+      projectId,
+      slotNumber,
+      quote.supplierId,
+      supplierName,
+      extracted.extractionMode,
+      extracted.quoteNumber,
+      extracted.quoteDate,
+      extracted.supplierNameDetected,
+      previewRows,
+    );
+
+    const { supplierFolder } = await ensureSupplierQuoteFolders(projectId, supplierName);
+    const document = await documentService.createProjectDocument(projectId, {
+      folderId: supplierFolder.id,
+      documentType: 'SUPPLIER_QUOTE_PDF',
+      originalFileName: file.originalname,
+      mimeType: file.mimetype || 'application/pdf',
+      documentDate: extracted.quoteDate ?? undefined,
+      contentText: extracted.fullText.slice(0, 50_000),
+      searchText: extracted.fullText.slice(0, 200_000),
+      previewJson: previewJson as Prisma.InputJsonValue,
+      processingStatus: 'PROCESSED',
+      reviewStatus: 'PENDING_REVIEW',
+      notes: `PDF importado para o orcamento ${slotNumber}.`,
+      originalFileBuffer: file.buffer,
+    });
+
+    await prisma.projectQuote.update({
+      where: { id: quote.id },
+      data: {
+        latestImportedDocumentId: document.id,
+      },
+    });
+
+    return {
+      projectId,
+      slotNumber,
+      supplierId: quote.supplierId,
+      supplierName,
+      extractionMode: extracted.extractionMode,
+      quoteNumber: extracted.quoteNumber,
+      quoteDate: extracted.quoteDate,
+      detectedSupplierName: extracted.supplierNameDetected,
+      document,
+      rows: previewRows,
+      summary: buildQuoteImportSummary(previewRows, hasExistingValues),
+    };
+  }
+
+  async applyImportedSupplierQuotePdf(
+    projectId: string,
+    slotNumber: number,
+    documentId: string,
+    input: ApplyQuoteImportInput,
+  ) {
+    await ensureProjectExists(projectId);
+
+    const [quote, budgetItems, document] = await Promise.all([
+      findQuoteBySlot(projectId, slotNumber),
+      findQuoteBudgetItems(projectId),
+      prisma.projectDocument.findFirst({
+        where: {
+          id: documentId,
+          projectId,
+          documentType: 'SUPPLIER_QUOTE_PDF',
+        },
+      }),
+    ]);
+
+    if (!quote.supplierId || !quote.supplier) {
+      throw new AppError('Selecione um fornecedor antes de aplicar a importacao do PDF.', 409);
+    }
+
+    if (!document) {
+      throw new AppError('PDF de orcamento nao encontrado neste projeto.', 404);
+    }
+
+    if (!isStoredQuoteImportPreview(document.previewJson)) {
+      throw new AppError('A previa deste PDF nao esta disponivel para aplicacao.', 409);
+    }
+
+    const preview = document.previewJson;
+    if (preview.projectId !== projectId || preview.slotNumber !== slotNumber) {
+      throw new AppError('Este PDF nao pertence ao slot de orcamento informado.', 409);
+    }
+
+    if (preview.supplierId !== quote.supplierId) {
+      throw new AppError('O fornecedor do slot mudou depois da importacao. Reimporte o PDF para continuar.', 409);
+    }
+
+    const hasSavedValues = quote.items.some(hasMeaningfulQuoteItemData);
+    if (hasSavedValues && !input.confirmReplace) {
+      throw new AppError(
+        'Aplicar a importacao vai substituir os valores atuais deste orcamento. Confirme a operacao para continuar.',
+        409,
+      );
+    }
+
+    const decisionByRowIndex = new Map(input.rows.map((row) => [row.rowIndex, row]));
+
+    await prisma.$transaction(async (tx) => {
+      const workingBudgetItems = [...budgetItems];
+      const quoteItemsToCreate: Array<{
+        budgetItemId: string;
+        unitPrice: Prisma.Decimal;
+        notes: string | null;
+      }> = [];
+      const usedBudgetItemIds = new Set<string>();
+
+      if (hasSavedValues) {
+        await tx.projectQuoteItem.deleteMany({
+          where: { projectQuoteId: quote.id },
+        });
+      }
+
+      for (const previewRow of preview.rows) {
+        const decision = decisionByRowIndex.get(previewRow.rowIndex);
+        const action = decision?.action ?? previewRow.suggestedAction;
+
+        if (action === 'IGNORE') {
+          continue;
+        }
+
+        let targetBudgetItemId: string | null =
+          action === 'APPLY' ? (decision?.matchedBudgetItemId ?? previewRow.matchedBudgetItemId) : null;
+
+        if (action === 'CREATE_EXTRA') {
+          const reusable = findReusableExtraBudgetItem(workingBudgetItems, previewRow);
+
+          if (reusable) {
+            targetBudgetItemId = reusable.id;
+          } else {
+            const created = await tx.budgetItem.create({
+              data: {
+                projectId,
+                itemCategory: 'OTHER',
+                name: previewRow.description,
+                description: previewRow.rawText !== previewRow.description ? previewRow.rawText : null,
+                unit: previewRow.unit ?? null,
+                plannedQuantity: toDecimal(previewRow.quantity && previewRow.quantity > 0 ? previewRow.quantity : 1),
+                hasBidReference: false,
+                contextOnly: false,
+                supplierQuoteExtraItem: true,
+                sourceType: 'DOCUMENT_EXTRACTED',
+                sourceDocumentId: document.id,
+                sourceExcerpt: previewRow.rawText.slice(0, 500),
+                notes: 'Nao encontrada no edital, mas presente no orcamento',
+              },
+              select: quoteBudgetItemSelect,
+            });
+
+            workingBudgetItems.push(created);
+            targetBudgetItemId = created.id;
+          }
+        }
+
+        if (!targetBudgetItemId) {
+          throw new AppError(`A linha ${previewRow.rowIndex + 1} precisa de um item do projeto para ser aplicada.`, 409);
+        }
+
+        const targetBudgetItem = workingBudgetItems.find((item) => item.id === targetBudgetItemId) ?? null;
+        if (!targetBudgetItem) {
+          throw new AppError(`O item selecionado para a linha ${previewRow.rowIndex + 1} nao existe mais no projeto.`, 409);
+        }
+
+        if (usedBudgetItemIds.has(targetBudgetItemId)) {
+          throw new AppError(
+            `Mais de uma linha do PDF foi associada ao item "${targetBudgetItem.name}". Ajuste a revisao antes de aplicar.`,
+            409,
+          );
+        }
+
+        usedBudgetItemIds.add(targetBudgetItemId);
+        quoteItemsToCreate.push({
+          budgetItemId: targetBudgetItemId,
+          unitPrice: toDecimal(previewRow.unitPrice) ?? new Prisma.Decimal(0),
+          notes: buildImportedQuoteItemNotes(document.originalFileName, preview, previewRow),
+        });
+      }
+
+      if (quoteItemsToCreate.length === 0) {
+        throw new AppError('Nenhuma linha do PDF foi marcada para aplicacao.', 409);
+      }
+
+      await tx.projectQuoteItem.createMany({
+        data: quoteItemsToCreate.map((row) => ({
+          projectQuoteId: quote.id,
+          budgetItemId: row.budgetItemId,
+          unitPrice: row.unitPrice,
+          notes: row.notes,
+        })),
+      });
+
+      await tx.projectQuote.update({
+        where: { id: quote.id },
+        data: {
+          latestImportedDocumentId: document.id,
+        },
+      });
+
+      await tx.projectDocument.update({
+        where: { id: document.id },
+        data: {
+          reviewStatus: 'REVIEWED',
+          previewJson: {
+            ...preview,
+            appliedAt: new Date().toISOString(),
+            decisions: input.rows,
+          } as Prisma.InputJsonValue,
+        },
+      });
     });
 
     return buildProjectQuoteState(projectId);

@@ -1,5 +1,10 @@
-import { apiRequest } from '@/services/api-client';
-import type { ProjectQuotePurchaseOrderResult, ProjectQuoteState } from '@/types/api';
+import { apiRequest, apiUploadJson } from '@/services/api-client';
+import type {
+  ProjectQuoteImportApplyPayload,
+  ProjectQuoteImportPreview,
+  ProjectQuotePurchaseOrderResult,
+  ProjectQuoteState,
+} from '@/types/api';
 
 export type QuoteApplyMode = 'OVERALL' | 'PER_ITEM';
 
@@ -73,6 +78,24 @@ export function generateProjectQuotePurchaseOrder(
   payload: GenerateQuotePurchaseOrderPayload,
 ) {
   return apiRequest<ProjectQuotePurchaseOrderResult>(`projects/${projectId}/quotes/generate-purchase-order`, {
+    method: 'POST',
+    body: payload,
+  });
+}
+
+export function uploadProjectQuotePdfImport(projectId: string, slotNumber: number, file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return apiUploadJson<ProjectQuoteImportPreview>(`projects/${projectId}/quotes/${slotNumber}/import-pdf`, formData);
+}
+
+export function applyProjectQuotePdfImport(
+  projectId: string,
+  slotNumber: number,
+  documentId: string,
+  payload: ProjectQuoteImportApplyPayload,
+) {
+  return apiRequest<ProjectQuoteState>(`projects/${projectId}/quotes/${slotNumber}/import-pdf/${documentId}/apply`, {
     method: 'POST',
     body: payload,
   });

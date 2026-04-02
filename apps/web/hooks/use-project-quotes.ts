@@ -4,9 +4,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
   applyProjectQuoteWinner,
+  applyProjectQuotePdfImport,
   generateProjectQuotePurchaseOrder,
   listProjectQuotes,
   selectProjectQuoteSlot,
+  uploadProjectQuotePdfImport,
   updateProjectQuoteItem,
   updateProjectQuoteSupplier,
   type GenerateQuotePurchaseOrderPayload,
@@ -14,7 +16,7 @@ import {
   type UpdateQuoteItemPayload,
   type UpdateQuoteSupplierPayload,
 } from '@/services/quotes-service';
-import type { ProjectQuoteState } from '@/types/api';
+import type { ProjectQuoteImportApplyPayload, ProjectQuoteState } from '@/types/api';
 
 export function useProjectQuotesQuery(projectId: string) {
   return useQuery({
@@ -90,6 +92,32 @@ export function useProjectQuotesMutations(projectId: string) {
           queryClient.invalidateQueries({ queryKey: ['projects'] }),
           queryClient.invalidateQueries({ queryKey: ['dashboard', 'consolidated'] }),
         ]);
+      },
+    }),
+    uploadImportPdf: useMutation({
+      mutationFn: ({ slotNumber, file }: { slotNumber: number; file: File }) =>
+        uploadProjectQuotePdfImport(projectId, slotNumber, file),
+      onSuccess: async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['project-quotes', projectId] }),
+          queryClient.invalidateQueries({ queryKey: ['project-documents', projectId] }),
+          queryClient.invalidateQueries({ queryKey: ['project-document-folders', projectId] }),
+        ]);
+      },
+    }),
+    applyImportPdf: useMutation({
+      mutationFn: ({
+        slotNumber,
+        documentId,
+        payload,
+      }: {
+        slotNumber: number;
+        documentId: string;
+        payload: ProjectQuoteImportApplyPayload;
+      }) => applyProjectQuotePdfImport(projectId, slotNumber, documentId, payload),
+      onSuccess: async (state) => {
+        setQuotesState(state);
+        await invalidateOperationalData();
       },
     }),
   };

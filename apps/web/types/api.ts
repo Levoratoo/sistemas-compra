@@ -11,6 +11,7 @@ export type DocumentType =
   | 'COST_SPREADSHEET'
   | 'CONTROL_SPREADSHEET'
   | 'PURCHASE_ORDER_PDF'
+  | 'SUPPLIER_QUOTE_PDF'
   | 'OTHER_ATTACHMENT';
 export type DocumentProcessingStatus = 'PENDING' | 'PROCESSING' | 'PROCESSED' | 'FAILED';
 export type DocumentReviewStatus = 'PENDING_REVIEW' | 'REVIEWED' | 'CONFLICT' | 'REJECTED';
@@ -199,6 +200,7 @@ export interface ProjectDocument extends EntityTimestamps {
   checksum: string | null;
   documentDate: string | null;
   searchText?: string | null;
+  previewJson?: unknown | null;
   processingStatus: DocumentProcessingStatus;
   reviewStatus: DocumentReviewStatus;
   processingError: string | null;
@@ -260,6 +262,7 @@ export interface ProjectQuoteRow {
   quantity: number | null;
   unit: string | null;
   itemCategory: ItemCategory;
+  supplierQuoteExtraItem: boolean;
   values: ProjectQuoteRowValue[];
   winner: {
     status: ProjectQuoteWinnerStatus;
@@ -280,6 +283,7 @@ export interface ProjectQuoteSlot extends EntityTimestamps {
   totalValue: number | null;
   isComplete: boolean;
   isSelected: boolean;
+  latestImportedDocument: ProjectDocument | null;
 }
 
 export interface ProjectQuoteComparison {
@@ -308,6 +312,67 @@ export interface ProjectQuoteState {
   slots: ProjectQuoteSlot[];
   rows: ProjectQuoteRow[];
   comparison: ProjectQuoteComparison;
+}
+
+export type ProjectQuoteImportMatchConfidence = 'HIGH' | 'REVIEW' | 'UNMATCHED';
+export type ProjectQuoteImportAction = 'APPLY' | 'IGNORE' | 'CREATE_EXTRA';
+export type ProjectQuoteImportExtractionMode = 'DIRECT_TEXT' | 'OCR';
+
+export interface ProjectQuoteImportCandidateMatch {
+  budgetItemId: string;
+  name: string;
+  specification: string | null;
+  score: number;
+}
+
+export interface ProjectQuoteImportRow {
+  rowIndex: number;
+  rawText: string;
+  description: string;
+  quantity: number | null;
+  unit: string | null;
+  unitPrice: number | null;
+  totalValue: number | null;
+  confidence: ProjectQuoteImportMatchConfidence;
+  quantityConflict: boolean;
+  matchedBudgetItemId: string | null;
+  matchedBudgetItemName: string | null;
+  matchScore: number | null;
+  suggestedAction: ProjectQuoteImportAction;
+  requiresNameValidation: boolean;
+  candidateMatches: ProjectQuoteImportCandidateMatch[];
+}
+
+export interface ProjectQuoteImportPreview {
+  projectId: string;
+  slotNumber: number;
+  supplierId: string;
+  supplierName: string;
+  extractionMode: ProjectQuoteImportExtractionMode;
+  quoteNumber: string | null;
+  quoteDate: string | null;
+  detectedSupplierName: string | null;
+  document: ProjectDocument;
+  rows: ProjectQuoteImportRow[];
+  summary: {
+    rowCount: number;
+    highConfidenceCount: number;
+    reviewCount: number;
+    unmatchedCount: number;
+    extraCandidateCount: number;
+    hasExistingValues: boolean;
+  };
+}
+
+export interface ProjectQuoteImportApplyRow {
+  rowIndex: number;
+  action: ProjectQuoteImportAction;
+  matchedBudgetItemId?: string | null;
+}
+
+export interface ProjectQuoteImportApplyPayload {
+  confirmReplace?: boolean;
+  rows: ProjectQuoteImportApplyRow[];
 }
 
 export interface ProjectQuotePurchaseOrderResult {
@@ -367,6 +432,7 @@ export interface BudgetItem extends EntityTimestamps {
   hasBidReference: boolean;
   /** Trecho do edital só para referência (sem compra/valores). */
   contextOnly?: boolean;
+  supplierQuoteExtraItem: boolean;
   sourceType: DataOriginType;
   sourceDocumentId: string | null;
   sourceSheetName: string | null;

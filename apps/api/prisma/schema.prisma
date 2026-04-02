@@ -30,6 +30,7 @@ enum DocumentType {
   COST_SPREADSHEET
   CONTROL_SPREADSHEET
   PURCHASE_ORDER_PDF
+  SUPPLIER_QUOTE_PDF
   OTHER_ATTACHMENT
 }
 
@@ -245,6 +246,7 @@ model ProjectDocument {
   checksum         String?
   documentDate     DateTime?
   searchText       String?
+  previewJson      Json?
   processingStatus DocumentProcessingStatus @default(PENDING)
   reviewStatus     DocumentReviewStatus     @default(PENDING_REVIEW)
   processingError  String?
@@ -256,6 +258,7 @@ model ProjectDocument {
   folder            ProjectDocumentFolder?  @relation(fields: [folderId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   purchaseOrder     PurchaseOrder?          @relation("PurchaseOrderDocuments", fields: [purchaseOrderId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   generatedForPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderGeneratedDocument")
+  latestImportedForQuotes    ProjectQuote[]   @relation("ProjectQuoteLatestImportedDocument")
   extractedFields   ExtractedField[]
   sourceRoles              ProjectRole[]         @relation("RoleSourceDocument")
   sourceBudgetItems        BudgetItem[]          @relation("BudgetItemSourceDocument")
@@ -350,6 +353,7 @@ model BudgetItem {
   hasBidReference  Boolean        @default(true)
   /** Trecho do edital só para leitura (ex.: cláusulas 8.7.x); sem previsão de compra/valores. */
   contextOnly      Boolean        @default(false)
+  supplierQuoteExtraItem Boolean  @default(false)
   sourceType       DataOriginType @default(MANUAL)
   sourceDocumentId String?
   sourceSheetName  String?
@@ -441,20 +445,23 @@ model Supplier {
 }
 
 model ProjectQuote {
-  id         String   @id @default(cuid())
-  projectId  String
-  slotNumber Int
-  supplierId String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                     String   @id @default(cuid())
+  projectId              String
+  slotNumber             Int
+  supplierId             String?
+  latestImportedDocumentId String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  project  Project            @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  supplier Supplier?          @relation(fields: [supplierId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  items    ProjectQuoteItem[]
+  project              Project          @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  supplier             Supplier?        @relation(fields: [supplierId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  latestImportedDocument ProjectDocument? @relation("ProjectQuoteLatestImportedDocument", fields: [latestImportedDocumentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  items                ProjectQuoteItem[]
 
   @@unique([projectId, slotNumber])
   @@index([projectId])
   @@index([supplierId])
+  @@index([latestImportedDocumentId])
 }
 
 model ProjectQuoteItem {

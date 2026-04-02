@@ -58,6 +58,7 @@ export const documentTypeOptions: Array<{ value: DocumentType; label: string }> 
   { value: 'COST_SPREADSHEET', label: 'Planilha de composição' },
   { value: 'CONTROL_SPREADSHEET', label: 'Planilha de controle' },
   { value: 'PURCHASE_ORDER_PDF', label: 'Ordem de compra (PDF)' },
+  { value: 'SUPPLIER_QUOTE_PDF', label: 'OrÃ§amento de fornecedor (PDF)' },
   { value: 'OTHER_ATTACHMENT', label: 'Outro anexo' },
 ];
 

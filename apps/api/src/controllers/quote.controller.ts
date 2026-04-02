@@ -3,10 +3,13 @@ import type { Request, Response } from 'express';
 import { quoteService } from '../services/quote.service.js';
 import type {
   ApplyQuoteWinnerInput,
+  ApplyQuoteImportInput,
   GenerateQuotePurchaseOrderInput,
   UpdateQuoteItemInput,
   UpdateQuoteSupplierInput,
 } from '../modules/quote/quote.schemas.js';
+import { AppError } from '../utils/app-error.js';
+import { normalizeImportedFileName } from '../utils/encoding.js';
 
 class QuoteController {
   async listByProject(request: Request, response: Response) {
@@ -55,6 +58,35 @@ class QuoteController {
       request.body as GenerateQuotePurchaseOrderInput,
     );
     response.status(201).json(result);
+  }
+
+  async importPdf(request: Request, response: Response) {
+    const file = request.file;
+    if (!file) {
+      throw new AppError('Envie um arquivo PDF do fornecedor.', 400);
+    }
+
+    const safeName = normalizeImportedFileName(file.originalname);
+    if (!/\.pdf$/i.test(safeName)) {
+      throw new AppError('Envie um arquivo PDF do fornecedor.', 400);
+    }
+
+    const result = await quoteService.importSupplierQuotePdf(
+      String(request.params.id),
+      Number(request.params.slotNumber),
+      { ...file, originalname: safeName },
+    );
+    response.status(201).json(result);
+  }
+
+  async applyImportedPdf(request: Request, response: Response) {
+    const result = await quoteService.applyImportedSupplierQuotePdf(
+      String(request.params.id),
+      Number(request.params.slotNumber),
+      String(request.params.documentId),
+      request.body as ApplyQuoteImportInput,
+    );
+    response.json(result);
   }
 }
 

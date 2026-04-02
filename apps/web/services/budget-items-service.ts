@@ -18,6 +18,7 @@ export type BudgetItemPayload = {
   purchasedValue?: number | null;
   hasBidReference?: boolean;
   contextOnly?: boolean;
+  supplierQuoteExtraItem?: boolean;
   sourceType?: DataOriginType;
   sourceDocumentId?: string | null;
   sourceSheetName?: string | null;

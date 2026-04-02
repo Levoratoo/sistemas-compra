@@ -562,7 +562,9 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
                             'transition-colors duration-150 ease-out',
                             purchased
                               ? '!border-l-[3px] !border-l-emerald-500 !bg-emerald-500/[0.09] hover:!bg-emerald-500/[0.14] dark:!bg-emerald-500/10'
-                              : 'odd:bg-muted/[0.12] hover:bg-muted/35',
+                              : item.supplierQuoteExtraItem
+                                ? 'border-l-[3px] border-l-amber-400 bg-amber-50/70 hover:bg-amber-100/70'
+                                : 'odd:bg-muted/[0.12] hover:bg-muted/35',
                           )}
                         >
                           <TableCell className="text-center align-middle">
@@ -599,6 +601,11 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
                               ) : null}
                               <div>
                                 <p className="font-medium text-foreground">{item.name}</p>
+                                {item.supplierQuoteExtraItem ? (
+                                  <p className="text-xs font-medium text-amber-800">
+                                    Nao encontrada no edital, mas presente no orcamento
+                                  </p>
+                                ) : null}
                                 {item.description ? (
                                   <p className="line-clamp-2 text-xs text-muted-foreground">{item.description}</p>
                                 ) : null}

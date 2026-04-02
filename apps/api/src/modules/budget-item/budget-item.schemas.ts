@@ -41,6 +41,7 @@ const budgetItemBaseSchema = z.object({
   purchasedValue: z.coerce.number().nonnegative().optional().nullable(),
   hasBidReference: z.boolean().optional(),
   contextOnly: z.boolean().optional(),
+  supplierQuoteExtraItem: z.boolean().optional(),
   sourceType: z.nativeEnum(DataOriginType).optional(),
   sourceDocumentId: optionalTrimmedString(),
   sourceSheetName: optionalTrimmedString(),

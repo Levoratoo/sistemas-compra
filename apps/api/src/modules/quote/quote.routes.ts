@@ -1,11 +1,14 @@
 import { Router } from 'express';
+import multer from 'multer';
 
 import { quoteController } from '../../controllers/quote.controller.js';
 import { validateRequest } from '../../middlewares/validate.js';
 import { asyncHandler } from '../../utils/async-handler.js';
 import {
   applyQuoteWinnerSchema,
+  applyQuoteImportSchema,
   generateQuotePurchaseOrderSchema,
+  quoteImportDocumentParamsSchema,
   quoteItemParamsSchema,
   quoteProjectParamsSchema,
   quoteSlotParamsSchema,
@@ -14,6 +17,14 @@ import {
 } from './quote.schemas.js';
 
 export const quoteRouter = Router();
+
+const uploadSupplierQuotePdf = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, _file, cb) => {
+    cb(null, true);
+  },
+});
 
 quoteRouter.get(
   '/projects/:id/quotes',
@@ -37,6 +48,19 @@ quoteRouter.put(
   '/projects/:id/quotes/:slotNumber/select',
   validateRequest({ params: quoteSlotParamsSchema }),
   asyncHandler((request, response) => quoteController.selectSlot(request, response)),
+);
+
+quoteRouter.post(
+  '/projects/:id/quotes/:slotNumber/import-pdf',
+  uploadSupplierQuotePdf.single('file'),
+  validateRequest({ params: quoteSlotParamsSchema }),
+  asyncHandler((request, response) => quoteController.importPdf(request, response)),
+);
+
+quoteRouter.post(
+  '/projects/:id/quotes/:slotNumber/import-pdf/:documentId/apply',
+  validateRequest({ params: quoteImportDocumentParamsSchema, body: applyQuoteImportSchema }),
+  asyncHandler((request, response) => quoteController.applyImportedPdf(request, response)),
 );
 
 quoteRouter.post(

@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { Prisma, ProjectDocumentFolder } from '@prisma/client';
+import { Prisma, type ProjectDocumentFolder } from '@prisma/client';
 
 import { env } from '../config/env.js';
 import { documentRepository } from '../repositories/document.repository.js';
@@ -43,6 +43,20 @@ function buildSimulatedDocumentContent(input: CreateProjectDocumentInput) {
     null,
     2,
   );
+}
+
+function toNullableJsonInput(
+  value: unknown,
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null) {
+    return Prisma.DbNull;
+  }
+
+  return value as Prisma.InputJsonValue;
 }
 
 async function resolveStoragePath(projectId: string, input: CreateProjectDocumentServiceInput) {
@@ -167,6 +181,7 @@ class DocumentService {
         checksum: input.checksum ?? null,
         documentDate: parseOptionalDate(input.documentDate),
         searchText: input.searchText ?? input.contentText ?? null,
+        previewJson: toNullableJsonInput(input.previewJson),
         processingStatus: input.processingStatus ?? 'PROCESSED',
         reviewStatus:
           input.reviewStatus ??
@@ -206,6 +221,7 @@ class DocumentService {
       checksum: input.checksum ?? null,
       documentDate: parseOptionalDate(input.documentDate),
       searchText: input.searchText ?? input.contentText ?? null,
+      previewJson: toNullableJsonInput(input.previewJson),
       processingStatus: input.processingStatus ?? 'PROCESSED',
       reviewStatus: input.reviewStatus ?? 'REVIEWED',
       processingError: input.processingError ?? null,
