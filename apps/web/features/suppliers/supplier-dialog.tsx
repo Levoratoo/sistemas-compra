@@ -135,106 +135,132 @@ export function SupplierDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{supplier ? 'Editar fornecedor' : 'Novo fornecedor'}</DialogTitle>
-          <DialogDescription>Cadastre o fornecedor para usar nos pedidos e compras reais.</DialogDescription>
-        </DialogHeader>
+      <DialogContent className="flex max-h-[calc(100dvh-1rem)] flex-col gap-0 overflow-hidden p-0 sm:max-h-[calc(100dvh-2rem)]">
+        <div className="shrink-0 px-4 pb-2 pt-5 sm:px-6 sm:pt-6">
+          <DialogHeader>
+            <DialogTitle>{supplier ? 'Editar fornecedor' : 'Novo fornecedor'}</DialogTitle>
+            <DialogDescription>Cadastre o fornecedor para usar nos pedidos e compras reais.</DialogDescription>
+          </DialogHeader>
+        </div>
 
-        <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
-          <div className="space-y-2">
-            <Label htmlFor="legalName">Razão social</Label>
-            <Input id="legalName" {...form.register('legalName')} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="tradeName">Nome fantasia</Label>
-            <Input id="tradeName" placeholder="Opcional" {...form.register('tradeName')} />
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="documentNumber">CNPJ/Documento</Label>
-              <Input id="documentNumber" {...form.register('documentNumber')} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="contactName">Contato</Label>
-              <Input id="contactName" {...form.register('contactName')} />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="address">Endereço</Label>
-              <Input id="address" placeholder="Logradouro, número, bairro, cidade..." {...form.register('address')} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Telefone</Label>
-              <Input id="phone" {...form.register('phone')} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
-              <Input id="email" type="email" placeholder="Preencher quando disponível" {...form.register('email')} />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="cnd-files">CND (certidão negativa de débitos)</Label>
-              <p className="text-xs text-muted-foreground">
-                Envie um ou mais arquivos. Eles são guardados no cadastro do fornecedor e aparecem em Documentação →
-                CND em todos os projetos (incluindo projetos novos).
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <label
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-border/80 bg-muted/20 px-4 py-3 text-sm font-medium text-foreground transition hover:border-primary/50 hover:bg-muted/40"
-                  htmlFor="cnd-files"
-                >
-                  <FileUp className="size-4 text-primary" aria-hidden />
-                  Escolher arquivos
-                </label>
-                <input
-                  className="sr-only"
-                  id="cnd-files"
-                  multiple
-                  type="file"
-                  onChange={(event) => {
-                    const list = event.target.files ? Array.from(event.target.files) : [];
-                    setCndFiles((prev) => [...prev, ...list]);
-                    event.target.value = '';
-                  }}
+        <form
+          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+          onSubmit={form.handleSubmit(onSubmit)}
+        >
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 sm:px-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="legalName">Razão social</Label>
+                <Input id="legalName" className="min-w-0" {...form.register('legalName')} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tradeName">Nome fantasia</Label>
+                <Input id="tradeName" className="min-w-0" placeholder="Opcional" {...form.register('tradeName')} />
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="min-w-0 space-y-2">
+                  <Label htmlFor="documentNumber">CNPJ/Documento</Label>
+                  <Input id="documentNumber" className="min-w-0" {...form.register('documentNumber')} />
+                </div>
+                <div className="min-w-0 space-y-2">
+                  <Label htmlFor="contactName">Contato</Label>
+                  <Input id="contactName" className="min-w-0" {...form.register('contactName')} />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="address">Endereço</Label>
+                  <Input
+                    id="address"
+                    className="min-w-0"
+                    placeholder="Logradouro, número, bairro, cidade..."
+                    {...form.register('address')}
+                  />
+                </div>
+                <div className="min-w-0 space-y-2">
+                  <Label htmlFor="phone">Telefone</Label>
+                  <Input id="phone" className="min-w-0" {...form.register('phone')} />
+                </div>
+                <div className="min-w-0 space-y-2">
+                  <Label htmlFor="email">E-mail</Label>
+                  <Input
+                    id="email"
+                    className="min-w-0"
+                    type="email"
+                    placeholder="Preencher quando disponível"
+                    {...form.register('email')}
+                  />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="cnd-files">CND (certidão negativa de débitos)</Label>
+                  <p className="text-xs leading-snug text-muted-foreground">
+                    Envie um ou mais arquivos. Eles são guardados no cadastro do fornecedor e aparecem em
+                    Documentação → CND em todos os projetos (incluindo projetos novos).
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label
+                      className="inline-flex max-w-full cursor-pointer items-center gap-2 rounded-xl border border-dashed border-border/80 bg-muted/20 px-3 py-2.5 text-sm font-medium text-foreground transition hover:border-primary/50 hover:bg-muted/40 sm:px-4 sm:py-3"
+                      htmlFor="cnd-files"
+                    >
+                      <FileUp className="size-4 shrink-0 text-primary" aria-hidden />
+                      Escolher arquivos
+                    </label>
+                    <input
+                      className="sr-only"
+                      id="cnd-files"
+                      multiple
+                      type="file"
+                      onChange={(event) => {
+                        const list = event.target.files ? Array.from(event.target.files) : [];
+                        setCndFiles((prev) => [...prev, ...list]);
+                        event.target.value = '';
+                      }}
+                    />
+                  </div>
+                  {cndFiles.length > 0 ? (
+                    <ul className="mt-2 space-y-1 rounded-lg border border-border/60 bg-muted/10 px-3 py-2 text-sm">
+                      {cndFiles.map((file, index) => (
+                        <li className="flex items-center justify-between gap-2" key={`${file.name}-${index}`}>
+                          <span className="min-w-0 break-all text-foreground">{file.name}</span>
+                          <Button
+                            className="shrink-0"
+                            size="sm"
+                            type="button"
+                            variant="ghost"
+                            onClick={() => removeCndFile(index)}
+                          >
+                            <X className="size-4" aria-hidden />
+                            <span className="sr-only">Remover</span>
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  <div className="space-y-2 pt-1">
+                    <Label className="text-muted-foreground" htmlFor="cnd">
+                      Número, validade ou observação (opcional)
+                    </Label>
+                    <Input
+                      id="cnd"
+                      className="min-w-0"
+                      placeholder="Ex.: validade, número da certidão…"
+                      {...form.register('cnd')}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notes">Observações</Label>
+                <Textarea
+                  id="notes"
+                  className="min-h-[88px] max-h-40 min-w-0 resize-y"
+                  rows={4}
+                  {...form.register('notes')}
                 />
               </div>
-              {cndFiles.length > 0 ? (
-                <ul className="mt-2 space-y-1 rounded-lg border border-border/60 bg-muted/10 px-3 py-2 text-sm">
-                  {cndFiles.map((file, index) => (
-                    <li className="flex items-center justify-between gap-2" key={`${file.name}-${index}`}>
-                      <span className="min-w-0 truncate text-foreground">{file.name}</span>
-                      <Button
-                        className="shrink-0"
-                        size="sm"
-                        type="button"
-                        variant="ghost"
-                        onClick={() => removeCndFile(index)}
-                      >
-                        <X className="size-4" aria-hidden />
-                        <span className="sr-only">Remover</span>
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              <div className="space-y-2 pt-1">
-                <Label className="text-muted-foreground" htmlFor="cnd">
-                  Número, validade ou observação (opcional)
-                </Label>
-                <Input
-                  id="cnd"
-                  placeholder="Ex.: validade, número da certidão…"
-                  {...form.register('cnd')}
-                />
-              </div>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="notes">Observações</Label>
-            <Textarea id="notes" {...form.register('notes')} />
-          </div>
-
-          <DialogFooter>
+          <DialogFooter className="mt-0 shrink-0 gap-3 border-t border-border/60 bg-card/95 px-4 py-4 backdrop-blur-sm sm:px-6">
             <Button onClick={() => onOpenChange(false)} type="button" variant="ghost">
               Cancelar
             </Button>
