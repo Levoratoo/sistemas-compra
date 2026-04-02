@@ -25,6 +25,10 @@ export function listSuppliers() {
   return apiRequest<Supplier[]>('suppliers');
 }
 
+export function getSupplier(supplierId: string) {
+  return apiRequest<Supplier>(`suppliers/${supplierId}`);
+}
+
 export function createSupplier(payload: SupplierPayload, options?: { cndFiles?: File[] }) {
   const files = options?.cndFiles?.filter(Boolean) ?? [];
   if (files.length > 0) {

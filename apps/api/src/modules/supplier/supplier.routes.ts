@@ -32,6 +32,12 @@ supplierRouter.get(
   asyncHandler((request, response) => supplierController.list(request, response)),
 );
 
+supplierRouter.get(
+  '/suppliers/:id',
+  validateRequest({ params: supplierIdParamsSchema }),
+  asyncHandler((request, response) => supplierController.getById(request, response)),
+);
+
 supplierRouter.put(
   '/suppliers/:id',
   maybeMultipartSupplier,

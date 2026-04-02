@@ -34,6 +34,16 @@ class SupplierService {
     return suppliers.map(serializeSupplier);
   }
 
+  async getSupplierById(id: string) {
+    const supplier = await supplierRepository.findById(id);
+
+    if (!supplier) {
+      throw new AppError('Supplier not found', 404);
+    }
+
+    return serializeSupplier(supplier);
+  }
+
   async updateSupplier(id: string, input: UpdateSupplierInput, options?: { cndFiles?: Express.Multer.File[] }) {
     const existingSupplier = await supplierRepository.findById(id);
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Plus, SquarePen, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -17,6 +18,7 @@ import { formatDate } from '@/lib/format';
 import type { Supplier } from '@/types/api';
 
 export function SuppliersPageContent() {
+  const router = useRouter();
   const { data, isLoading, isError } = useSuppliersQuery();
   const { deleteSupplier } = useSuppliersMutations();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -36,6 +38,10 @@ export function SuppliersPageContent() {
       const message = error instanceof Error ? error.message : 'Nao foi possivel excluir o fornecedor.';
       toast.error(message);
     }
+  }
+
+  function openSupplierDetail(supplierId: string) {
+    router.push(`/suppliers/${supplierId}`);
   }
 
   return (
@@ -97,7 +103,19 @@ export function SuppliersPageContent() {
               </TableHeader>
               <TableBody>
                 {data.map((supplier) => (
-                  <TableRow key={supplier.id}>
+                  <TableRow
+                    key={supplier.id}
+                    className="cursor-pointer focus-visible:bg-muted/45 focus-visible:outline-none"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openSupplierDetail(supplier.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        openSupplierDetail(supplier.id);
+                      }
+                    }}
+                  >
                     <TableCell>
                       <div>
                         <p className="font-semibold">{supplier.legalName}</p>
@@ -130,7 +148,8 @@ export function SuppliersPageContent() {
                     <TableCell>
                       <div className="flex justify-end gap-2">
                         <Button
-                          onClick={() => {
+                          onClick={(event) => {
+                            event.stopPropagation();
                             setEditingSupplier(supplier);
                             setDialogOpen(true);
                           }}
@@ -139,7 +158,14 @@ export function SuppliersPageContent() {
                         >
                           <SquarePen className="size-4" />
                         </Button>
-                        <Button onClick={() => handleDelete(supplier.id)} size="sm" variant="ghost">
+                        <Button
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handleDelete(supplier.id);
+                          }}
+                          size="sm"
+                          variant="ghost"
+                        >
                           <Trash2 className="size-4" />
                         </Button>
                       </div>

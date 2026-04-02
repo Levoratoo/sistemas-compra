@@ -23,6 +23,12 @@ class SupplierController {
     response.json(result);
   }
 
+  async getById(request: Request, response: Response) {
+    const { id } = supplierIdParamsSchema.parse(request.params);
+    const result = await supplierService.getSupplierById(id);
+    response.json(result);
+  }
+
   async update(request: Request, response: Response) {
     const { id } = supplierIdParamsSchema.parse(request.params);
     const input = updateSupplierSchema.parse(request.body);

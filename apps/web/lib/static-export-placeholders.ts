@@ -6,3 +6,4 @@
 export const STATIC_EXPORT_PROJECT_ID = '0';
 export const STATIC_EXPORT_DOCUMENT_ID = '0';
 export const STATIC_EXPORT_BUDGET_ITEM_ID = '0';
+export const STATIC_EXPORT_SUPPLIER_ID = '0';
