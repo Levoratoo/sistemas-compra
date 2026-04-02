@@ -25,18 +25,11 @@ export function listSuppliers() {
   return apiRequest<Supplier[]>('suppliers');
 }
 
-export function createSupplier(
-  payload: SupplierPayload,
-  options?: { cndFiles?: File[]; projectId?: string | null },
-) {
+export function createSupplier(payload: SupplierPayload, options?: { cndFiles?: File[] }) {
   const files = options?.cndFiles?.filter(Boolean) ?? [];
   if (files.length > 0) {
     const formData = new FormData();
     appendSupplierFormData(formData, payload);
-    const projectId = options?.projectId?.trim();
-    if (projectId) {
-      formData.append('projectId', projectId);
-    }
     for (const file of files) {
       formData.append('cndFiles', file);
     }
@@ -51,16 +44,12 @@ export function createSupplier(
 export function updateSupplier(
   supplierId: string,
   payload: Partial<SupplierPayload>,
-  options?: { cndFiles?: File[]; projectId?: string | null },
+  options?: { cndFiles?: File[] },
 ) {
   const files = options?.cndFiles?.filter(Boolean) ?? [];
   if (files.length > 0) {
     const formData = new FormData();
     appendSupplierFormData(formData, payload);
-    const projectId = options?.projectId?.trim();
-    if (projectId) {
-      formData.append('projectId', projectId);
-    }
     for (const file of files) {
       formData.append('cndFiles', file);
     }

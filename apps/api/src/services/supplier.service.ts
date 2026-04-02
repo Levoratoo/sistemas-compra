@@ -1,41 +1,13 @@
 import type { Express } from 'express';
 
 import { supplierRepository } from '../repositories/supplier.repository.js';
-import { documentService } from './document.service.js';
-import { ensureCndSupplierFolder } from './supplier-cnd-folders.service.js';
+import { uploadSupplierCndFilesAndReplicateToAllProjects } from './supplier-cnd-sync.service.js';
 import { AppError } from '../utils/app-error.js';
 import { serializeSupplier } from '../utils/serializers.js';
 import type { CreateSupplierInput, UpdateSupplierInput } from '../modules/supplier/supplier.schemas.js';
 
-async function saveCndFilesToProjectDocumentation(
-  projectId: string,
-  supplierLegalName: string,
-  files: Express.Multer.File[],
-) {
-  if (files.length === 0) {
-    return;
-  }
-
-  const { supplierFolderId } = await ensureCndSupplierFolder(projectId, supplierLegalName);
-
-  for (const file of files) {
-    const originalFileName = file.originalname || 'cnd-anexo';
-    await documentService.createProjectDocument(projectId, {
-      folderId: supplierFolderId,
-      documentType: 'OTHER_ATTACHMENT',
-      originalFileName,
-      mimeType: file.mimetype || undefined,
-      originalFileBuffer: file.buffer,
-      notes: 'CND (certidão negativa de débitos)',
-    });
-  }
-}
-
 class SupplierService {
-  async createSupplier(
-    input: CreateSupplierInput,
-    options?: { projectId?: string; cndFiles?: Express.Multer.File[] },
-  ) {
+  async createSupplier(input: CreateSupplierInput, options?: { cndFiles?: Express.Multer.File[] }) {
     const supplier = await supplierRepository.create({
       legalName: input.legalName,
       tradeName: input.tradeName ?? null,
@@ -50,14 +22,7 @@ class SupplierService {
 
     const files = options?.cndFiles ?? [];
     if (files.length > 0) {
-      const projectId = options?.projectId?.trim();
-      if (!projectId) {
-        throw new AppError(
-          'Para enviar arquivos da CND, selecione o projeto em que eles devem aparecer na documentação.',
-          422,
-        );
-      }
-      await saveCndFilesToProjectDocumentation(projectId, supplier.legalName, files);
+      await uploadSupplierCndFilesAndReplicateToAllProjects(supplier.id, supplier.legalName, files);
     }
 
     return serializeSupplier(supplier);
@@ -68,11 +33,7 @@ class SupplierService {
     return suppliers.map(serializeSupplier);
   }
 
-  async updateSupplier(
-    id: string,
-    input: UpdateSupplierInput,
-    options?: { projectId?: string; cndFiles?: Express.Multer.File[] },
-  ) {
+  async updateSupplier(id: string, input: UpdateSupplierInput, options?: { cndFiles?: Express.Multer.File[] }) {
     const existingSupplier = await supplierRepository.findById(id);
 
     if (!existingSupplier) {
@@ -93,14 +54,7 @@ class SupplierService {
 
     const files = options?.cndFiles ?? [];
     if (files.length > 0) {
-      const projectId = options?.projectId?.trim();
-      if (!projectId) {
-        throw new AppError(
-          'Para enviar arquivos da CND, selecione o projeto em que eles devem aparecer na documentação.',
-          422,
-        );
-      }
-      await saveCndFilesToProjectDocumentation(projectId, supplier.legalName, files);
+      await uploadSupplierCndFilesAndReplicateToAllProjects(supplier.id, supplier.legalName, files);
     }
 
     return serializeSupplier(supplier);

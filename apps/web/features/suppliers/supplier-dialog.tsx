@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { FileUp, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { toast } from 'sonner';
@@ -19,9 +19,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { useProjectsQuery } from '@/hooks/use-projects';
 import { useSuppliersMutations } from '@/hooks/use-suppliers';
 import type { Supplier } from '@/types/api';
 
@@ -45,20 +43,15 @@ export function SupplierDialog({
   onOpenChange,
   supplier,
   onSaved,
-  documentationProjectId = null,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   supplier?: Supplier | null;
   onSaved?: (supplier: Supplier) => void;
-  /** Quando definido, anexos CND vão para a documentação deste projeto (pasta CND → fornecedor). */
-  documentationProjectId?: string | null;
 }) {
   const queryClient = useQueryClient();
-  const { data: projects } = useProjectsQuery();
   const { createSupplier, updateSupplier } = useSuppliersMutations();
   const [cndFiles, setCndFiles] = useState<File[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState('');
 
   const form = useForm<FormValues, undefined, FormSubmitValues>({
     resolver: zodResolver(formSchema),
@@ -74,15 +67,6 @@ export function SupplierDialog({
       notes: supplier?.notes ?? '',
     },
   });
-
-  const effectiveProjectId = useMemo(() => {
-    const fromProp = documentationProjectId?.trim();
-    if (fromProp) {
-      return fromProp;
-    }
-    const fromSelect = selectedProjectId.trim();
-    return fromSelect || null;
-  }, [documentationProjectId, selectedProjectId]);
 
   useEffect(() => {
     form.reset({
@@ -101,7 +85,6 @@ export function SupplierDialog({
   useEffect(() => {
     if (!open) {
       setCndFiles([]);
-      setSelectedProjectId('');
     }
   }, [open]);
 
@@ -110,11 +93,6 @@ export function SupplierDialog({
   }
 
   async function onSubmit(values: FormSubmitValues) {
-    if (cndFiles.length > 0 && !effectiveProjectId) {
-      toast.error('Selecione o projeto para salvar os arquivos da CND em Documentação → CND.');
-      return;
-    }
-
     try {
       const payload = {
         ...values,
@@ -128,24 +106,20 @@ export function SupplierDialog({
         notes: values.notes || null,
       };
 
-      const docProject = effectiveProjectId;
-
       const saved = supplier
         ? await updateSupplier.mutateAsync({
             id: supplier.id,
             payload,
             cndFiles: cndFiles.length > 0 ? cndFiles : undefined,
-            projectId: docProject,
           })
         : await createSupplier.mutateAsync({
             payload,
             cndFiles: cndFiles.length > 0 ? cndFiles : undefined,
-            projectId: docProject,
           });
 
-      if (docProject && cndFiles.length > 0) {
-        await queryClient.invalidateQueries({ queryKey: ['project-documents', docProject] });
-        await queryClient.invalidateQueries({ queryKey: ['project-document-folders', docProject] });
+      if (cndFiles.length > 0) {
+        await queryClient.invalidateQueries({ queryKey: ['project-documents'] });
+        await queryClient.invalidateQueries({ queryKey: ['project-document-folders'] });
       }
 
       toast.success(supplier ? 'Fornecedor atualizado.' : 'Fornecedor cadastrado com sucesso.');
@@ -158,7 +132,6 @@ export function SupplierDialog({
   }
 
   const submitting = createSupplier.isPending || updateSupplier.isPending;
-  const showProjectPicker = cndFiles.length > 0 && !documentationProjectId?.trim();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -201,7 +174,8 @@ export function SupplierDialog({
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="cnd-files">CND (certidão negativa de débitos)</Label>
               <p className="text-xs text-muted-foreground">
-                Envie um ou mais arquivos. Eles ficam em Documentação → CND → pasta com o nome da razão social.
+                Envie um ou mais arquivos. Eles são guardados no cadastro do fornecedor e aparecem em Documentação →
+                CND em todos os projetos (incluindo projetos novos).
               </p>
               <div className="flex flex-wrap items-center gap-2">
                 <label
@@ -254,28 +228,6 @@ export function SupplierDialog({
               </div>
             </div>
           </div>
-
-          {showProjectPicker ? (
-            <div className="space-y-2 rounded-xl border border-amber-500/35 bg-amber-500/5 px-4 py-3">
-              <Label htmlFor="cnd-project">Projeto (documentação)</Label>
-              <Select
-                id="cnd-project"
-                required
-                value={selectedProjectId}
-                onChange={(event) => setSelectedProjectId(event.target.value)}
-              >
-                <option value="">Selecione o projeto…</option>
-                {(projects ?? []).map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.code} — {project.name}
-                  </option>
-                ))}
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Obrigatório ao enviar arquivos: os anexos são gravados na documentação do projeto escolhido.
-              </p>
-            </div>
-          ) : null}
 
           <div className="space-y-2">
             <Label htmlFor="notes">Observações</Label>

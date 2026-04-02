@@ -20,6 +20,7 @@ export type CreateProjectDocumentServiceInput = CreateProjectDocumentInput & {
   originalFileBuffer?: Buffer;
   searchText?: string | null;
   purchaseOrderId?: string | null;
+  supplierCndAttachmentId?: string | null;
 };
 
 async function ensureProjectExists(projectId: string) {
@@ -173,6 +174,7 @@ class DocumentService {
         projectId,
         folderId: input.folderId ?? null,
         purchaseOrderId: input.purchaseOrderId ?? null,
+        supplierCndAttachmentId: input.supplierCndAttachmentId ?? null,
         documentType: input.documentType,
         originalFileName: input.originalFileName,
         storagePath: storage.relativePath,
