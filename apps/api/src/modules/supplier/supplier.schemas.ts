@@ -1,15 +1,24 @@
 import { z } from 'zod';
 
+function emptyToUndefined(value: unknown) {
+  if (value === '' || value === undefined || value === null) {
+    return undefined;
+  }
+  return value;
+}
+
+const optionalTrim = z.preprocess(emptyToUndefined, z.string().trim().optional());
+
 const supplierBaseSchema = z.object({
   legalName: z.string().trim().min(1),
-  tradeName: z.string().trim().optional(),
-  documentNumber: z.string().trim().optional(),
-  contactName: z.string().trim().optional(),
-  address: z.string().trim().optional(),
-  phone: z.string().trim().optional(),
-  email: z.email().optional(),
-  cnd: z.string().trim().optional(),
-  notes: z.string().trim().optional(),
+  tradeName: optionalTrim,
+  documentNumber: optionalTrim,
+  contactName: optionalTrim,
+  address: optionalTrim,
+  phone: optionalTrim,
+  email: z.preprocess(emptyToUndefined, z.string().email().optional()),
+  cnd: optionalTrim,
+  notes: optionalTrim,
 });
 
 export const createSupplierSchema = supplierBaseSchema;

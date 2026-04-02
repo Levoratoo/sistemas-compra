@@ -127,11 +127,11 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
   return payload as T;
 }
 
-export async function apiUploadJson<T>(path: string, formData: FormData) {
+export async function apiUploadJson<T>(path: string, formData: FormData, method: 'POST' | 'PUT' = 'POST') {
   let response: Response;
   try {
     response = await fetch(buildUrl(path), {
-      method: 'POST',
+      method,
       headers: authHeaders(),
       body: formData,
       cache: 'no-store',

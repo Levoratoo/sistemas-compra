@@ -1,15 +1,29 @@
+import type { NextFunction, Request, Response } from 'express';
 import { Router } from 'express';
+import multer from 'multer';
 
 import { supplierController } from '../../controllers/supplier.controller.js';
 import { validateRequest } from '../../middlewares/validate.js';
 import { asyncHandler } from '../../utils/async-handler.js';
-import { createSupplierSchema, supplierIdParamsSchema, updateSupplierSchema } from './supplier.schemas.js';
+import { supplierIdParamsSchema } from './supplier.schemas.js';
 
 export const supplierRouter = Router();
 
+const uploadCnd = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024, files: 30 },
+});
+
+function maybeMultipartSupplier(request: Request, response: Response, next: NextFunction) {
+  if (request.is('multipart/form-data')) {
+    return uploadCnd.array('cndFiles', 20)(request, response, next);
+  }
+  next();
+}
+
 supplierRouter.post(
   '/suppliers',
-  validateRequest({ body: createSupplierSchema }),
+  maybeMultipartSupplier,
   asyncHandler((request, response) => supplierController.create(request, response)),
 );
 
@@ -20,7 +34,8 @@ supplierRouter.get(
 
 supplierRouter.put(
   '/suppliers/:id',
-  validateRequest({ params: supplierIdParamsSchema, body: updateSupplierSchema }),
+  maybeMultipartSupplier,
+  validateRequest({ params: supplierIdParamsSchema }),
   asyncHandler((request, response) => supplierController.update(request, response)),
 );
 

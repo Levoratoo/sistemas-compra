@@ -277,11 +277,13 @@ function SupplierPickerDialog({
   onOpenChange,
   slot,
   onSelectSupplier,
+  projectId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   slot: ProjectQuoteSlot | null;
   onSelectSupplier: (supplierId: string | null) => Promise<void>;
+  projectId: string;
 }) {
   const { data: suppliers, isLoading, isError } = useSuppliersQuery();
   const [search, setSearch] = useState('');
@@ -410,6 +412,7 @@ function SupplierPickerDialog({
       </Dialog>
 
       <SupplierDialog
+        documentationProjectId={projectId}
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         onSaved={(supplier) => {
@@ -2161,6 +2164,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
 
       <SupplierPickerDialog
         open={Boolean(supplierPickerSlot)}
+        projectId={projectId}
         slot={supplierPickerSlot}
         onOpenChange={(next) => {
           if (!next) {

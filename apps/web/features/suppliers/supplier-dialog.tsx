@@ -1,7 +1,9 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { FileUp, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { toast } from 'sonner';
@@ -17,7 +19,9 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { useProjectsQuery } from '@/hooks/use-projects';
 import { useSuppliersMutations } from '@/hooks/use-suppliers';
 import type { Supplier } from '@/types/api';
 
@@ -41,13 +45,21 @@ export function SupplierDialog({
   onOpenChange,
   supplier,
   onSaved,
+  documentationProjectId = null,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   supplier?: Supplier | null;
   onSaved?: (supplier: Supplier) => void;
+  /** Quando definido, anexos CND vão para a documentação deste projeto (pasta CND → fornecedor). */
+  documentationProjectId?: string | null;
 }) {
+  const queryClient = useQueryClient();
+  const { data: projects } = useProjectsQuery();
   const { createSupplier, updateSupplier } = useSuppliersMutations();
+  const [cndFiles, setCndFiles] = useState<File[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState('');
+
   const form = useForm<FormValues, undefined, FormSubmitValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -63,6 +75,15 @@ export function SupplierDialog({
     },
   });
 
+  const effectiveProjectId = useMemo(() => {
+    const fromProp = documentationProjectId?.trim();
+    if (fromProp) {
+      return fromProp;
+    }
+    const fromSelect = selectedProjectId.trim();
+    return fromSelect || null;
+  }, [documentationProjectId, selectedProjectId]);
+
   useEffect(() => {
     form.reset({
       legalName: supplier?.legalName ?? '',
@@ -77,7 +98,23 @@ export function SupplierDialog({
     });
   }, [form, supplier]);
 
+  useEffect(() => {
+    if (!open) {
+      setCndFiles([]);
+      setSelectedProjectId('');
+    }
+  }, [open]);
+
+  function removeCndFile(index: number) {
+    setCndFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function onSubmit(values: FormSubmitValues) {
+    if (cndFiles.length > 0 && !effectiveProjectId) {
+      toast.error('Selecione o projeto para salvar os arquivos da CND em Documentação → CND.');
+      return;
+    }
+
     try {
       const payload = {
         ...values,
@@ -91,12 +128,25 @@ export function SupplierDialog({
         notes: values.notes || null,
       };
 
+      const docProject = effectiveProjectId;
+
       const saved = supplier
         ? await updateSupplier.mutateAsync({
             id: supplier.id,
             payload,
+            cndFiles: cndFiles.length > 0 ? cndFiles : undefined,
+            projectId: docProject,
           })
-        : await createSupplier.mutateAsync(payload);
+        : await createSupplier.mutateAsync({
+            payload,
+            cndFiles: cndFiles.length > 0 ? cndFiles : undefined,
+            projectId: docProject,
+          });
+
+      if (docProject && cndFiles.length > 0) {
+        await queryClient.invalidateQueries({ queryKey: ['project-documents', docProject] });
+        await queryClient.invalidateQueries({ queryKey: ['project-document-folders', docProject] });
+      }
 
       toast.success(supplier ? 'Fornecedor atualizado.' : 'Fornecedor cadastrado com sucesso.');
       onSaved?.(saved);
@@ -108,6 +158,7 @@ export function SupplierDialog({
   }
 
   const submitting = createSupplier.isPending || updateSupplier.isPending;
+  const showProjectPicker = cndFiles.length > 0 && !documentationProjectId?.trim();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -148,10 +199,84 @@ export function SupplierDialog({
               <Input id="email" type="email" placeholder="Preencher quando disponível" {...form.register('email')} />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="cnd">CND (certidão negativa de débitos)</Label>
-              <Input id="cnd" placeholder="Número, validade ou observação — preencher depois" {...form.register('cnd')} />
+              <Label htmlFor="cnd-files">CND (certidão negativa de débitos)</Label>
+              <p className="text-xs text-muted-foreground">
+                Envie um ou mais arquivos. Eles ficam em Documentação → CND → pasta com o nome da razão social.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <label
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-border/80 bg-muted/20 px-4 py-3 text-sm font-medium text-foreground transition hover:border-primary/50 hover:bg-muted/40"
+                  htmlFor="cnd-files"
+                >
+                  <FileUp className="size-4 text-primary" aria-hidden />
+                  Escolher arquivos
+                </label>
+                <input
+                  className="sr-only"
+                  id="cnd-files"
+                  multiple
+                  type="file"
+                  onChange={(event) => {
+                    const list = event.target.files ? Array.from(event.target.files) : [];
+                    setCndFiles((prev) => [...prev, ...list]);
+                    event.target.value = '';
+                  }}
+                />
+              </div>
+              {cndFiles.length > 0 ? (
+                <ul className="mt-2 space-y-1 rounded-lg border border-border/60 bg-muted/10 px-3 py-2 text-sm">
+                  {cndFiles.map((file, index) => (
+                    <li className="flex items-center justify-between gap-2" key={`${file.name}-${index}`}>
+                      <span className="min-w-0 truncate text-foreground">{file.name}</span>
+                      <Button
+                        className="shrink-0"
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                        onClick={() => removeCndFile(index)}
+                      >
+                        <X className="size-4" aria-hidden />
+                        <span className="sr-only">Remover</span>
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <div className="space-y-2 pt-1">
+                <Label className="text-muted-foreground" htmlFor="cnd">
+                  Número, validade ou observação (opcional)
+                </Label>
+                <Input
+                  id="cnd"
+                  placeholder="Ex.: validade, número da certidão…"
+                  {...form.register('cnd')}
+                />
+              </div>
             </div>
           </div>
+
+          {showProjectPicker ? (
+            <div className="space-y-2 rounded-xl border border-amber-500/35 bg-amber-500/5 px-4 py-3">
+              <Label htmlFor="cnd-project">Projeto (documentação)</Label>
+              <Select
+                id="cnd-project"
+                required
+                value={selectedProjectId}
+                onChange={(event) => setSelectedProjectId(event.target.value)}
+              >
+                <option value="">Selecione o projeto…</option>
+                {(projects ?? []).map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.code} — {project.name}
+                  </option>
+                ))}
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Obrigatório ao enviar arquivos: os anexos são gravados na documentação do projeto escolhido.
+              </p>
+            </div>
+          ) : null}
+
           <div className="space-y-2">
             <Label htmlFor="notes">Observações</Label>
             <Textarea id="notes" {...form.register('notes')} />

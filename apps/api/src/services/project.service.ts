@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 
 import { projectRepository, type ProjectAggregate } from '../repositories/project.repository.js';
+import { ensureCndRootFolder } from './supplier-cnd-folders.service.js';
 import { AppError } from '../utils/app-error.js';
 import { parseOptionalDate } from '../utils/date.js';
 import { toDecimal } from '../utils/decimal.js';
@@ -135,6 +136,7 @@ export function toProjectUpdateData(input: UpdateProjectInput): Prisma.ProjectUp
 class ProjectService {
   async createProject(input: CreateProjectInput) {
     const created = await projectRepository.create(toProjectCreateData(input));
+    await ensureCndRootFolder(created.id);
     return mapProjectAggregate(created);
   }
 

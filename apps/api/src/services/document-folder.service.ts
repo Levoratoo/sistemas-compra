@@ -2,6 +2,7 @@ import type { FolderSurfaceStyle, ProjectDocumentFolder } from '@prisma/client';
 
 import { documentFolderRepository } from '../repositories/document-folder.repository.js';
 import { projectRepository } from '../repositories/project.repository.js';
+import { ensureCndRootFolder } from './supplier-cnd-folders.service.js';
 import { AppError } from '../utils/app-error.js';
 import { serializeProjectDocumentFolder } from '../utils/serializers.js';
 
@@ -31,6 +32,7 @@ async function ensureProjectExists(projectId: string) {
 class DocumentFolderService {
   async listFolders(projectId: string) {
     await ensureProjectExists(projectId);
+    await ensureCndRootFolder(projectId);
     const rows = await documentFolderRepository.listByProject(projectId);
     return rows.map(serializeProjectDocumentFolder);
   }

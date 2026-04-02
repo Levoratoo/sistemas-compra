@@ -26,12 +26,20 @@ export function useSuppliersMutations() {
 
   return {
     createSupplier: useMutation({
-      mutationFn: (payload: SupplierPayload) => createSupplier(payload),
+      mutationFn: (input: {
+        payload: SupplierPayload;
+        cndFiles?: File[];
+        projectId?: string | null;
+      }) => createSupplier(input.payload, { cndFiles: input.cndFiles, projectId: input.projectId }),
       onSuccess: invalidate,
     }),
     updateSupplier: useMutation({
-      mutationFn: ({ id, payload }: { id: string; payload: Partial<SupplierPayload> }) =>
-        updateSupplier(id, payload),
+      mutationFn: (input: {
+        id: string;
+        payload: Partial<SupplierPayload>;
+        cndFiles?: File[];
+        projectId?: string | null;
+      }) => updateSupplier(input.id, input.payload, { cndFiles: input.cndFiles, projectId: input.projectId }),
       onSuccess: invalidate,
     }),
     deleteSupplier: useMutation({
