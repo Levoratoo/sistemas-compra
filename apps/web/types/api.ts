@@ -106,6 +106,7 @@ export type ReplenishmentDerivedStatus =
 
 export type MissingItemUrgency = 'HIGH' | 'MEDIUM' | 'LOW';
 export type OwnerApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type SupplierCndStatus = 'MISSING' | 'VALID' | 'EXPIRING_SOON' | 'EXPIRED';
 
 export interface EntityTimestamps {
   createdAt: string | null;
@@ -239,6 +240,12 @@ export interface Supplier extends EntityTimestamps {
   phone: string | null;
   email: string | null;
   cnd: string | null;
+  cndIssuedAt: string | null;
+  cndValidUntil: string | null;
+  cndControlCode: string | null;
+  cndSourceFileName: string | null;
+  cndStatus: SupplierCndStatus;
+  cndDaysUntilExpiration: number | null;
   notes: string | null;
 }
 

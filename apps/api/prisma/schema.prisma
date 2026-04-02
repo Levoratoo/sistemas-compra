@@ -438,6 +438,10 @@ model Supplier {
   phone          String?
   email          String?
   cnd            String?
+  cndIssuedAt    DateTime?
+  cndValidUntil  DateTime?
+  cndControlCode String?
+  cndSourceFileName String?
   notes          String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

@@ -9,8 +9,35 @@ import { env } from '../config/env.js';
 import { documentService } from './document.service.js';
 import { ensureCndSupplierFolder } from './supplier-cnd-folders.service.js';
 import { ensureRelativeStoragePath, sanitizeFileName, toRelativeProjectPath } from '../utils/file.js';
+import {
+  extractSupplierCndMetadataFromFile,
+  type SupplierCndParsedMetadata,
+} from '../utils/supplier-cnd-parser.js';
 
 export const SUPPLIER_CND_DOCUMENT_NOTES = 'CND (certidão negativa de débitos)';
+
+function shouldReplaceSupplierSnapshot(
+  current: SupplierCndParsedMetadata | null,
+  next: SupplierCndParsedMetadata | null,
+) {
+  if (!next?.validUntil) {
+    return false;
+  }
+
+  if (!current?.validUntil) {
+    return true;
+  }
+
+  if (next.issuedAt && current.issuedAt) {
+    return next.issuedAt.getTime() > current.issuedAt.getTime();
+  }
+
+  if (next.issuedAt && !current.issuedAt) {
+    return true;
+  }
+
+  return next.validUntil.getTime() >= current.validUntil.getTime();
+}
 
 function masterPathForNewFile(supplierId: string, originalFileName: string) {
   const safe = sanitizeFileName(originalFileName) || `cnd-${Date.now()}.bin`;
@@ -47,9 +74,6 @@ async function readMasterBuffer(masterStoragePath: string): Promise<Buffer> {
   return readFile(absolute);
 }
 
-/**
- * Garante um `ProjectDocument` neste projeto para o anexo CND global (cópia do ficheiro no disco do projeto).
- */
 export async function replicateSupplierCndAttachmentToProject(
   projectId: string,
   supplierLegalName: string,
@@ -85,21 +109,37 @@ export async function uploadSupplierCndFilesAndReplicateToAllProjects(
   }
 
   const projects = await prisma.project.findMany({ select: { id: true } });
+  let parsedSnapshot: SupplierCndParsedMetadata | null = null;
+  let parsedSnapshotFileName: string | null = null;
 
   for (const file of files) {
     const buffer = file.buffer;
     const originalFileName = file.originalname || 'cnd-anexo';
     const attachment = await persistSupplierCndMasterFile(supplierId, originalFileName, buffer, file.mimetype);
+    const parsed = await extractSupplierCndMetadataFromFile(buffer, originalFileName, file.mimetype);
+    if (shouldReplaceSupplierSnapshot(parsedSnapshot, parsed)) {
+      parsedSnapshot = parsed;
+      parsedSnapshotFileName = originalFileName;
+    }
 
     for (const { id: projectId } of projects) {
       await replicateSupplierCndAttachmentToProject(projectId, supplierLegalName, attachment, buffer);
     }
   }
+
+  if (parsedSnapshot?.validUntil) {
+    await prisma.supplier.update({
+      where: { id: supplierId },
+      data: {
+        cndIssuedAt: parsedSnapshot.issuedAt,
+        cndValidUntil: parsedSnapshot.validUntil,
+        cndControlCode: parsedSnapshot.controlCode ?? null,
+        cndSourceFileName: parsedSnapshotFileName,
+      },
+    });
+  }
 }
 
-/**
- * Novo projeto: replica todos os anexos CND globais para a documentação deste projeto.
- */
 export async function syncAllSupplierCndAttachmentsToProject(projectId: string) {
   const attachments = await prisma.supplierCndAttachment.findMany({
     include: { supplier: true },

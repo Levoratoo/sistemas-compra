@@ -16,6 +16,7 @@
     "db:seed:users": "tsx prisma/seed-users-only.ts",
     "db:seed:suppliers": "tsx prisma/seed-suppliers-demo.ts",
     "db:backfill-supplier-cnd": "tsx src/scripts/backfill-supplier-cnd.ts",
+    "db:backfill-supplier-cnd-metadata": "tsx src/scripts/backfill-supplier-cnd-metadata.ts",
     "test": "node --import tsx/esm --test src/utils/*.test.ts"
   },
   "dependencies": {

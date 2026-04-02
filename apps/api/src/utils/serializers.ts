@@ -18,6 +18,7 @@ import type {
 
 import { decimalToNumber } from './decimal.js';
 import { toIsoString } from './date.js';
+import { deriveSupplierCndStatus } from './supplier-cnd-status.js';
 
 export function serializeUser(user: User) {
   return {
@@ -128,10 +129,16 @@ export function serializeBudgetItem(item: BudgetItem) {
 }
 
 export function serializeSupplier(supplier: Supplier) {
+  const cndDerived = deriveSupplierCndStatus(supplier.cndValidUntil);
+
   return {
     ...supplier,
+    cndIssuedAt: toIsoString(supplier.cndIssuedAt),
+    cndValidUntil: toIsoString(supplier.cndValidUntil),
     createdAt: toIsoString(supplier.createdAt),
     updatedAt: toIsoString(supplier.updatedAt),
+    cndStatus: cndDerived.status,
+    cndDaysUntilExpiration: cndDerived.daysUntilExpiration,
   };
 }
 

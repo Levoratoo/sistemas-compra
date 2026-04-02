@@ -8,7 +8,7 @@ import type { CreateSupplierInput, UpdateSupplierInput } from '../modules/suppli
 
 class SupplierService {
   async createSupplier(input: CreateSupplierInput, options?: { cndFiles?: Express.Multer.File[] }) {
-    const supplier = await supplierRepository.create({
+    let supplier = await supplierRepository.create({
       legalName: input.legalName,
       tradeName: input.tradeName ?? null,
       documentNumber: input.documentNumber ?? null,
@@ -23,6 +23,7 @@ class SupplierService {
     const files = options?.cndFiles ?? [];
     if (files.length > 0) {
       await uploadSupplierCndFilesAndReplicateToAllProjects(supplier.id, supplier.legalName, files);
+      supplier = (await supplierRepository.findById(supplier.id)) ?? supplier;
     }
 
     return serializeSupplier(supplier);
@@ -40,7 +41,7 @@ class SupplierService {
       throw new AppError('Supplier not found', 404);
     }
 
-    const supplier = await supplierRepository.update(id, {
+    let supplier = await supplierRepository.update(id, {
       legalName: input.legalName,
       tradeName: input.tradeName,
       documentNumber: input.documentNumber,
@@ -55,6 +56,7 @@ class SupplierService {
     const files = options?.cndFiles ?? [];
     if (files.length > 0) {
       await uploadSupplierCndFilesAndReplicateToAllProjects(supplier.id, supplier.legalName, files);
+      supplier = (await supplierRepository.findById(supplier.id)) ?? supplier;
     }
 
     return serializeSupplier(supplier);
