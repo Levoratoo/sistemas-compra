@@ -85,9 +85,40 @@ const QTY_LINE_RE =
 
 const TRAILING_QTY_RE = /^(.+?)\s+(\d{1,3})\s*$/;
 
+const GENERIC_TRAILING_QTY_RE =
+  /^(.+?)\s+(\d{1,3}(?:\s*(?:unidades?|unid\.?|pares?|par|caixas?|cx(?:\s*c\/\s*\d+\s*und\.?)?|kits?|conjuntos?))?)\.?$/i;
+
+const GENERIC_STANDALONE_QTY_RE =
+  /^(\d{1,3}(?:\s*(?:unidades?|unid\.?|pares?|par|caixas?|cx(?:\s*c\/\s*\d+\s*und\.?)?|kits?|conjuntos?))?)\.?$/i;
+
+const CUIABA_ROLE_NAMES = [
+  'Recepcionista',
+  'Auxiliar de documentação',
+  'Porteiro',
+  'Digitador',
+  'Contínuo',
+  'Maqueiro',
+  'Encarregado',
+  'Almoxarife',
+  'Secretário Executivo',
+];
+
+const CUIABA_ROLE_NAMES_SORTED = [...CUIABA_ROLE_NAMES].sort((a, b) => b.length - a.length);
+
+const EXTRA_PDF_NOISE_LINE =
+  /^(Orienta[cç][aã]o\s*-\s*SEI\b|Refer[êe]ncia:\s+Processo\s+n[º°])/i;
+
 function isNoise(line: string) {
   const t = line.trim();
-  return !t || PDF_NOISE_LINE.test(t);
+  return !t || PDF_NOISE_LINE.test(t) || EXTRA_PDF_NOISE_LINE.test(t);
+}
+
+function stripInlinePdfNoise(line: string) {
+  return normalizeSpaces(
+    line
+      .replace(/\s+Orienta[cç][aã]o\s*-\s*SEI.+$/i, '')
+      .replace(/\s+Refer[êe]ncia:\s+Processo.+$/i, ''),
+  );
 }
 
 function isRoleLine(line: string): string | null {
@@ -300,6 +331,68 @@ function sanitizeUniformDescription(description: string) {
       .replace(/\b\d+(?:\.\d+){1,5}\..*$/i, '')
       .replace(/\bEPI['’`]?s?.*$/i, ''),
   );
+}
+
+function normalizeGenericQuantity(raw: string) {
+  const value = normalizeSpaces(raw);
+  const caixa = /^(\d{1,3})\s*cx(?:\s*c\/\s*\d+\s*und\.?)?$/i.exec(value);
+  if (caixa) {
+    return `${caixa[1]} caixas`;
+  }
+
+  const unid = /^(\d{1,3})\s*unid\.?$/i.exec(value);
+  if (unid) {
+    return `${unid[1]} unidades`;
+  }
+
+  return value;
+}
+
+function parseTrailingQuantity(line: string) {
+  const normalized = normalizeSpaces(line);
+  const match = GENERIC_TRAILING_QTY_RE.exec(normalized);
+  if (!match) return null;
+  return {
+    item: normalizeSpaces(match[1]),
+    quantity: normalizeGenericQuantity(match[2]),
+  };
+}
+
+function parseStandaloneQuantity(line: string) {
+  const normalized = normalizeSpaces(line);
+  const match = GENERIC_STANDALONE_QTY_RE.exec(normalized);
+  if (!match) return null;
+  return normalizeGenericQuantity(match[1]);
+}
+
+function isUppercaseish(line: string) {
+  const normalized = normalizeSpaces(line);
+  if (!normalized) return false;
+  const lettersOnly = normalized.replace(/[^A-Za-zÀ-ÿ]/g, '');
+  if (lettersOnly.length < 3) return false;
+  return normalized === normalized.toLocaleUpperCase('pt-BR');
+}
+
+function splitCuiabaBrokenRoleLines(lines: string[]) {
+  const merged: string[] = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    let current = normalizeSpaces(lines[i] ?? '');
+    const next = normalizeSpaces(lines[i + 1] ?? '');
+    if (current && next) {
+      const maybeRole = normalizeSpaces(`${current} ${next}`).replace(/\.$/, '');
+      if (CUIABA_ROLE_NAMES.some((role) => role.toLowerCase() === maybeRole.toLowerCase())) {
+        current = maybeRole;
+        i += 1;
+      }
+    }
+    if (current) merged.push(current);
+  }
+  return merged;
+}
+
+function isCuiabaRoleName(line: string) {
+  const normalized = normalizeSpaces(line).replace(/\.$/, '');
+  return CUIABA_ROLE_NAMES.find((role) => role.toLowerCase() === normalized.toLowerCase()) ?? null;
 }
 
 export function extractBudgetLinesFromGenericRoleTables(fullText: string): BudgetLineCandidate[] {
@@ -663,6 +756,406 @@ export function extractBudgetLinesFromUniformKitTables(fullText: string): Budget
       `edital_uniforme_kit_${rows.length}`,
       `${item} | ${currentKitQuantity ?? '02 conjuntos completos'} | ${description || '(ver edital)'}`,
     );
+  }
+
+  return dedupeRowsBySemanticItem(rows);
+}
+
+function isCuiabaSharedUniformRoleLine(line: string) {
+  const normalized = normalizeSpaces(line).replace(/\.$/, '');
+  return /RECEPCIONISTA,\s*AUXILIAR DE DOCUMENTA[CÇ][AÃ]O,\s*PORTEIRO,\s*DIGITADOR,\s*CONT[ÍI]NUO/i.test(
+    normalized,
+  );
+}
+
+function parseCuiabaUniformVariant(line: string): string | null {
+  const normalized = normalizeSpaces(line);
+  if (/^TIPO DE UNIFORME MASCULINO \/ FEMININO/i.test(normalized)) return 'Masculino / Feminino';
+  if (/^TIPO DE UNIFORME MASCULINO/i.test(normalized)) return 'Masculino';
+  if (/^TIPO DE UNIFORME FEMININO/i.test(normalized)) return 'Feminino';
+  return null;
+}
+
+function buildCuiabaUniformItemLabel(variant: string | null, item: string) {
+  return variant ? `${variant} — ${item}` : item;
+}
+
+export function extractBudgetLinesFromCuiabaUniformAnnex(fullText: string): BudgetLineCandidate[] {
+  if (!/ANEXO\s+I\s*-\s*B/i.test(fullText) || !/DETALHAMENTO\s+DOS\s+UNIFORMES/i.test(fullText)) {
+    return [];
+  }
+
+  const baseLines = fullText
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => normalizeSpaces(line))
+    .filter((line) => line.length > 0 && !isNoise(line));
+  const lines = splitCuiabaBrokenRoleLines(baseLines);
+
+  const rows: BudgetLineCandidate[] = [];
+  const seen = new Set<string>();
+  let currentRole: string | null = null;
+  let currentVariant: string | null = null;
+  let pendingParts: string[] = [];
+  let inTable = false;
+
+  const flushPending = (quantity: string) => {
+    const itemText = sanitizeUniformDescription(normalizeSpaces(pendingParts.join(' ')));
+    pendingParts = [];
+    if (!itemText || !currentRole) return;
+    const item = buildCuiabaUniformItemLabel(currentVariant, itemText);
+    pushUniqueBudgetLine(
+      rows,
+      seen,
+      {
+        description: `${currentRole} — ${item}`,
+        detail: 'Quantidade semestral por empregado conforme Anexo I-B (Cuiabá).',
+        quantity,
+        role: currentRole,
+        item,
+        source: 'edital_cuiaba_uniforme_anexo',
+        sectionLabel: 'Anexo I-B — Uniformes',
+      },
+      currentRole,
+      `edital_cuiaba_uniforme_${rows.length}`,
+      `${currentRole} | ${item} | ${quantity}`,
+    );
+  };
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]!;
+
+    if (/^2\.3\.|^3\./.test(line)) break;
+
+    if (isCuiabaSharedUniformRoleLine(line)) {
+      currentRole = normalizeSpaces(line).replace(/\.$/, '');
+      currentVariant = null;
+      pendingParts = [];
+      inTable = false;
+      continue;
+    }
+
+    const role = isCuiabaRoleName(line);
+    if (role) {
+      currentRole = role;
+      currentVariant = null;
+      pendingParts = [];
+      inTable = false;
+      continue;
+    }
+
+    const variant = parseCuiabaUniformVariant(line);
+    if (variant) {
+      currentVariant = variant;
+      pendingParts = [];
+      inTable = true;
+      continue;
+    }
+
+    if (!inTable || !currentRole) continue;
+    if (/^SEMESTRAL$/i.test(line)) continue;
+
+    const inline = parseTrailingQuantity(line);
+    if (inline && inline.item.length >= 3) {
+      pendingParts = pendingParts.length > 0 ? [...pendingParts, inline.item] : [inline.item];
+      flushPending(inline.quantity);
+      continue;
+    }
+
+    const qty = parseStandaloneQuantity(line);
+    if (qty && pendingParts.length > 0) {
+      flushPending(qty);
+      continue;
+    }
+
+    if (/^Orienta[cç][aã]o\b|^\*\*?Imagens/i.test(line)) continue;
+
+    pendingParts.push(line);
+  }
+
+  return dedupeRowsBySemanticItem(rows);
+}
+
+function isCuiabaLotacaoLine(line: string) {
+  return /^(Unidade\b|Setor\b|Centrais\b|Portarias\b|Diversos\b|Superintend[eê]ncia\b|Abastecimento\b|Controle\b|Patrim[oô]nio\b|Operacional\b|Hospitalar\b|assistencial\)|RPA\b|de\b|-+$)/i.test(
+    normalizeSpaces(line),
+  );
+}
+
+function startsCuiabaPrimaryLotacaoLine(line: string) {
+  return /^(Unidade\b|Setor\b|Centrais\b|Portarias\b|Diversos\b|Superintend[eê]ncia\b)/i.test(
+    normalizeSpaces(line),
+  );
+}
+
+function parseCuiabaInlineWildcardRoleRow(line: string) {
+  const normalized = normalizeSpaces(line);
+  const lower = normalized.toLocaleLowerCase('pt-BR');
+
+  for (const role of CUIABA_ROLE_NAMES_SORTED) {
+    const roleLower = role.toLocaleLowerCase('pt-BR');
+    if (!lower.startsWith(roleLower) || !/\*\s*\*/.test(normalized)) continue;
+
+    const rest = normalizeSpaces(
+      normalized
+        .slice(role.length)
+        .replace(/\*\s*\*/g, '')
+        .replace(/^[\s\-–]+/, ''),
+    );
+
+    return {
+      role,
+      lotacao: rest || null,
+    };
+  }
+
+  return null;
+}
+
+export function extractBudgetLinesFromCuiabaEpiAnnex(fullText: string): BudgetLineCandidate[] {
+  if (!/ANEXO\s+I\s*-\s*C/i.test(fullText) || !/EQUIPAMENTOS?\s+DE\s+PROTE[CÇ][AÃ]O\s+INDIVIDUAIS/i.test(fullText)) {
+    return [];
+  }
+
+  const baseLines = fullText
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => normalizeSpaces(line))
+    .filter((line) => line.length > 0 && !isNoise(line));
+  const lines = splitCuiabaBrokenRoleLines(baseLines);
+
+  const rows: BudgetLineCandidate[] = [];
+  const seen = new Set<string>();
+  const headerIndex = lines.findIndex((line, index) => {
+    if (/^CARGO\b.+LOTA[CÇ][AÃ]O\b.+QUANTIDADE\/EMPREGADO\/ANO/i.test(line)) return true;
+    return (
+      /^CARGO\b.+LOTA[CÇ][AÃ]O\b.+EPI['’`]S?\s+A\s+SEREM/i.test(line) &&
+      /^FORNECIDOS\b.+QUANTIDADE\/EMPREGADO\/ANO/i.test(lines[index + 1] ?? '')
+    );
+  });
+  if (headerIndex < 0) return [];
+
+  let currentRole: string | null = null;
+  let currentLotacaoParts: string[] = [];
+  let pendingItemParts: string[] = [];
+  let roleHasItems = false;
+
+  const flushPending = (quantity: string) => {
+    const item = normalizeSpaces(pendingItemParts.join(' '));
+    pendingItemParts = [];
+    if (!item || !currentRole) return;
+    const lotacao = normalizeSpaces(currentLotacaoParts.join(' '));
+
+    pushUniqueBudgetLine(
+      rows,
+      seen,
+      {
+        description: `${currentRole} — ${item}`,
+        detail: lotacao ? `Lotação: ${lotacao}` : 'Quantidade anual por empregado conforme Anexo I-C (Cuiabá).',
+        quantity,
+        role: currentRole,
+        item,
+        source: 'edital_cuiaba_epi_anexo',
+        sectionLabel: 'Anexo I-C — EPI',
+      },
+      currentRole,
+      `edital_cuiaba_epi_${rows.length}`,
+      `${currentRole} | ${item} | ${quantity}`,
+    );
+    roleHasItems = true;
+  };
+
+  for (let i = headerIndex + 1; i < lines.length; i += 1) {
+    const line = lines[i]!;
+    if (/^1\.5\.|^2\./.test(line)) break;
+    if (/Orienta[cç][aã]o\s*-\s*SEI/i.test(line)) continue;
+
+    const inlineWildcardRole = parseCuiabaInlineWildcardRoleRow(line);
+    if (inlineWildcardRole) {
+      currentRole = inlineWildcardRole.role;
+      currentLotacaoParts = inlineWildcardRole.lotacao ? [inlineWildcardRole.lotacao] : [];
+      pendingItemParts = [];
+      roleHasItems = false;
+      continue;
+    }
+
+    const role = isCuiabaRoleName(line);
+    if (role) {
+      currentRole = role;
+      currentLotacaoParts = [];
+      pendingItemParts = [];
+      roleHasItems = false;
+      continue;
+    }
+
+    if (!currentRole) continue;
+    if (/^\*\s*\*$/.test(line)) {
+      pendingItemParts = [];
+      continue;
+    }
+
+    const qty = parseStandaloneQuantity(line);
+    if (qty && pendingItemParts.length > 0) {
+      flushPending(qty);
+      continue;
+    }
+
+    const inline = parseTrailingQuantity(line);
+    if (inline && inline.item.length >= 3) {
+      pendingItemParts = pendingItemParts.length > 0 ? [...pendingItemParts, inline.item] : [inline.item];
+      flushPending(inline.quantity);
+      continue;
+    }
+
+    if (pendingItemParts.length > 0) {
+      pendingItemParts.push(line);
+      continue;
+    }
+
+    if (isCuiabaLotacaoLine(line)) {
+      if (roleHasItems && startsCuiabaPrimaryLotacaoLine(line)) {
+        currentLotacaoParts = [line];
+      } else {
+        currentLotacaoParts.push(line);
+      }
+      continue;
+    }
+
+    pendingItemParts = [line];
+  }
+
+  return dedupeRowsBySemanticItem(rows);
+}
+
+function normalizeCuiabaEquipmentRecord(rawTitle: string, rawDetail: string) {
+  let item = normalizeSpaces(rawTitle);
+  let detail = normalizeSpaces(rawDetail);
+
+  if (/\bCOM$/i.test(item) && detail) {
+    const match = /^([A-ZÀ-ÿ]+)\s+(.+)$/.exec(detail);
+    if (match) {
+      item = normalizeSpaces(`${item} ${match[1]}`);
+      detail = normalizeSpaces(match[2]);
+    }
+  }
+
+  if (/^MALETA DE TRANSPORTE DE MATERIAL BIOLÓGICO\b/i.test(item)) {
+    const tail = normalizeSpaces(item.replace(/^MALETA DE TRANSPORTE DE MATERIAL BIOLÓGICO\b/i, ''));
+    item = 'MALETA DE TRANSPORTE DE MATERIAL BIOLÓGICO';
+    detail = normalizeSpaces(`${tail} ${detail}`);
+  }
+
+  return {
+    item,
+    detail,
+  };
+}
+
+export function extractBudgetLinesFromCuiabaEquipmentAnnex(fullText: string): BudgetLineCandidate[] {
+  if (!/ANEXO\s+I\s*-\s*I/i.test(fullText) || !/EQUIPAMENTOS\s+A\s+SEREM\s+FORNECIDOS\s+PELA\s+CONTRATADA/i.test(fullText)) {
+    return [];
+  }
+
+  const lines = fullText
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => stripInlinePdfNoise(line))
+    .filter((line) => line.length > 0 && !isNoise(line));
+
+  const headerIndex = lines.findIndex((line) => /^EQUIPAMENTO\b.+QUANTIDADE\b/i.test(line));
+  if (headerIndex < 0) return [];
+
+  const rows: BudgetLineCandidate[] = [];
+  const seen = new Set<string>();
+  let titleParts: string[] = [];
+  let specParts: string[] = [];
+  let delayedQuantity: string | null = null;
+
+  const flushCurrent = (quantity: string) => {
+    const rawTitle = normalizeSpaces(titleParts.join(' '));
+    const rawDetail = normalizeSpaces(specParts.join(' '));
+    titleParts = [];
+    specParts = [];
+    if (!rawTitle) return;
+    const { item, detail } = normalizeCuiabaEquipmentRecord(rawTitle, rawDetail);
+    pushUniqueBudgetLine(
+      rows,
+      seen,
+      {
+        description: item,
+        detail: detail || '(ver anexo)',
+        quantity,
+        role: null,
+        item,
+        source: 'edital_cuiaba_equipamentos_anexo',
+        sectionLabel: 'Anexo I-I — Equipamentos',
+      },
+      null,
+      `edital_cuiaba_equip_${rows.length}`,
+      `${item} | ${quantity} | ${detail || '(ver anexo)'}`,
+    );
+  };
+
+  for (let i = headerIndex + 1; i < lines.length; i += 1) {
+    const line = lines[i]!;
+    if (/^\*Imagens\b|^1\.4\./.test(line)) break;
+
+    if (delayedQuantity && titleParts.length > 0 && isUppercaseish(line)) {
+      flushCurrent(delayedQuantity);
+      delayedQuantity = null;
+      titleParts = [line];
+      specParts = [];
+      continue;
+    }
+
+    if (delayedQuantity && titleParts.length > 0 && !isUppercaseish(line)) {
+      if (/\bCOM$/i.test(normalizeSpaces(titleParts.join(' ')))) {
+        const match = /^([A-ZÀ-ÿ]+)\s*(.*)$/.exec(line);
+        if (match) {
+          titleParts.push(match[1]);
+          if (match[2]) {
+            specParts.push(normalizeSpaces(match[2]));
+          }
+          continue;
+        }
+      }
+      specParts.push(line);
+      continue;
+    }
+
+    const qty = parseStandaloneQuantity(line);
+    if (qty && titleParts.length > 0) {
+      flushCurrent(qty);
+      continue;
+    }
+
+    const inline = parseTrailingQuantity(line);
+    if (inline && titleParts.length > 0) {
+      if (/Orienta[cç][aã]o\s*-\s*SEI/i.test(fullText) && /\bCOM$/i.test(normalizeSpaces(titleParts.join(' ')))) {
+        specParts.push(inline.item);
+        delayedQuantity = inline.quantity;
+        continue;
+      }
+      specParts.push(inline.item);
+      flushCurrent(inline.quantity);
+      continue;
+    }
+
+    if (titleParts.length === 0) {
+      titleParts.push(line);
+      continue;
+    }
+
+    if (specParts.length === 0 && isUppercaseish(line)) {
+      titleParts.push(line);
+      continue;
+    }
+
+    specParts.push(line);
+  }
+
+  if (delayedQuantity && titleParts.length > 0) {
+    flushCurrent(delayedQuantity);
   }
 
   return dedupeRowsBySemanticItem(rows);

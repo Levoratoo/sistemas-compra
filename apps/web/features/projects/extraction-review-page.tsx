@@ -169,7 +169,10 @@ function buildBudgetDrafts(
     const fromEdital7 =
       src === 'edital_secao_7' ||
       src === 'edital_uniforme_kit_table' ||
-      src === 'edital_anexo_tipo_qtd';
+      src === 'edital_anexo_tipo_qtd' ||
+      src === 'edital_cuiaba_uniforme_anexo' ||
+      src === 'edital_cuiaba_epi_anexo' ||
+      src === 'edital_cuiaba_equipamentos_anexo';
     const fromEdital8 =
       src === 'edital_secao_8_uniforme_epi' || src === 'edital_secao_8_epi_lista';
     const fromEditalRr =

@@ -47,7 +47,9 @@ export function parseQuantity(j: ParsedBudgetLineJson): number | null {
   const s = String(raw).trim();
   if (!s) return null;
 
-  const unitMatch = s.match(/^(\d{1,6})\s*(?:unidades?|pares?|par|conjuntos?|kits?|caixas?|livros?|cofres?)\b/i);
+  const unitMatch = s.match(
+    /^(\d{1,6})\s*(?:unidades?|pares?|par|conjuntos?|kits?|caixas?|cx(?:\s*c\/\s*\d+\s*und\.?)?|livros?|cofres?)\b/i,
+  );
   if (unitMatch) {
     const n = Number.parseInt(unitMatch[1], 10);
     return Number.isFinite(n) && n >= 0 ? n : null;
@@ -65,6 +67,9 @@ export function guessItemCategory(
 ): ItemCategory {
   if (sourceHint === 'edital_secao_8_epi_lista') return 'EPI';
   if (sourceHint === 'edital_epi_item_qtde' || sourceHint === 'edital_epi_posto_lista') return 'EPI';
+  if (sourceHint === 'edital_cuiaba_epi_anexo') return 'EPI';
+  if (sourceHint === 'edital_cuiaba_equipamentos_anexo') return 'EQUIPMENT';
+  if (sourceHint === 'edital_cuiaba_uniforme_anexo') return 'UNIFORM';
   if (sourceHint === 'edital_secao_8_uniforme_epi') {
     const td = description.toLowerCase();
     if (/\bepi\b|capacete|luva|máscara|óculos|protetor|avental\b/.test(td)) return 'EPI';

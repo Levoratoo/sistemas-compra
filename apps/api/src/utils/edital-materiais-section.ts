@@ -1,6 +1,9 @@
 import type { EditalMateriaisProfile } from './edital-materiais-profiles.js';
 import { EDITAL_MATERIAIS_PROFILE_ORDER } from './edital-materiais-profiles.js';
 import {
+  extractBudgetLinesFromCuiabaEpiAnnex,
+  extractBudgetLinesFromCuiabaEquipmentAnnex,
+  extractBudgetLinesFromCuiabaUniformAnnex,
   extractBudgetLinesFromGenericRoleTables,
   extractBudgetLinesFromPostoEpiTables,
   extractBudgetLinesFromUniformKitTables,
@@ -25,6 +28,7 @@ export type EditalMateriaisMatchedProfile =
   | 'roraima'
   | 'roraima_tr_tabelas'
   | 'annex_role_tables'
+  | 'cuiaba_annexes'
   | 'juiz_uniforme_epi'
   | 'sec8_uniformes'
   | null;
@@ -177,7 +181,17 @@ export function parseEditalMateriaisDisponibilizados(fullText: string): EditalMa
   const annexRoleTables = extractBudgetLinesFromGenericRoleTables(text);
   const postoEpiTables = extractBudgetLinesFromPostoEpiTables(text);
   const uniformeKitTables = extractBudgetLinesFromUniformKitTables(text);
-  const annexRows = dedupeBudgetLines([...annexRoleTables, ...postoEpiTables, ...uniformeKitTables]);
+  const cuiabaUniformRows = extractBudgetLinesFromCuiabaUniformAnnex(text);
+  const cuiabaEpiRows = extractBudgetLinesFromCuiabaEpiAnnex(text);
+  const cuiabaEquipmentRows = extractBudgetLinesFromCuiabaEquipmentAnnex(text);
+  const annexRows = dedupeBudgetLines([
+    ...annexRoleTables,
+    ...postoEpiTables,
+    ...uniformeKitTables,
+    ...cuiabaUniformRows,
+    ...cuiabaEpiRows,
+    ...cuiabaEquipmentRows,
+  ]);
 
   for (const profile of EDITAL_MATERIAIS_PROFILE_ORDER) {
     const { anchorIdx, subsectionFound } = findAnchorInText(text, profile);
@@ -208,7 +222,9 @@ export function parseEditalMateriaisDisponibilizados(fullText: string): EditalMa
       budgetLines: dedupeBudgetLines([...annexRows, ...sec8.budgetLines]),
       secao8UniformesCount: sec8.budgetLines.length,
       matchedProfile:
-        uniformeKitTables.length > 0 || postoEpiTables.length > 0
+        cuiabaUniformRows.length > 0 || cuiabaEpiRows.length > 0 || cuiabaEquipmentRows.length > 0
+          ? 'cuiaba_annexes'
+          : uniformeKitTables.length > 0 || postoEpiTables.length > 0
           ? 'juiz_uniforme_epi'
           : 'annex_role_tables',
     };
