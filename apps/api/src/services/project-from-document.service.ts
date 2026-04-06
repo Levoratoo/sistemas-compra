@@ -11,6 +11,7 @@ import * as XLSX from 'xlsx';
 
 import { documentService, type CreateProjectDocumentServiceInput } from './document.service.js';
 import { validateFolderForProject } from './document-folder.service.js';
+import { logger } from '../config/logger.js';
 import { projectRepository } from '../repositories/project.repository.js';
 import { projectService } from './project.service.js';
 import {
@@ -39,6 +40,21 @@ const MAX_PDF_TEXT_EDITAL = Math.min(
   500_000,
 );
 const MAX_SHEET_ROWS = 12_000;
+
+function shouldRunPdfOcrForEdital(
+  text: string,
+  parsed: ReturnType<typeof parseEditalMateriaisDisponibilizados>,
+) {
+  if (process.env.PDF_OCR_ENABLED === 'false') return false;
+  if (process.env.PDF_OCR_FORCE === 'true') return true;
+  if (parsed.budgetLines.length >= 8) return false;
+  if (parsed.anchorFound && parsed.budgetLines.length >= 3) return false;
+  if (text.length < 1200) return true;
+  if (/ANEXO\s+I[\s-]*[BC]|DETALHAMENTO\s+DOS\s+UNIFORMES|DETALHAMENTO\s+DO\s+EQUIPAMENTOS?\s+DE\s+PROTE[CÇ][AÃ]O|TIPO\s*\/\s*QTD|ITEM\s+QTDE?\.?|POSTO\s+DE\s+TRABALHO\s+EPI/i.test(text)) {
+    return true;
+  }
+  return !parsed.anchorFound;
+}
 
 function stripExtension(name: string) {
   return name.replace(/\.[^/.]+$/, '').trim() || 'Novo projeto';
@@ -92,10 +108,33 @@ async function extractPlainText(
       try {
         const result = await parser.getText();
         const raw = repairUtf8MisinterpretedAsLatin1((result.text ?? '').trim());
-        const text = raw.slice(0, maxPdfChars);
+        let text = raw.slice(0, maxPdfChars);
 
         if (documentType === DocumentType.NOTICE || documentType === DocumentType.TERMS_OF_REFERENCE) {
-          const editalMateriais = parseEditalMateriaisDisponibilizados(text);
+          let editalMateriais = parseEditalMateriaisDisponibilizados(text);
+          let ocrUsed = false;
+
+          if (shouldRunPdfOcrForEdital(text, editalMateriais)) {
+            try {
+              const { extractPdfTextViaOcr } = await import('../utils/pdf-ocr.js');
+              const ocrText = await extractPdfTextViaOcr(file.buffer, { maxPages: 24 });
+              if (ocrText.trim().length > 40) {
+                const combinedText = `${text}\n\n--- Texto reconhecido por OCR (trechos em imagem no PDF) ---\n\n${ocrText}`.slice(
+                  0,
+                  maxPdfChars,
+                );
+                const ocrParsed = parseEditalMateriaisDisponibilizados(combinedText);
+                if (ocrParsed.budgetLines.length > editalMateriais.budgetLines.length) {
+                  text = combinedText;
+                  editalMateriais = ocrParsed;
+                  ocrUsed = true;
+                }
+              }
+            } catch (error) {
+              logger.warn('PDF OCR (edital / TR) falhou; mantendo somente o texto extraído do PDF.', error);
+            }
+          }
+
           return {
             text,
             previewJson: {
@@ -105,6 +144,7 @@ async function extractPlainText(
                 rowCount: editalMateriais.budgetLines.length,
                 secao8UniformesCount: editalMateriais.secao8UniformesCount ?? 0,
                 matchedProfile: editalMateriais.matchedProfile,
+                ocrUsed,
               },
             },
             editalMateriais,

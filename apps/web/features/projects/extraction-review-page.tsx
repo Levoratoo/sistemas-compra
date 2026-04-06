@@ -165,11 +165,17 @@ function buildBudgetDrafts(
         : (j?.description ?? formatBudgetLinePreview(f.proposedValue));
     const bid = pickBidUnitValue(j ?? {});
     const src = j?.source;
-    const fromEdital7 = src === 'edital_secao_7';
+    const fromEdital7 =
+      src === 'edital_secao_7' ||
+      src === 'edital_uniforme_kit_table' ||
+      src === 'edital_anexo_tipo_qtd';
     const fromEdital8 =
       src === 'edital_secao_8_uniforme_epi' || src === 'edital_secao_8_epi_lista';
     const fromEditalRr =
-      src === 'edital_secao_7_roraima' || src === 'edital_tr_tipo_qtd_roraima';
+      src === 'edital_secao_7_roraima' ||
+      src === 'edital_tr_tipo_qtd_roraima' ||
+      src === 'edital_epi_item_qtde' ||
+      src === 'edital_epi_posto_lista';
     const fromEdital = fromEdital7 || fromEdital8 || fromEditalRr;
     const contextOnly = isEditalBudgetLineContextOnly(j);
     let extractedSource: BudgetDraft['extractedSource'];

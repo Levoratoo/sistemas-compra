@@ -3,6 +3,7 @@ import type { ItemCategory } from '@/types/api';
 export type ParsedBudgetLineJson = {
   description?: string;
   quantity?: string;
+  detail?: string;
   valueOrUnit?: string;
   monthlyOrTotal?: string;
   value?: string;
@@ -46,7 +47,7 @@ export function parseQuantity(j: ParsedBudgetLineJson): number | null {
   const s = String(raw).trim();
   if (!s) return null;
 
-  const unitMatch = s.match(/^(\d{1,6})\s*(?:unidades?|pares?|par)\b/i);
+  const unitMatch = s.match(/^(\d{1,6})\s*(?:unidades?|pares?|par|conjuntos?|kits?|caixas?|livros?|cofres?)\b/i);
   if (unitMatch) {
     const n = Number.parseInt(unitMatch[1], 10);
     return Number.isFinite(n) && n >= 0 ? n : null;
@@ -63,15 +64,20 @@ export function guessItemCategory(
   sourceHint?: string,
 ): ItemCategory {
   if (sourceHint === 'edital_secao_8_epi_lista') return 'EPI';
+  if (sourceHint === 'edital_epi_item_qtde' || sourceHint === 'edital_epi_posto_lista') return 'EPI';
   if (sourceHint === 'edital_secao_8_uniforme_epi') {
     const td = description.toLowerCase();
     if (/\bepi\b|capacete|luva|máscara|óculos|protetor|avental\b/.test(td)) return 'EPI';
     return 'UNIFORM';
   }
   const t = `${description} ${roleHint ?? ''}`.toLowerCase();
-  if (/\buniforme|camisa|calça|blusa|calçado|tênis|bota|vestuário\b/.test(t)) return 'UNIFORM';
-  if (/\bepi|luva|máscara|óculos|protetor|capacete|avental|respi\b/.test(t)) return 'EPI';
-  if (/\bequipamento|máquina|ferramenta|notebook|computador|impressora\b/.test(t)) return 'EQUIPMENT';
+  if (/\buniforme|camisa|calça|blusa|calçado|tênis|bota|vestuário|paletó|gandola|boné|jaleco|crachá|sapato|meia|casaco\b/.test(t)) {
+    return 'UNIFORM';
+  }
+  if (/\bepi|luva|máscara|óculos|protetor|capacete|avental|respi|balaclava|coturno\b/.test(t)) return 'EPI';
+  if (/\bequipamento|máquina|ferramenta|notebook|computador|impressora|lanterna|rádio|radio|apito|bastão|cofre|desfibrilador|manequim|armário|caixa de primeiros socorros|algema|revólver|munição|placa balística|coldre\b/.test(t)) {
+    return 'EQUIPMENT';
+  }
   if (/\bconsumo|material de consumo|detergente|papel\b/.test(t)) return 'CONSUMABLE';
   return 'OTHER';
 }

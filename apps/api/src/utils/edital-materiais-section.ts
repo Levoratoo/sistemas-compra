@@ -1,5 +1,10 @@
 import type { EditalMateriaisProfile } from './edital-materiais-profiles.js';
 import { EDITAL_MATERIAIS_PROFILE_ORDER } from './edital-materiais-profiles.js';
+import {
+  extractBudgetLinesFromGenericRoleTables,
+  extractBudgetLinesFromPostoEpiTables,
+  extractBudgetLinesFromUniformKitTables,
+} from './edital-anexo-materiais.js';
 import { extractBudgetLinesFromRoraimaTipoQtd } from './edital-roraima-tipo-qtd.js';
 import { parseEditalSecao8UniformesEpi } from './edital-secao8-uniformes-epi.js';
 import type { BudgetLineCandidate } from './implementation-map-pdf.js';
@@ -19,6 +24,8 @@ export type EditalMateriaisMatchedProfile =
   | 'parana'
   | 'roraima'
   | 'roraima_tr_tabelas'
+  | 'annex_role_tables'
+  | 'juiz_uniforme_epi'
   | 'sec8_uniformes'
   | null;
 
@@ -31,6 +38,20 @@ export type EditalMateriaisParse = {
   /** Perfil cujo âncora venceu na ordem automática, ou só seção 8. */
   matchedProfile: EditalMateriaisMatchedProfile;
 };
+
+function dedupeBudgetLines(lines: BudgetLineCandidate[]): BudgetLineCandidate[] {
+  const seen = new Set<string>();
+  const deduped: BudgetLineCandidate[] = [];
+
+  for (const line of lines) {
+    const key = `${line.recordGroupKey ?? ''}|${line.proposedValue}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(line);
+  }
+
+  return deduped;
+}
 
 function normalizeSpaces(s: string) {
   return s.replace(/\s+/g, ' ').trim();
@@ -153,6 +174,10 @@ function sliceWithTipoQtdRoleContext(fullText: string, anchorIdx: number): strin
 export function parseEditalMateriaisDisponibilizados(fullText: string): EditalMateriaisParse {
   const text = fullText.replace(/\r\n/g, '\n');
   const sec8 = parseEditalSecao8UniformesEpi(text);
+  const annexRoleTables = extractBudgetLinesFromGenericRoleTables(text);
+  const postoEpiTables = extractBudgetLinesFromPostoEpiTables(text);
+  const uniformeKitTables = extractBudgetLinesFromUniformKitTables(text);
+  const annexRows = dedupeBudgetLines([...annexRoleTables, ...postoEpiTables, ...uniformeKitTables]);
 
   for (const profile of EDITAL_MATERIAIS_PROFILE_ORDER) {
     const { anchorIdx, subsectionFound } = findAnchorInText(text, profile);
@@ -165,13 +190,27 @@ export function parseEditalMateriaisDisponibilizados(fullText: string): EditalMa
       slice = sliceWithTipoQtdRoleContext(text, anchorIdx);
     }
     const budgetLines7 = extractBudgetLinesForProfile(slice, profile);
+    const mergedLines = dedupeBudgetLines([...budgetLines7, ...annexRows, ...sec8.budgetLines]);
 
     return {
       anchorFound: true,
       subsectionFound,
-      budgetLines: [...budgetLines7, ...sec8.budgetLines],
+      budgetLines: mergedLines,
       secao8UniformesCount: sec8.budgetLines.length,
       matchedProfile: profile.id,
+    };
+  }
+
+  if (annexRows.length > 0) {
+    return {
+      anchorFound: true,
+      subsectionFound: false,
+      budgetLines: dedupeBudgetLines([...annexRows, ...sec8.budgetLines]),
+      secao8UniformesCount: sec8.budgetLines.length,
+      matchedProfile:
+        uniformeKitTables.length > 0 || postoEpiTables.length > 0
+          ? 'juiz_uniforme_epi'
+          : 'annex_role_tables',
     };
   }
 
