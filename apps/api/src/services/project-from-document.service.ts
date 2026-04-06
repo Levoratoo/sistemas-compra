@@ -56,6 +56,49 @@ function shouldRunPdfOcrForEdital(
   return !parsed.anchorFound;
 }
 
+function detectComplementaryAnnexReferences(text: string) {
+  const hints: string[] = [];
+
+  if (/ANEXO\s+I[\s-]*B|DETALHAMENTO\s+DOS\s+UNIFORMES/i.test(text)) {
+    hints.push('Anexo I-B — detalhamento dos uniformes');
+  }
+
+  if (/ANEXO\s+I[\s-]*C|DETALHAMENTO\s+DO\s+EQUIPAMENTOS?\s+DE\s+PROTE[CÇ][AÃ]O/i.test(text)) {
+    hints.push('Anexo I-C — detalhamento dos EPI');
+  }
+
+  if (/ANEXO\s+I[\s-]*I|EQUIPAMENTOS\s+A\s+SEREM\s+FORNECIDOS\s+PELA\s+CONTRATADA/i.test(text)) {
+    hints.push('Anexo I-I — equipamentos a serem fornecidos');
+  }
+
+  if (/MODELO\s+PARA\s+APRESENTA[CÇ][AÃ]O\s+DA\s+PROPOSTA\s+DE\s+PRE[CÇ]O|PLANILHAS?/i.test(text)) {
+    hints.push('Planilhas anexas da proposta');
+  }
+
+  return hints;
+}
+
+function buildEditalPreviewJson(
+  text: string,
+  editalMateriais: ReturnType<typeof parseEditalMateriaisDisponibilizados>,
+  ocrUsed: boolean,
+) {
+  const annexReferenceHints = detectComplementaryAnnexReferences(text);
+  return {
+    editalMateriais: {
+      anchorFound: editalMateriais.anchorFound,
+      subsectionFound: editalMateriais.subsectionFound,
+      rowCount: editalMateriais.budgetLines.length,
+      secao8UniformesCount: editalMateriais.secao8UniformesCount ?? 0,
+      matchedProfile: editalMateriais.matchedProfile,
+      ocrUsed,
+      requiresComplementaryAnnexUpload:
+        editalMateriais.budgetLines.length === 0 && annexReferenceHints.length > 0,
+      annexReferenceHints,
+    },
+  };
+}
+
 function stripExtension(name: string) {
   return name.replace(/\.[^/.]+$/, '').trim() || 'Novo projeto';
 }
@@ -137,16 +180,7 @@ async function extractPlainText(
 
           return {
             text,
-            previewJson: {
-              editalMateriais: {
-                anchorFound: editalMateriais.anchorFound,
-                subsectionFound: editalMateriais.subsectionFound,
-                rowCount: editalMateriais.budgetLines.length,
-                secao8UniformesCount: editalMateriais.secao8UniformesCount ?? 0,
-                matchedProfile: editalMateriais.matchedProfile,
-                ocrUsed,
-              },
-            },
+            previewJson: buildEditalPreviewJson(text, editalMateriais, ocrUsed),
             editalMateriais,
           };
         }

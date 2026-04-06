@@ -1,9 +1,10 @@
 'use client';
 
+import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, Dices, FileText, Plus, ShoppingCart, Sparkles } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Dices, FileText, FileUp, LoaderCircle, Plus, ShoppingCart, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -16,8 +17,8 @@ import { useProjectMutations, useProjectQuery } from '@/hooks/use-projects';
 import { formatApiValidationToastMessage } from '@/lib/format-validation-error';
 import { getDocumentTypeLabel } from '@/lib/constants';
 import { cn } from '@/lib/utils';
-import type { ExtractedField, ItemCategory, ProjectDetail } from '@/types/api';
-import type { ApplyExtractionPayload } from '@/services/projects-service';
+import type { DocumentType, ExtractedField, ItemCategory, ProjectDetail } from '@/types/api';
+import { importProjectDocumentFromUpload, type ApplyExtractionPayload } from '@/services/projects-service';
 
 import {
   formatBudgetLinePreview,
@@ -224,6 +225,39 @@ function buildApplyPayload(budgetDrafts: BudgetDraft[]): ApplyExtractionPayload 
   };
 }
 
+type EditalPreviewInfo = {
+  rowCount: number;
+  matchedProfile: string | null;
+  ocrUsed: boolean;
+  requiresComplementaryAnnexUpload: boolean;
+  annexReferenceHints: string[];
+};
+
+function parseEditalPreviewInfo(document: ProjectDetail['documents'][number] | undefined): EditalPreviewInfo | null {
+  const raw = document?.previewJson;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const preview = raw as { editalMateriais?: unknown };
+  if (!preview.editalMateriais || typeof preview.editalMateriais !== 'object' || Array.isArray(preview.editalMateriais)) {
+    return null;
+  }
+
+  const editalMateriais = preview.editalMateriais as Record<string, unknown>;
+  const annexReferenceHints = Array.isArray(editalMateriais.annexReferenceHints)
+    ? editalMateriais.annexReferenceHints.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    : [];
+
+  return {
+    rowCount:
+      typeof editalMateriais.rowCount === 'number' && Number.isFinite(editalMateriais.rowCount)
+        ? editalMateriais.rowCount
+        : 0,
+    matchedProfile: typeof editalMateriais.matchedProfile === 'string' ? editalMateriais.matchedProfile : null,
+    ocrUsed: editalMateriais.ocrUsed === true,
+    requiresComplementaryAnnexUpload: editalMateriais.requiresComplementaryAnnexUpload === true,
+    annexReferenceHints,
+  };
+}
+
 type ExtractionReviewPageProps = {
   projectId: string;
   documentId: string;
@@ -231,14 +265,20 @@ type ExtractionReviewPageProps = {
 
 export function ExtractionReviewPage({ projectId, documentId }: ExtractionReviewPageProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { data, isLoading, isError } = useProjectQuery(projectId);
   const { applyExtraction } = useProjectMutations(projectId);
 
   const document = useMemo(() => data?.documents.find((d) => d.id === documentId), [data, documentId]);
+  const editalPreview = useMemo(() => parseEditalPreviewInfo(document), [document]);
 
   const initKey = useRef<string | null>(null);
+  const annexInputRef = useRef<HTMLInputElement | null>(null);
   const [budgetItems, setBudgetItems] = useState<BudgetDraft[]>([]);
   const [budgetColWidths, setBudgetColWidths] = useState<number[]>(loadBudgetColWidths);
+  const [annexDocumentType, setAnnexDocumentType] = useState<DocumentType>('NOTICE');
+  const [annexUploading, setAnnexUploading] = useState(false);
+  const [annexFileName, setAnnexFileName] = useState<string | null>(null);
   const budgetColWidthsRef = useRef(budgetColWidths);
   budgetColWidthsRef.current = budgetColWidths;
 
@@ -280,7 +320,20 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
     setBudgetItems(buildBudgetDrafts(documentId, data, budgetExtracted));
   }, [data, document, documentId, projectId]);
 
+  useEffect(() => {
+    if (!document) return;
+    if (document.documentType === 'NOTICE' || document.documentType === 'TERMS_OF_REFERENCE') {
+      setAnnexDocumentType(document.documentType);
+      return;
+    }
+    setAnnexDocumentType('NOTICE');
+  }, [document]);
+
   const summary = useMemo(() => ({ items: budgetItems.length }), [budgetItems]);
+  const isEditalDoc = document?.documentType === 'NOTICE' || document?.documentType === 'TERMS_OF_REFERENCE';
+  const shouldSuggestComplementaryAnnexUpload =
+    Boolean(isEditalDoc) &&
+    (budgetItems.length === 0 || editalPreview?.requiresComplementaryAnnexUpload === true);
 
   const budgetColPercents = useMemo(() => {
     const total = budgetColWidths.reduce((s, w) => s + w, 0);
@@ -305,6 +358,34 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
       toast.error(
         formatApiValidationToastMessage(error, 'Não foi possível aplicar os dados.'),
       );
+    }
+  }
+
+  async function handleComplementaryAnnexUpload(file: File) {
+    if (!document) return;
+
+    setAnnexUploading(true);
+    setAnnexFileName(file.name);
+
+    try {
+      const result = await importProjectDocumentFromUpload(projectId, file, annexDocumentType, {
+        notes: `Anexo complementar importado a partir da revisão de ${document.originalFileName}`,
+      });
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['project', projectId] }),
+        queryClient.invalidateQueries({ queryKey: ['project-documents', projectId] }),
+      ]);
+
+      toast.success('Anexo importado. Abrindo a revisão do arquivo complementar...');
+      router.push(`/projects/${projectId}/documents/${result.documentId}/review`);
+    } catch (error) {
+      toast.error(formatApiValidationToastMessage(error, 'Não foi possível importar o anexo complementar.'));
+    } finally {
+      setAnnexUploading(false);
+      if (annexInputRef.current) {
+        annexInputRef.current.value = '';
+      }
     }
   }
 
@@ -333,7 +414,6 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
     );
   }
 
-  const isEditalDoc = document.documentType === 'NOTICE' || document.documentType === 'TERMS_OF_REFERENCE';
   const purchaseBlockTitle = isEditalDoc
     ? 'Itens do edital (mat. a disponibilizar)'
     : 'Itens de compra (mapa de implantação)';
@@ -369,6 +449,99 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
           </p>
         </CardHeader>
       </Card>
+
+      {shouldSuggestComplementaryAnnexUpload ? (
+        <Card className="overflow-hidden border-amber-500/25 bg-gradient-to-br from-amber-500/[0.08] via-background to-background shadow-sm">
+          <CardHeader className="border-b border-amber-500/15 pb-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="space-y-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <AlertTriangle className="size-4.5 text-amber-600" aria-hidden />
+                  Subir anexo complementar
+                </CardTitle>
+                <CardDescription className="max-w-3xl text-sm leading-relaxed">
+                  Este {getDocumentTypeLabel(document.documentType).toLowerCase()} não trouxe a tabela detalhada de materiais
+                  no próprio arquivo. Envie o anexo complementar para o sistema ler e abrir a revisão dele automaticamente.
+                </CardDescription>
+              </div>
+              <Badge className="shrink-0" variant="secondary">
+                {editalPreview?.ocrUsed ? 'OCR já testado' : 'Leitura direta'}
+              </Badge>
+            </div>
+            {editalPreview?.annexReferenceHints?.length ? (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {editalPreview.annexReferenceHints.map((hint) => (
+                  <Badge className="bg-amber-500/10 text-amber-900 hover:bg-amber-500/15" key={hint} variant="secondary">
+                    {hint}
+                  </Badge>
+                ))}
+              </div>
+            ) : null}
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4 pt-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="grid gap-4 sm:grid-cols-[220px_minmax(0,1fr)] lg:max-w-3xl lg:flex-1">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground" htmlFor="annex-document-type">
+                  Tipo do anexo
+                </label>
+                <Select
+                  className="h-10"
+                  id="annex-document-type"
+                  onChange={(e) => setAnnexDocumentType(e.target.value as DocumentType)}
+                  value={annexDocumentType}
+                >
+                  <option value="NOTICE">Edital / anexo do edital</option>
+                  <option value="TERMS_OF_REFERENCE">TR / anexo do TR</option>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Arquivo complementar</p>
+                <div className="rounded-2xl border border-dashed border-amber-500/30 bg-background/80 p-4 shadow-sm">
+                  <input
+                    accept=".pdf,.xlsx,.xls"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (!file || annexUploading) return;
+                      void handleComplementaryAnnexUpload(file);
+                    }}
+                    ref={annexInputRef}
+                    type="file"
+                  />
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-foreground">
+                        {annexFileName && annexUploading ? `Importando ${annexFileName}...` : 'PDF ou Excel do anexo'}
+                      </p>
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        O arquivo será salvo no projeto, lido pelo extrator e a próxima revisão abrirá sozinha.
+                      </p>
+                    </div>
+                    <Button
+                      className="min-w-[220px] gap-2"
+                      disabled={annexUploading}
+                      onClick={() => annexInputRef.current?.click()}
+                      type="button"
+                    >
+                      {annexUploading ? (
+                        <>
+                          <LoaderCircle className="size-4 animate-spin" aria-hidden />
+                          Lendo anexo...
+                        </>
+                      ) : (
+                        <>
+                          <FileUp className="size-4" aria-hidden />
+                          Enviar anexo complementar
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Bloco C — grade estilo planilha (premium) */}
       <Card className="border-border/80 shadow-md shadow-black/[0.04] ring-1 ring-black/[0.04]">
@@ -429,7 +602,19 @@ export function ExtractionReviewPage({ projectId, documentId }: ExtractionReview
         </CardHeader>
         <CardContent className="px-4 pb-4 pt-3">
           {budgetItems.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Nenhuma linha de compra detectada neste documento.</p>
+            <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 px-5 py-8 text-center">
+              <div className="mx-auto flex max-w-xl flex-col items-center gap-3">
+                <div className="rounded-2xl bg-primary/10 p-3">
+                  <FileUp className="size-6 text-primary" aria-hidden />
+                </div>
+                <p className="text-sm font-medium text-foreground">Nenhuma linha de compra detectada neste documento.</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {shouldSuggestComplementaryAnnexUpload
+                    ? 'O PDF principal parece apontar para anexos com o detalhamento dos materiais. Use o bloco acima para enviar o anexo complementar.'
+                    : 'Se este arquivo deveria conter os materiais, revise o PDF original ou importe um anexo complementar com a tabela detalhada.'}
+                </p>
+              </div>
+            </div>
           ) : (
             <div className="w-full min-w-0 overflow-x-auto rounded-md border border-border bg-card shadow-sm ring-1 ring-border/60">
               <table className="w-full table-fixed border-collapse text-[13px] leading-normal antialiased">
