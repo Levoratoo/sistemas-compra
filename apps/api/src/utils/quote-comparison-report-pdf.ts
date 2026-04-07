@@ -3,8 +3,8 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB }
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
 const PAGE_MARGIN = 36;
-const HEADER_CARD_TOP = PAGE_HEIGHT - 92;
-const HEADER_BOTTOM_Y = PAGE_HEIGHT - 118;
+/** Topo visual do cartão do cabeçalho (coordenada Y superior do retângulo). */
+const HEADER_CARD_TOP_Y = PAGE_HEIGHT - 26;
 const ITEM_TABLE_COLUMNS = {
   description: 176,
   quantity: 38,
@@ -144,23 +144,6 @@ function wrapText(text: string, font: PDFFont, fontSize: number, maxWidth: numbe
   return lines;
 }
 
-function drawLabelValue(page: PDFPage, labelFont: PDFFont, valueFont: PDFFont, x: number, y: number, label: string, value: string) {
-  page.drawText(label, {
-    x,
-    y,
-    size: 7.5,
-    font: labelFont,
-    color: C.textMuted,
-  });
-  page.drawText(value || '-', {
-    x,
-    y: y - 11,
-    size: 9.5,
-    font: valueFont,
-    color: C.text,
-  });
-}
-
 function drawSectionTitle(page: PDFPage, boldFont: PDFFont, y: number, title: string) {
   const barH = 14;
   page.drawRectangle({
@@ -179,7 +162,37 @@ function drawSectionTitle(page: PDFPage, boldFont: PDFFont, y: number, title: st
   });
 }
 
-function drawPageHeader(page: PDFPage, regularFont: PDFFont, boldFont: PDFFont, input: QuoteComparisonReportPdfInput) {
+/**
+ * Cabeçalho com quebra de linha para nomes longos (órgão, compra, projeto).
+ * Retorna a coordenada Y mais baixa do conteúdo (para posicionar o corpo do relatório).
+ */
+function drawPageHeader(page: PDFPage, regularFont: PDFFont, boldFont: PDFFont, input: QuoteComparisonReportPdfInput): number {
+  const padX = PAGE_MARGIN + 14;
+  const innerW = PAGE_WIDTH - PAGE_MARGIN * 2 - 28;
+  const colW = Math.floor((innerW - 16) / 2);
+  const emitX = padX + colW + 16;
+
+  const projectLine = `${input.projectCode}  |  ${input.projectName}`;
+  const projectLines = wrapText(projectLine, regularFont, 9, innerW);
+  const compraLines = wrapText((input.purchaseTitle ?? '').trim() || '-', regularFont, 9.5, colW);
+  const emitidoLines = wrapText((input.issuedAtLabel ?? '').trim() || '-', regularFont, 9.5, colW);
+  const issuerText = [input.issuerName, [input.issuerCity, input.issuerState].filter(Boolean).join('/')].filter(Boolean).join(' - ') || '-';
+  const orgLines = wrapText(issuerText, regularFont, 9.5, innerW);
+
+  const titleY = PAGE_HEIGHT - 44;
+  let y = titleY - 18;
+  for (const _ of projectLines) {
+    y -= 11;
+  }
+  y -= 8;
+  const metaLabelY = y;
+  const maxMeta = Math.max(compraLines.length, emitidoLines.length);
+  const metaBottom = metaLabelY - 11 * maxMeta;
+  const orgLabelY = metaBottom - 14;
+  const lowestY = orgLabelY - 11 * orgLines.length;
+  const cardBottomY = lowestY - 12;
+  const cardHeight = HEADER_CARD_TOP_Y - cardBottomY;
+
   page.drawRectangle({
     x: 0,
     y: PAGE_HEIGHT - 4,
@@ -190,41 +203,89 @@ function drawPageHeader(page: PDFPage, regularFont: PDFFont, boldFont: PDFFont, 
 
   page.drawRectangle({
     x: PAGE_MARGIN,
-    y: HEADER_CARD_TOP,
+    y: cardBottomY,
     width: PAGE_WIDTH - PAGE_MARGIN * 2,
-    height: 56,
+    height: cardHeight,
     color: C.cardBg,
     borderColor: C.borderLight,
     borderWidth: 0.75,
   });
 
   page.drawText('Relatorio do mapa comparativo', {
-    x: PAGE_MARGIN + 14,
-    y: PAGE_HEIGHT - 54,
+    x: padX,
+    y: titleY,
     size: 16,
     font: boldFont,
     color: C.brandDeep,
   });
 
-  page.drawText(`${input.projectCode}  |  ${input.projectName}`, {
-    x: PAGE_MARGIN + 14,
-    y: PAGE_HEIGHT - 72,
-    size: 9,
-    font: regularFont,
+  y = titleY - 18;
+  for (const line of projectLines) {
+    page.drawText(line, {
+      x: padX,
+      y,
+      size: 9,
+      font: regularFont,
+      color: C.textMuted,
+    });
+    y -= 11;
+  }
+  y -= 8;
+
+  page.drawText('Compra', {
+    x: padX,
+    y,
+    size: 7.5,
+    font: boldFont,
     color: C.textMuted,
   });
+  page.drawText('Emitido em', {
+    x: emitX,
+    y,
+    size: 7.5,
+    font: boldFont,
+    color: C.textMuted,
+  });
+  const metaLabelBaseline = y;
+  for (let i = 0; i < maxMeta; i += 1) {
+    if (i < compraLines.length) {
+      page.drawText(compraLines[i]!, {
+        x: padX,
+        y: metaLabelBaseline - 11 - i * 11,
+        size: 9.5,
+        font: regularFont,
+        color: C.text,
+      });
+    }
+    if (i < emitidoLines.length) {
+      page.drawText(emitidoLines[i]!, {
+        x: emitX,
+        y: metaLabelBaseline - 11 - i * 11,
+        size: 9.5,
+        font: regularFont,
+        color: C.text,
+      });
+    }
+  }
 
-  drawLabelValue(page, boldFont, regularFont, PAGE_MARGIN + 14, HEADER_BOTTOM_Y, 'Compra', input.purchaseTitle);
-  drawLabelValue(page, boldFont, regularFont, PAGE_MARGIN + 210, HEADER_BOTTOM_Y, 'Emitido em', input.issuedAtLabel);
-  drawLabelValue(
-    page,
-    boldFont,
-    regularFont,
-    PAGE_MARGIN + 360,
-    HEADER_BOTTOM_Y,
-    'Orgao / base',
-    [input.issuerName, [input.issuerCity, input.issuerState].filter(Boolean).join('/')].filter(Boolean).join(' - '),
-  );
+  page.drawText('Orgao / base', {
+    x: padX,
+    y: orgLabelY,
+    size: 7.5,
+    font: boldFont,
+    color: C.textMuted,
+  });
+  for (let i = 0; i < orgLines.length; i += 1) {
+    page.drawText(orgLines[i]!, {
+      x: padX,
+      y: orgLabelY - 11 - i * 11,
+      size: 9.5,
+      font: regularFont,
+      color: C.text,
+    });
+  }
+
+  return lowestY - 18;
 }
 
 function slotRowTint(slotNumber: number): RGB {
@@ -548,10 +609,10 @@ function drawItemRow(
 
 function addPage(document: PDFDocument, regularFont: PDFFont, boldFont: PDFFont, input: QuoteComparisonReportPdfInput) {
   const page = document.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-  drawPageHeader(page, regularFont, boldFont, input);
+  const yBelowHeader = drawPageHeader(page, regularFont, boldFont, input);
   return {
     page,
-    y: HEADER_BOTTOM_Y - 28,
+    y: yBelowHeader,
   };
 }
 
