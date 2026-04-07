@@ -1599,83 +1599,81 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
             </div>
           </CardHeader>
           <CardContent className="space-y-6 py-6">
-            {rows.length === 0 ? (
-              <EmptyState
-                actionLabel="Adicionar itens"
-                description="Esta compra ainda nao possui itens. Inclua itens do projeto para iniciar os 3 orcamentos."
-                icon={FileText}
-                onAction={() => setManageItemsDialogOpen(true)}
-                secondaryActionLabel="Criar novo item"
-                onSecondaryAction={() => setNewItemDialogOpen(true)}
-                title="Compra sem itens"
-              />
-            ) : (
-              <>
-                <div className="flex flex-wrap gap-2">
-                  {viewTabs.map((tab) => (
-                    <Button
-                      key={tab.value}
-                      type="button"
-                      variant={activeView === tab.value ? 'default' : 'secondary'}
-                      onClick={() => setActiveView(tab.value)}
-                    >
-                      {tab.label}
-                    </Button>
+            <div className="flex flex-wrap gap-2">
+              {viewTabs.map((tab) => (
+                <Button
+                  key={tab.value}
+                  type="button"
+                  variant={activeView === tab.value ? 'default' : 'secondary'}
+                  onClick={() => setActiveView(tab.value)}
+                >
+                  {tab.label}
+                </Button>
+              ))}
+            </div>
+            {activeView === 'comparison' ? (
+              <div className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-4">
+                  <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-4">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <CheckCircle2 className="size-4" aria-hidden />
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em]">Itens resolvidos</p>
+                    </div>
+                    <p className="mt-3 text-3xl font-semibold text-foreground">{comparison?.resolvedRowCount ?? 0}</p>
+                  </div>
+                  <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-4">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Trophy className="size-4" aria-hidden />
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em]">Empates</p>
+                    </div>
+                    <p className="mt-3 text-3xl font-semibold text-foreground">{comparison?.tieRowCount ?? 0}</p>
+                  </div>
+                  <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-4">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <CircleDollarSign className="size-4" aria-hidden />
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em]">Pendentes</p>
+                    </div>
+                    <p className="mt-3 text-3xl font-semibold text-foreground">{comparison?.unresolvedRowCount ?? 0}</p>
+                  </div>
+                  <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-4">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Store className="size-4" aria-hidden />
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em]">Melhor total</p>
+                    </div>
+                    <p className="mt-3 text-lg font-semibold text-foreground">
+                      {currencyOrDash(comparison?.overallWinner.totalValue)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-3">
+                  {comparison?.slotTotals.map((slotTotal) => (
+                    <div key={slotTotal.slotNumber} className="rounded-2xl border border-border/70 bg-card px-4 py-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-semibold text-foreground">Orcamento {slotTotal.slotNumber}</p>
+                        <SlotStatusBadge slot={slots.find((slot) => slot.slotNumber === slotTotal.slotNumber) ?? slots[0]!} />
+                      </div>
+                      <p className="mt-2 text-sm text-muted-foreground">{slotTotal.supplierName || 'Fornecedor nao definido'}</p>
+                      <p className="mt-4 text-xl font-semibold text-foreground">{currencyOrDash(slotTotal.totalValue)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {slotTotal.filledItemCount}/{slotTotal.itemCount} item(ns) precificados
+                      </p>
+                    </div>
                   ))}
                 </div>
-                {activeView === 'comparison' ? (
-                  <div className="space-y-4">
-                    <div className="grid gap-3 md:grid-cols-4">
-                      <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-4">
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <CheckCircle2 className="size-4" aria-hidden />
-                          <p className="text-xs font-semibold uppercase tracking-[0.14em]">Itens resolvidos</p>
-                        </div>
-                        <p className="mt-3 text-3xl font-semibold text-foreground">{comparison?.resolvedRowCount ?? 0}</p>
-                      </div>
-                      <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-4">
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <Trophy className="size-4" aria-hidden />
-                          <p className="text-xs font-semibold uppercase tracking-[0.14em]">Empates</p>
-                        </div>
-                        <p className="mt-3 text-3xl font-semibold text-foreground">{comparison?.tieRowCount ?? 0}</p>
-                      </div>
-                      <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-4">
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <CircleDollarSign className="size-4" aria-hidden />
-                          <p className="text-xs font-semibold uppercase tracking-[0.14em]">Pendentes</p>
-                        </div>
-                        <p className="mt-3 text-3xl font-semibold text-foreground">{comparison?.unresolvedRowCount ?? 0}</p>
-                      </div>
-                      <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-4">
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                          <Store className="size-4" aria-hidden />
-                          <p className="text-xs font-semibold uppercase tracking-[0.14em]">Melhor total</p>
-                        </div>
-                        <p className="mt-3 text-lg font-semibold text-foreground">
-                          {currencyOrDash(comparison?.overallWinner.totalValue)}
-                        </p>
-                      </div>
-                    </div>
 
-                    <div className="grid gap-3 md:grid-cols-3">
-                      {comparison?.slotTotals.map((slotTotal) => (
-                        <div key={slotTotal.slotNumber} className="rounded-2xl border border-border/70 bg-card px-4 py-4">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="font-semibold text-foreground">Orcamento {slotTotal.slotNumber}</p>
-                            <SlotStatusBadge slot={slots.find((slot) => slot.slotNumber === slotTotal.slotNumber) ?? slots[0]!} />
-                          </div>
-                          <p className="mt-2 text-sm text-muted-foreground">
-                            {slotTotal.supplierName || 'Fornecedor nao definido'}
-                          </p>
-                          <p className="mt-4 text-xl font-semibold text-foreground">{currencyOrDash(slotTotal.totalValue)}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {slotTotal.filledItemCount}/{slotTotal.itemCount} item(ns) precificados
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-
+                {rows.length === 0 ? (
+                  <EmptyState
+                    actionLabel="Abrir orcamento 1"
+                    description="A compra ainda nao possui itens comparaveis, mas voce ja pode abrir um orcamento, escolher o fornecedor e importar o PDF."
+                    icon={ArrowUpFromLine}
+                    onAction={() => setActiveView('slot-1')}
+                    secondaryActionLabel="Adicionar itens"
+                    onSecondaryAction={() => setManageItemsDialogOpen(true)}
+                    title="Mapa comparativo sem itens"
+                  />
+                ) : (
+                  <>
                     <ComparisonTable rows={rows} slots={slots} />
 
                     <div className="flex flex-wrap justify-end gap-2">
@@ -1697,121 +1695,131 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                         Gerar pedidos por fornecedor
                       </Button>
                     </div>
-                  </div>
-                ) : activeSlot ? (
-                  <div className="space-y-4">
-                    <div className="rounded-3xl border border-border/70 bg-muted/20 p-5">
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="space-y-3">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Badge variant="neutral">Orcamento {activeSlot.slotNumber}</Badge>
-                            <SlotStatusBadge slot={activeSlot} />
-                          </div>
-                          <div className="space-y-1">
-                            <p className="text-lg font-semibold text-foreground">{slotDisplayName(activeSlot)}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {activeSlot.supplierId
-                                ? `${activeSlot.filledItemCount}/${activeSlot.itemCount} item(ns) preenchidos`
-                                : 'Nenhum fornecedor definido para este orcamento'}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                            <span>Progresso: {getQuoteFillProgress(activeSlot.filledItemCount, activeSlot.itemCount)}%</span>
-                            <span>Total atual: {currencyOrDash(activeSlot.totalValue)}</span>
-                            <span>Itens com preco: {activeSlotPricedCount}</span>
-                          </div>
-                          {activeSlot.latestImportedDocument ? (
-                            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                              <Building2 className="size-4" aria-hidden />
-                              <span>Ultimo PDF importado em {formatDate(activeSlot.latestImportedDocument.createdAt)}</span>
-                              <a
-                                className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
-                                href={getProjectDocumentDownloadUrl(projectId, activeSlot.latestImportedDocument.id)}
-                                rel="noreferrer"
-                                target="_blank"
-                              >
-                                Abrir arquivo
-                                <ExternalLink className="size-3.5" aria-hidden />
-                              </a>
-                            </div>
-                          ) : null}
-                        </div>
-
-                        <div className="flex flex-wrap gap-2">
-                          <Button type="button" variant="secondary" onClick={() => setSupplierPickerSlot(activeSlot)}>
-                            <Store className="size-4" aria-hidden />
-                            {activeSlot.supplierId ? 'Trocar fornecedor' : 'Selecionar fornecedor'}
-                          </Button>
-                          <Button
-                            disabled={!activeSlot.supplierId}
-                            type="button"
-                            variant="secondary"
-                            onClick={() => setImportDialogOpen(true)}
-                          >
-                            <ArrowUpFromLine className="size-4" aria-hidden />
-                            Importar PDF
-                          </Button>
-                          <Button
-                            disabled={!activeSlot.supplierId || isGeneratingRandomValues}
-                            type="button"
-                            variant="secondary"
-                            onClick={() => void handleGenerateRandomValues()}
-                          >
-                            <Dices className="size-4" aria-hidden />
-                            {isGeneratingRandomValues ? 'Gerando...' : 'Preencher exemplo'}
-                          </Button>
-                        </div>
+                  </>
+                )}
+              </div>
+            ) : activeSlot ? (
+              <div className="space-y-4">
+                <div className="rounded-3xl border border-border/70 bg-muted/20 p-5">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="neutral">Orcamento {activeSlot.slotNumber}</Badge>
+                        <SlotStatusBadge slot={activeSlot} />
                       </div>
+                      <div className="space-y-1">
+                        <p className="text-lg font-semibold text-foreground">{slotDisplayName(activeSlot)}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {activeSlot.supplierId
+                            ? `${activeSlot.filledItemCount}/${activeSlot.itemCount} item(ns) preenchidos`
+                            : 'Nenhum fornecedor definido para este orcamento'}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                        <span>Progresso: {getQuoteFillProgress(activeSlot.filledItemCount, activeSlot.itemCount)}%</span>
+                        <span>Total atual: {currencyOrDash(activeSlot.totalValue)}</span>
+                        <span>Itens com preco: {activeSlotPricedCount}</span>
+                      </div>
+                      {activeSlot.latestImportedDocument ? (
+                        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                          <Building2 className="size-4" aria-hidden />
+                          <span>Ultimo PDF importado em {formatDate(activeSlot.latestImportedDocument.createdAt)}</span>
+                          <a
+                            className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+                            href={getProjectDocumentDownloadUrl(projectId, activeSlot.latestImportedDocument.id)}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            Abrir arquivo
+                            <ExternalLink className="size-3.5" aria-hidden />
+                          </a>
+                        </div>
+                      ) : null}
                     </div>
 
-                    {!activeSlot.supplierId ? (
-                      <EmptyState
-                        actionLabel="Selecionar fornecedor"
-                        description="Defina o fornecedor deste orcamento antes de preencher valores ou importar o PDF."
-                        icon={Store}
-                        onAction={() => setSupplierPickerSlot(activeSlot)}
-                        title="Fornecedor nao selecionado"
-                      />
-                    ) : (
-                      <div className="overflow-x-auto rounded-2xl border border-border/70">
-                        <table className="w-full min-w-[980px] border-collapse text-sm">
-                          <thead className="bg-muted/35">
-                            <tr>
-                              <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">
-                                Descricao
-                              </th>
-                              <th className="border-b border-border/70 px-3 py-3 text-center font-semibold text-foreground">
-                                Qtd.
-                              </th>
-                              <th className="border-b border-border/70 px-3 py-3 text-right font-semibold text-foreground">
-                                Valor unitario
-                              </th>
-                              <th className="border-b border-border/70 px-3 py-3 text-right font-semibold text-foreground">
-                                Total
-                              </th>
-                              <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">
-                                Observacoes
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {rows.map((row) => (
-                              <QuoteLineRow
-                                key={`${activeSlot.slotNumber}-${row.budgetItemId}`}
-                                disabled={quoteMutations.updateItem.isPending}
-                                row={row}
-                                slotNumber={activeSlot.slotNumber}
-                                onSave={(budgetItemId, payload) => handleSaveRow(activeSlot.slotNumber, budgetItemId, payload)}
-                              />
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" variant="secondary" onClick={() => setSupplierPickerSlot(activeSlot)}>
+                        <Store className="size-4" aria-hidden />
+                        {activeSlot.supplierId ? 'Trocar fornecedor' : 'Selecionar fornecedor'}
+                      </Button>
+                      <Button
+                        disabled={!activeSlot.supplierId}
+                        type="button"
+                        variant="secondary"
+                        onClick={() => setImportDialogOpen(true)}
+                      >
+                        <ArrowUpFromLine className="size-4" aria-hidden />
+                        Importar PDF
+                      </Button>
+                      <Button
+                        disabled={!activeSlot.supplierId || isGeneratingRandomValues || rows.length === 0}
+                        type="button"
+                        variant="secondary"
+                        onClick={() => void handleGenerateRandomValues()}
+                      >
+                        <Dices className="size-4" aria-hidden />
+                        {isGeneratingRandomValues ? 'Gerando...' : 'Preencher exemplo'}
+                      </Button>
+                    </div>
                   </div>
-                ) : null}
-              </>
-            )}
+                </div>
+
+                {!activeSlot.supplierId ? (
+                  <EmptyState
+                    actionLabel="Selecionar fornecedor"
+                    description="Defina o fornecedor deste orcamento antes de preencher valores ou importar o PDF."
+                    icon={Store}
+                    onAction={() => setSupplierPickerSlot(activeSlot)}
+                    title="Fornecedor nao selecionado"
+                  />
+                ) : rows.length === 0 ? (
+                  <EmptyState
+                    actionLabel="Importar PDF"
+                    description="Voce pode importar o PDF do fornecedor mesmo sem itens vinculados. Na aplicacao, os itens do PDF poderao entrar como itens extras desta compra."
+                    icon={ArrowUpFromLine}
+                    onAction={() => setImportDialogOpen(true)}
+                    secondaryActionLabel="Adicionar itens"
+                    onSecondaryAction={() => setManageItemsDialogOpen(true)}
+                    title="Compra sem itens vinculados"
+                  />
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-border/70">
+                    <table className="w-full min-w-[980px] border-collapse text-sm">
+                      <thead className="bg-muted/35">
+                        <tr>
+                          <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">
+                            Descricao
+                          </th>
+                          <th className="border-b border-border/70 px-3 py-3 text-center font-semibold text-foreground">
+                            Qtd.
+                          </th>
+                          <th className="border-b border-border/70 px-3 py-3 text-right font-semibold text-foreground">
+                            Valor unitario
+                          </th>
+                          <th className="border-b border-border/70 px-3 py-3 text-right font-semibold text-foreground">
+                            Total
+                          </th>
+                          <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">
+                            Observacoes
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((row) => (
+                          <QuoteLineRow
+                            key={`${activeSlot.slotNumber}-${row.budgetItemId}`}
+                            disabled={quoteMutations.updateItem.isPending}
+                            row={row}
+                            slotNumber={activeSlot.slotNumber}
+                            onSave={(budgetItemId, payload) => handleSaveRow(activeSlot.slotNumber, budgetItemId, payload)}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
