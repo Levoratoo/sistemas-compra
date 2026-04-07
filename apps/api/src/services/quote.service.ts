@@ -47,6 +47,46 @@ const MONTH_LABELS_PT_BR = [
   'Novembro',
   'Dezembro',
 ] as const;
+const QUOTE_IMPORT_MATCH_STOP_TOKENS = new Set([
+  'bombeiro',
+  'civil',
+  'tipo',
+  'modelo',
+  'identificacao',
+  'algodao',
+  'tatico',
+  'tatica',
+  'taticas',
+  'taticos',
+  'alto',
+  'baixa',
+  'baixas',
+  'cano',
+  'contra',
+  'para',
+  'uso',
+  'profissional',
+  'profissionais',
+  'militar',
+  'vermelho',
+  'vermelha',
+  'creme',
+  'atlas',
+  'dragon',
+  'shirt',
+  'combat',
+  'pp',
+  'pv',
+  'p',
+  'm',
+  'g',
+  'gg',
+  'xg',
+  'par',
+  'pares',
+  'unidade',
+  'unidades',
+]);
 
 const quoteInclude = {
   supplier: true,
@@ -352,6 +392,85 @@ function buildBudgetItemMatchText(item: QuoteBudgetItem) {
   return [item.name, item.specification, item.unit].filter(Boolean).join(' ');
 }
 
+function buildBudgetItemMatchAliases(item: QuoteBudgetItem) {
+  const aliases = [item.name];
+  const segments = item.name
+    .split(/[—-]/)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  if (segments.length > 1) {
+    aliases.push(segments[segments.length - 1] ?? item.name);
+  }
+
+  return [...new Set(aliases)];
+}
+
+function normalizeQuoteImportToken(token: string) {
+  let normalized = normalizeSupplierQuoteMatchText(token);
+  if (!normalized) {
+    return '';
+  }
+
+  if (normalized.endsWith('oes')) {
+    normalized = `${normalized.slice(0, -3)}ao`;
+  } else if (normalized.endsWith('ais')) {
+    normalized = `${normalized.slice(0, -3)}al`;
+  } else if (normalized.endsWith('eis')) {
+    normalized = `${normalized.slice(0, -3)}el`;
+  } else if (normalized.endsWith('s') && normalized.length > 4) {
+    normalized = normalized.slice(0, -1);
+  }
+
+  if (normalized.startsWith('gandol')) return 'gandol';
+  if (normalized.startsWith('camiset')) return 'camiseta';
+  if (normalized.startsWith('calca')) return 'calca';
+  if (normalized.startsWith('bota')) return 'bota';
+  if (normalized.startsWith('cinto')) return 'cinto';
+  if (normalized.startsWith('meia')) return 'meia';
+  if (normalized.startsWith('bone')) return 'bone';
+  if (normalized.startsWith('oculo')) return 'oculos';
+  if (normalized.startsWith('mascar')) return 'mascara';
+  if (normalized.startsWith('luva')) return 'luva';
+  if (normalized.startsWith('joelhe')) return 'joelheira';
+  if (normalized.startsWith('cotovel')) return 'cotoveleira';
+  if (normalized.startsWith('protet')) return 'protetor';
+  if (normalized.startsWith('audit')) return 'auditivo';
+  if (normalized.startsWith('lantern')) return 'lanterna';
+  if (normalized.startsWith('bateri')) return 'bateria';
+  if (normalized.startsWith('apito')) return 'apito';
+  if (normalized.startsWith('capacet')) return 'capacete';
+  if (normalized.startsWith('pranch')) return 'prancha';
+
+  return normalized;
+}
+
+function tokenizeQuoteImportCoreText(value: string) {
+  return tokenizeSupplierQuoteMatchText(value)
+    .map((token) => normalizeQuoteImportToken(token))
+    .filter((token) => token.length > 1 && !QUOTE_IMPORT_MATCH_STOP_TOKENS.has(token));
+}
+
+function calculateTokenCoverage(left: string[], right: string[]) {
+  if (left.length === 0 || right.length === 0) {
+    return {
+      sharedCount: 0,
+      leftCoverage: 0,
+      rightCoverage: 0,
+    };
+  }
+
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  const sharedCount = [...leftSet].filter((token) => rightSet.has(token)).length;
+
+  return {
+    sharedCount,
+    leftCoverage: sharedCount / leftSet.size,
+    rightCoverage: sharedCount / rightSet.size,
+  };
+}
+
 function calculateTokenOverlapScore(left: string[], right: string[]) {
   if (left.length === 0 || right.length === 0) {
     return 0;
@@ -381,13 +500,30 @@ function scoreQuoteImportMatch(
   item: QuoteBudgetItem,
 ) {
   const rowNormalized = normalizeSupplierQuoteMatchText(row.description);
-  const itemNormalized = normalizeSupplierQuoteMatchText(buildBudgetItemMatchText(item));
+  const itemMatchText = buildBudgetItemMatchText(item);
+  const itemNormalized = normalizeSupplierQuoteMatchText(itemMatchText);
   const rowTokens = tokenizeSupplierQuoteMatchText(row.description);
-  const itemTokens = tokenizeSupplierQuoteMatchText(buildBudgetItemMatchText(item));
+  const itemTokens = tokenizeSupplierQuoteMatchText(itemMatchText);
   const overlapScore = calculateTokenOverlapScore(rowTokens, itemTokens);
   const quantityConflict = quantityConflictWithBudgetItem(row.quantity, decimalToNumber(item.plannedQuantity));
+  const aliasSignals = buildBudgetItemMatchAliases(item).map((alias) => {
+    const aliasNormalized = normalizeSupplierQuoteMatchText(alias);
+    const aliasTokens = tokenizeSupplierQuoteMatchText(alias);
+    const aliasCoreTokens = tokenizeQuoteImportCoreText(alias);
+    const coreCoverage = calculateTokenCoverage(tokenizeQuoteImportCoreText(row.description), aliasCoreTokens);
 
-  let score = overlapScore;
+    return {
+      aliasNormalized,
+      overlapScore: calculateTokenOverlapScore(rowTokens, aliasTokens),
+      coreCoverage,
+    };
+  });
+  const bestAliasOverlap = Math.max(...aliasSignals.map((signal) => signal.overlapScore), 0);
+  const bestCoreSharedCount = Math.max(...aliasSignals.map((signal) => signal.coreCoverage.sharedCount), 0);
+  const bestCoreLeftCoverage = Math.max(...aliasSignals.map((signal) => signal.coreCoverage.leftCoverage), 0);
+  const bestCoreRightCoverage = Math.max(...aliasSignals.map((signal) => signal.coreCoverage.rightCoverage), 0);
+
+  let score = Math.max(overlapScore, bestAliasOverlap);
 
   if (rowNormalized && itemNormalized) {
     if (rowNormalized === itemNormalized) {
@@ -399,6 +535,33 @@ function scoreQuoteImportMatch(
     ) {
       score = Math.max(score, 0.93);
     }
+  }
+
+  for (const signal of aliasSignals) {
+    if (!signal.aliasNormalized) {
+      continue;
+    }
+
+    if (rowNormalized === signal.aliasNormalized) {
+      score = 1;
+      break;
+    }
+
+    if (
+      rowNormalized.length >= 4 &&
+      signal.aliasNormalized.length >= 4 &&
+      (rowNormalized.includes(signal.aliasNormalized) || signal.aliasNormalized.includes(rowNormalized))
+    ) {
+      score = Math.max(score, 0.93);
+    }
+  }
+
+  if (bestCoreSharedCount >= 2 && bestCoreLeftCoverage >= 0.4) {
+    score = Math.max(score, 0.68);
+  } else if (bestCoreRightCoverage >= 1 && bestCoreSharedCount >= 1) {
+    score = Math.max(score, 0.58);
+  } else if (bestCoreLeftCoverage >= 0.5) {
+    score = Math.max(score, 0.52);
   }
 
   if (quantityConflict && score >= 0.8) {
