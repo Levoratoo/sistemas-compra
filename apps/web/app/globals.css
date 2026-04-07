@@ -125,37 +125,88 @@ body {
   color: hsl(var(--foreground));
 }
 
-/** Animações do fundo decorativo (login) — movimento suave e contínuo */
+/** Animações do fundo decorativo (login) — amplitudes maiores e ciclos mais curtos para leitura óbvia */
 @keyframes backdrop-float-orb {
   0%,
   100% {
     transform: translate(0, 0) scale(1);
+    opacity: 0.75;
   }
-  33% {
-    transform: translate(24px, -20px) scale(1.05);
+  25% {
+    transform: translate(56px, -44px) scale(1.12);
+    opacity: 1;
   }
-  66% {
-    transform: translate(-18px, 26px) scale(0.95);
+  50% {
+    transform: translate(-40px, 56px) scale(0.88);
+    opacity: 0.85;
+  }
+  75% {
+    transform: translate(32px, 28px) scale(1.06);
+    opacity: 0.95;
   }
 }
 
-@keyframes backdrop-float-micro {
+@keyframes backdrop-float-micro-a {
   0%,
   100% {
     transform: translate(0, 0);
   }
+  25% {
+    transform: translate(36px, -28px);
+  }
   50% {
-    transform: translate(12px, -16px);
+    transform: translate(16px, 40px);
+  }
+  75% {
+    transform: translate(-28px, -12px);
   }
 }
 
-@keyframes backdrop-float-tiny {
+@keyframes backdrop-float-micro-b {
   0%,
   100% {
     transform: translate(0, 0);
   }
+  25% {
+    transform: translate(-32px, 32px);
+  }
   50% {
-    transform: translate(-10px, 12px);
+    transform: translate(40px, 12px);
+  }
+  75% {
+    transform: translate(-12px, -36px);
+  }
+}
+
+@keyframes backdrop-float-tiny-a {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(22px, -20px);
+  }
+  50% {
+    transform: translate(-18px, 24px);
+  }
+  75% {
+    transform: translate(14px, 10px);
+  }
+}
+
+@keyframes backdrop-float-tiny-b {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-20px, 22px);
+  }
+  50% {
+    transform: translate(26px, -8px);
+  }
+  75% {
+    transform: translate(-10px, -22px);
   }
 }
 
