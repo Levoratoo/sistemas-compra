@@ -1,9 +1,10 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB } from 'pdf-lib';
 
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
-const PAGE_MARGIN = 32;
-const HEADER_BOTTOM_Y = PAGE_HEIGHT - 108;
+const PAGE_MARGIN = 36;
+const HEADER_CARD_TOP = PAGE_HEIGHT - 92;
+const HEADER_BOTTOM_Y = PAGE_HEIGHT - 118;
 const ITEM_TABLE_COLUMNS = {
   description: 176,
   quantity: 38,
@@ -12,6 +13,42 @@ const ITEM_TABLE_COLUMNS = {
   slot3: 64,
   winner: 93,
 };
+
+/** Paleta alinhada a um visual “dashboard” profissional (teal + slots distintos). */
+const C = {
+  brand: rgb(0.0, 0.55, 0.62),
+  brandDeep: rgb(0.04, 0.22, 0.26),
+  headerBar: rgb(0.06, 0.42, 0.48),
+  tableHeader: rgb(0.07, 0.36, 0.42),
+  text: rgb(0.06, 0.09, 0.12),
+  textMuted: rgb(0.38, 0.42, 0.48),
+  borderLight: rgb(0.86, 0.9, 0.93),
+  cardBg: rgb(0.97, 0.99, 0.99),
+  winText: rgb(0.02, 0.42, 0.3),
+  tieText: rgb(0.55, 0.32, 0.06),
+  pendingText: rgb(0.42, 0.44, 0.48),
+};
+
+const SLOT_BG: Record<1 | 2 | 3, { soft: RGB; win: RGB; accent: RGB }> = {
+  1: {
+    soft: rgb(0.93, 0.96, 1),
+    win: rgb(0.78, 0.93, 0.86),
+    accent: rgb(0.15, 0.45, 0.88),
+  },
+  2: {
+    soft: rgb(0.9, 0.98, 0.96),
+    win: rgb(0.76, 0.94, 0.9),
+    accent: rgb(0.05, 0.62, 0.52),
+  },
+  3: {
+    soft: rgb(1, 0.96, 0.91),
+    win: rgb(0.94, 0.9, 0.82),
+    accent: rgb(0.92, 0.48, 0.12),
+  },
+};
+
+const TIE_CELL = rgb(0.99, 0.93, 0.82);
+const ROW_STRIPE = rgb(0.995, 0.997, 1);
 
 export type QuoteComparisonReportPdfInput = {
   issuerName: string;
@@ -60,6 +97,8 @@ export type QuoteComparisonReportPdfInput = {
       slotNumber: number;
       totalValue: number | null;
     }>;
+    winnerStatus: 'NONE' | 'UNIQUE' | 'TIE';
+    winnerSlotNumbers: number[];
     winnerLabel: string;
   }>;
 };
@@ -109,66 +148,91 @@ function drawLabelValue(page: PDFPage, labelFont: PDFFont, valueFont: PDFFont, x
   page.drawText(label, {
     x,
     y,
-    size: 8,
+    size: 7.5,
     font: labelFont,
-    color: rgb(0.35, 0.35, 0.35),
+    color: C.textMuted,
   });
   page.drawText(value || '-', {
     x,
-    y: y - 12,
-    size: 10,
+    y: y - 11,
+    size: 9.5,
     font: valueFont,
-    color: rgb(0.08, 0.08, 0.08),
+    color: C.text,
   });
 }
 
-function drawSectionTitle(page: PDFPage, font: PDFFont, y: number, title: string) {
-  page.drawText(title, {
+function drawSectionTitle(page: PDFPage, boldFont: PDFFont, y: number, title: string) {
+  const barH = 14;
+  page.drawRectangle({
     x: PAGE_MARGIN,
+    y: y - barH + 2,
+    width: 3,
+    height: barH,
+    color: C.brand,
+  });
+  page.drawText(title, {
+    x: PAGE_MARGIN + 10,
     y,
-    size: 12,
-    font,
-    color: rgb(0.09, 0.32, 0.52),
+    size: 11.5,
+    font: boldFont,
+    color: C.brandDeep,
   });
 }
 
 function drawPageHeader(page: PDFPage, regularFont: PDFFont, boldFont: PDFFont, input: QuoteComparisonReportPdfInput) {
   page.drawRectangle({
+    x: 0,
+    y: PAGE_HEIGHT - 4,
+    width: PAGE_WIDTH,
+    height: 4,
+    color: C.headerBar,
+  });
+
+  page.drawRectangle({
     x: PAGE_MARGIN,
-    y: PAGE_HEIGHT - 84,
+    y: HEADER_CARD_TOP,
     width: PAGE_WIDTH - PAGE_MARGIN * 2,
-    height: 52,
-    borderColor: rgb(0.2, 0.2, 0.2),
-    borderWidth: 1,
-    color: rgb(0.97, 0.98, 0.99),
+    height: 56,
+    color: C.cardBg,
+    borderColor: C.borderLight,
+    borderWidth: 0.75,
   });
 
-  page.drawText('Relatorio do mapa comparativo de orcamentos', {
-    x: PAGE_MARGIN + 12,
-    y: PAGE_HEIGHT - 55,
-    size: 15,
+  page.drawText('Relatorio do mapa comparativo', {
+    x: PAGE_MARGIN + 14,
+    y: PAGE_HEIGHT - 54,
+    size: 16,
     font: boldFont,
-    color: rgb(0.08, 0.08, 0.08),
+    color: C.brandDeep,
   });
 
-  page.drawText(`${input.projectCode} | ${input.projectName}`, {
-    x: PAGE_MARGIN + 12,
+  page.drawText(`${input.projectCode}  |  ${input.projectName}`, {
+    x: PAGE_MARGIN + 14,
     y: PAGE_HEIGHT - 72,
     size: 9,
     font: regularFont,
-    color: rgb(0.25, 0.25, 0.25),
+    color: C.textMuted,
   });
 
-  drawLabelValue(page, boldFont, regularFont, PAGE_MARGIN, HEADER_BOTTOM_Y, 'Compra', input.purchaseTitle);
-  drawLabelValue(page, boldFont, regularFont, PAGE_MARGIN + 200, HEADER_BOTTOM_Y, 'Emitido em', input.issuedAtLabel);
+  drawLabelValue(page, boldFont, regularFont, PAGE_MARGIN + 14, HEADER_BOTTOM_Y, 'Compra', input.purchaseTitle);
+  drawLabelValue(page, boldFont, regularFont, PAGE_MARGIN + 210, HEADER_BOTTOM_Y, 'Emitido em', input.issuedAtLabel);
   drawLabelValue(
     page,
     boldFont,
     regularFont,
-    PAGE_MARGIN + 330,
+    PAGE_MARGIN + 360,
     HEADER_BOTTOM_Y,
     'Orgao / base',
     [input.issuerName, [input.issuerCity, input.issuerState].filter(Boolean).join('/')].filter(Boolean).join(' - '),
+  );
+}
+
+function slotRowTint(slotNumber: number): RGB {
+  const s = SLOT_BG[slotNumber as 1 | 2 | 3] ?? SLOT_BG[1];
+  return rgb(
+    s.soft.red * 0.55 + 1 * 0.45,
+    s.soft.green * 0.55 + 1 * 0.45,
+    s.soft.blue * 0.55 + 1 * 0.45,
   );
 }
 
@@ -181,8 +245,8 @@ function drawSlotSummaryTable(
 ) {
   const left = PAGE_MARGIN;
   const colWidths = [66, 166, 74, 72, 66, 58];
-  const headers = ['Slot', 'Fornecedor', 'Status', 'Total', 'Vitorias', 'Empates'];
-  const headerHeight = 18;
+  const headers = ['Orcamento', 'Fornecedor', 'Status', 'Total', 'Vitorias', 'Empates'];
+  const headerHeight = 20;
   const totalWidth = colWidths.reduce((sum, width) => sum + width, 0);
 
   page.drawRectangle({
@@ -190,19 +254,18 @@ function drawSlotSummaryTable(
     y: startY - headerHeight,
     width: totalWidth,
     height: headerHeight,
-    borderColor: rgb(0.3, 0.3, 0.3),
-    borderWidth: 0.8,
-    color: rgb(0.95, 0.96, 0.98),
+    color: C.tableHeader,
+    borderWidth: 0,
   });
 
   let currentX = left;
   headers.forEach((header, index) => {
     page.drawText(header, {
-      x: currentX + 5,
-      y: startY - 12,
-      size: 8,
+      x: currentX + 6,
+      y: startY - 13,
+      size: 8.5,
       font: boldFont,
-      color: rgb(0.18, 0.18, 0.18),
+      color: rgb(1, 1, 1),
     });
     currentX += colWidths[index] ?? 0;
   });
@@ -213,44 +276,65 @@ function drawSlotSummaryTable(
     page.drawLine({
       start: { x: currentX, y: startY },
       end: { x: currentX, y: startY - headerHeight },
-      thickness: 0.8,
-      color: rgb(0.3, 0.3, 0.3),
+      thickness: 0.35,
+      color: rgb(0.25, 0.45, 0.48),
     });
   }
 
   let y = startY - headerHeight;
 
-  for (const slot of input.analysis.itemWinnerCounts) {
+  for (let ri = 0; ri < input.analysis.itemWinnerCounts.length; ri += 1) {
+    const slot = input.analysis.itemWinnerCounts[ri]!;
     const status = slot.isComplete ? 'Completo' : 'Em aberto';
     const values = [
       `Orc. ${slot.slotNumber}`,
-      slot.supplierName || 'Fornecedor nao definido',
+      slot.supplierName || 'Nao definido',
       status,
       formatCurrency(slot.totalValue),
       String(slot.uniqueWinCount),
       String(slot.tieCount),
     ];
-    const rowHeight = 24;
+    const rowHeight = 26;
+    const stripe = ri % 2 === 0 ? rgb(1, 1, 1) : ROW_STRIPE;
+    const rowTint = slotRowTint(slot.slotNumber);
 
     page.drawRectangle({
       x: left,
       y: y - rowHeight,
       width: totalWidth,
       height: rowHeight,
-      borderColor: rgb(0.82, 0.84, 0.88),
-      borderWidth: 0.6,
+      color: stripe,
+      borderColor: C.borderLight,
+      borderWidth: 0.4,
+    });
+
+    page.drawRectangle({
+      x: left,
+      y: y - rowHeight,
+      width: 5,
+      height: rowHeight,
+      color: (SLOT_BG[slot.slotNumber as 1 | 2 | 3] ?? SLOT_BG[1]).accent,
+    });
+
+    page.drawRectangle({
+      x: left + 5,
+      y: y - rowHeight,
+      width: (colWidths[0] ?? 0) - 5,
+      height: rowHeight,
+      color: rowTint,
     });
 
     let cellX = left;
     values.forEach((value, index) => {
-      const lines = wrapText(value, regularFont, 8, (colWidths[index] ?? 0) - 8);
+      const lines = wrapText(value, regularFont, 8, (colWidths[index] ?? 0) - 10);
+      const textColor = index === 2 && status === 'Completo' ? C.winText : C.text;
       lines.slice(0, 2).forEach((line, lineIndex) => {
         page.drawText(line, {
-          x: cellX + 5,
-          y: y - 14 - lineIndex * 9,
+          x: cellX + (index === 0 ? 8 : 6),
+          y: y - 15 - lineIndex * 9,
           size: 8,
           font: regularFont,
-          color: rgb(0.08, 0.08, 0.08),
+          color: textColor,
         });
       });
       cellX += colWidths[index] ?? 0;
@@ -265,8 +349,8 @@ function drawSlotSummaryTable(
 function drawItemTableHeader(page: PDFPage, boldFont: PDFFont, y: number) {
   const totalWidth = Object.values(ITEM_TABLE_COLUMNS).reduce((sum, width) => sum + width, 0);
   let currentX = PAGE_MARGIN;
-  const headerHeight = 18;
-  const headers = ['Descricao', 'Qtd.', 'Orc. 1', 'Orc. 2', 'Orc. 3', 'Vencedor'];
+  const headerHeight = 22;
+  const headers = ['Descricao', 'Qtd.', 'Orc. 1', 'Orc. 2', 'Orc. 3', 'Melhor / situacao'];
   const widths = Object.values(ITEM_TABLE_COLUMNS);
 
   page.drawRectangle({
@@ -274,21 +358,37 @@ function drawItemTableHeader(page: PDFPage, boldFont: PDFFont, y: number) {
     y: y - headerHeight,
     width: totalWidth,
     height: headerHeight,
-    borderColor: rgb(0.3, 0.3, 0.3),
-    borderWidth: 0.8,
-    color: rgb(0.95, 0.96, 0.98),
+    color: C.tableHeader,
+    borderWidth: 0,
   });
 
   headers.forEach((header, index) => {
     page.drawText(header, {
       x: currentX + 5,
-      y: y - 12,
-      size: 8,
+      y: y - 14,
+      size: 8.5,
       font: boldFont,
-      color: rgb(0.18, 0.18, 0.18),
+      color: rgb(1, 1, 1),
     });
     currentX += widths[index] ?? 0;
   });
+
+  currentX = PAGE_MARGIN;
+  for (let slot = 1; slot <= 3; slot += 1) {
+    const colIndex = slot + 1;
+    let x0 = PAGE_MARGIN;
+    for (let i = 0; i < colIndex; i += 1) {
+      x0 += widths[i] ?? 0;
+    }
+    const w = widths[colIndex] ?? 0;
+    page.drawRectangle({
+      x: x0,
+      y: y - headerHeight,
+      width: w,
+      height: 4,
+      color: (SLOT_BG[slot as 1 | 2 | 3] ?? SLOT_BG[1]).accent,
+    });
+  }
 
   currentX = PAGE_MARGIN;
   for (let index = 0; index < widths.length - 1; index += 1) {
@@ -296,68 +396,150 @@ function drawItemTableHeader(page: PDFPage, boldFont: PDFFont, y: number) {
     page.drawLine({
       start: { x: currentX, y },
       end: { x: currentX, y: y - headerHeight },
-      thickness: 0.8,
-      color: rgb(0.3, 0.3, 0.3),
+      thickness: 0.35,
+      color: rgb(0.2, 0.42, 0.46),
     });
   }
 
   return y - headerHeight;
 }
 
+function slotCellBackground(
+  slotNumber: 1 | 2 | 3,
+  row: QuoteComparisonReportPdfInput['rows'][number],
+): { fill: RGB; valueBold: boolean; valueColor: RGB } {
+  const palette = SLOT_BG[slotNumber];
+  if (row.winnerStatus === 'UNIQUE' && row.winnerSlotNumbers[0] === slotNumber) {
+    return { fill: palette.win, valueBold: true, valueColor: C.winText };
+  }
+  if (row.winnerStatus === 'TIE' && row.winnerSlotNumbers.includes(slotNumber)) {
+    return { fill: TIE_CELL, valueBold: true, valueColor: C.tieText };
+  }
+  return { fill: palette.soft, valueBold: false, valueColor: C.text };
+}
+
+function winnerColumnStyle(row: QuoteComparisonReportPdfInput['rows'][number]): { fill: RGB; text: RGB } {
+  if (row.winnerStatus === 'UNIQUE') {
+    return { fill: rgb(0.88, 0.97, 0.92), text: C.winText };
+  }
+  if (row.winnerStatus === 'TIE') {
+    return { fill: rgb(0.98, 0.94, 0.88), text: C.tieText };
+  }
+  return { fill: rgb(0.96, 0.97, 0.98), text: C.pendingText };
+}
+
 function drawItemRow(
   page: PDFPage,
   regularFont: PDFFont,
+  boldFont: PDFFont,
   y: number,
   row: QuoteComparisonReportPdfInput['rows'][number],
+  rowIndex: number,
 ) {
   const descriptionLines = wrapText(row.description, regularFont, 8, ITEM_TABLE_COLUMNS.description - 8);
-  const winnerLines = wrapText(row.winnerLabel, regularFont, 8, ITEM_TABLE_COLUMNS.winner - 8);
+  const winnerLines = wrapText(row.winnerLabel, boldFont, 8, ITEM_TABLE_COLUMNS.winner - 8);
   const lineCount = Math.max(descriptionLines.length, winnerLines.length, 1);
-  const rowHeight = 8 + lineCount * 9;
-  const totalWidth = Object.values(ITEM_TABLE_COLUMNS).reduce((sum, width) => sum + width, 0);
+  const rowHeight = 10 + lineCount * 9;
+  const widths = Object.values(ITEM_TABLE_COLUMNS);
+  const totalWidth = widths.reduce((a, b) => a + b, 0);
   const slotMap = new Map(row.slotTotals.map((slot) => [slot.slotNumber, slot.totalValue]));
+
+  const baseStripe = rowIndex % 2 === 0 ? rgb(1, 1, 1) : ROW_STRIPE;
+
+  let x = PAGE_MARGIN;
+  const cellsBg: Array<{ x: number; w: number; fill: RGB }> = [
+    { x, w: widths[0]!, fill: baseStripe },
+  ];
+  x += widths[0]!;
+  cellsBg.push({ x, w: widths[1]!, fill: rgb(0.97, 0.98, 0.99) });
+  x += widths[1]!;
+  for (const sn of [1, 2, 3] as const) {
+    const { fill } = slotCellBackground(sn, row);
+    cellsBg.push({ x, w: widths[sn + 1]!, fill });
+    x += widths[sn + 1]!;
+  }
+  const wStyle = winnerColumnStyle(row);
+  cellsBg.push({ x, w: widths[5]!, fill: wStyle.fill });
 
   page.drawRectangle({
     x: PAGE_MARGIN,
     y: y - rowHeight,
     width: totalWidth,
     height: rowHeight,
-    borderColor: rgb(0.85, 0.87, 0.9),
-    borderWidth: 0.6,
+    color: baseStripe,
+    borderColor: C.borderLight,
+    borderWidth: 0.45,
   });
 
-  const cells = [
-    descriptionLines,
-    [formatNumber(row.quantity)],
-    [formatCurrency(slotMap.get(1) ?? null)],
-    [formatCurrency(slotMap.get(2) ?? null)],
-    [formatCurrency(slotMap.get(3) ?? null)],
-    winnerLines,
-  ];
-  const widths = Object.values(ITEM_TABLE_COLUMNS);
-
-  let currentX = PAGE_MARGIN;
-  cells.forEach((lines, index) => {
-    lines.forEach((line, lineIndex) => {
-      page.drawText(line, {
-        x: currentX + 5,
-        y: y - 12 - lineIndex * 9,
-        size: 8,
-        font: regularFont,
-        color: rgb(0.08, 0.08, 0.08),
-      });
+  for (const cell of cellsBg) {
+    page.drawRectangle({
+      x: cell.x,
+      y: y - rowHeight,
+      width: cell.w,
+      height: rowHeight,
+      color: cell.fill,
     });
-    currentX += widths[index] ?? 0;
+  }
+
+  const qtyText = formatNumber(row.quantity);
+  page.drawText(qtyText, {
+    x: PAGE_MARGIN + widths[0]! + 5,
+    y: y - 13,
+    size: 8,
+    font: regularFont,
+    color: C.text,
   });
 
-  currentX = PAGE_MARGIN;
+  for (let si = 0; si < 3; si += 1) {
+    const slotNumber = (si + 1) as 1 | 2 | 3;
+    const colIndex = si + 2;
+    let colX = PAGE_MARGIN;
+    for (let j = 0; j < colIndex; j += 1) {
+      colX += widths[j] ?? 0;
+    }
+    const style = slotCellBackground(slotNumber, row);
+    const val = formatCurrency(slotMap.get(slotNumber) ?? null);
+    page.drawText(val, {
+      x: colX + 5,
+      y: y - 13,
+      size: 8,
+      font: style.valueBold ? boldFont : regularFont,
+      color: style.valueColor,
+    });
+  }
+
+  descriptionLines.forEach((line, lineIndex) => {
+    page.drawText(line, {
+      x: PAGE_MARGIN + 5,
+      y: y - 13 - lineIndex * 9,
+      size: 8,
+      font: regularFont,
+      color: C.text,
+    });
+  });
+
+  winnerLines.forEach((line, lineIndex) => {
+    let wx = PAGE_MARGIN;
+    for (let j = 0; j < 5; j += 1) {
+      wx += widths[j] ?? 0;
+    }
+    page.drawText(line, {
+      x: wx + 5,
+      y: y - 13 - lineIndex * 9,
+      size: 8,
+      font: boldFont,
+      color: wStyle.text,
+    });
+  });
+
+  let lineX = PAGE_MARGIN;
   for (let index = 0; index < widths.length - 1; index += 1) {
-    currentX += widths[index] ?? 0;
+    lineX += widths[index] ?? 0;
     page.drawLine({
-      start: { x: currentX, y },
-      end: { x: currentX, y: y - rowHeight },
-      thickness: 0.6,
-      color: rgb(0.85, 0.87, 0.9),
+      start: { x: lineX, y },
+      end: { x: lineX, y: y - rowHeight },
+      thickness: 0.35,
+      color: C.borderLight,
     });
   }
 
@@ -369,7 +551,7 @@ function addPage(document: PDFDocument, regularFont: PDFFont, boldFont: PDFFont,
   drawPageHeader(page, regularFont, boldFont, input);
   return {
     page,
-    y: HEADER_BOTTOM_Y - 34,
+    y: HEADER_BOTTOM_Y - 28,
   };
 }
 
@@ -392,6 +574,69 @@ export function buildQuoteComparisonReportSearchText(input: QuoteComparisonRepor
   ].join('\n');
 }
 
+function drawExecutiveBlock(
+  page: PDFPage,
+  regularFont: PDFFont,
+  boldFont: PDFFont,
+  startY: number,
+  input: QuoteComparisonReportPdfInput,
+) {
+  let y = startY;
+  const pad = 12;
+  const headlineLines = wrapText(input.analysis.headline, boldFont, 11, PAGE_WIDTH - PAGE_MARGIN * 2 - pad * 2);
+  let summaryHeight = 0;
+  for (const summaryLine of input.analysis.summaryLines) {
+    const lines = wrapText(summaryLine, regularFont, 9, PAGE_WIDTH - PAGE_MARGIN * 2 - pad * 2 - 8);
+    summaryHeight += lines.length * 11 + 2;
+  }
+  const boxH = 16 + headlineLines.length * 13 + 8 + summaryHeight + pad;
+
+  page.drawRectangle({
+    x: PAGE_MARGIN,
+    y: y - boxH,
+    width: PAGE_WIDTH - PAGE_MARGIN * 2,
+    height: boxH,
+    color: rgb(0.96, 0.99, 0.99),
+    borderColor: C.borderLight,
+    borderWidth: 0.6,
+  });
+
+  let innerY = y - pad - 4;
+  for (const line of headlineLines) {
+    page.drawText(line, {
+      x: PAGE_MARGIN + pad,
+      y: innerY,
+      size: 11,
+      font: boldFont,
+      color: C.brandDeep,
+    });
+    innerY -= 13;
+  }
+  innerY -= 4;
+  for (const summaryLine of input.analysis.summaryLines) {
+    const lines = wrapText(summaryLine, regularFont, 9, PAGE_WIDTH - PAGE_MARGIN * 2 - pad * 2 - 12);
+    for (const line of lines) {
+      page.drawCircle({
+        x: PAGE_MARGIN + pad + 2,
+        y: innerY + 2.5,
+        size: 2,
+        color: C.brand,
+      });
+      page.drawText(line, {
+        x: PAGE_MARGIN + pad + 10,
+        y: innerY,
+        size: 9,
+        font: regularFont,
+        color: C.text,
+      });
+      innerY -= 11;
+    }
+    innerY -= 2;
+  }
+
+  return y - boxH - 10;
+}
+
 export async function buildQuoteComparisonReportPdf(input: QuoteComparisonReportPdfInput) {
   const document = await PDFDocument.create();
   const regularFont = await document.embedFont(StandardFonts.Helvetica);
@@ -401,36 +646,9 @@ export async function buildQuoteComparisonReportPdf(input: QuoteComparisonReport
 
   drawSectionTitle(page, boldFont, y, 'Analise executiva');
   y -= 18;
-
-  const headlineLines = wrapText(input.analysis.headline, boldFont, 11, PAGE_WIDTH - PAGE_MARGIN * 2);
-  for (const line of headlineLines) {
-    page.drawText(line, {
-      x: PAGE_MARGIN,
-      y,
-      size: 11,
-      font: boldFont,
-      color: rgb(0.08, 0.08, 0.08),
-    });
-    y -= 13;
-  }
-
-  y -= 4;
-  for (const summaryLine of input.analysis.summaryLines) {
-    const lines = wrapText(`- ${summaryLine}`, regularFont, 9, PAGE_WIDTH - PAGE_MARGIN * 2);
-    for (const line of lines) {
-      page.drawText(line, {
-        x: PAGE_MARGIN,
-        y,
-        size: 9,
-        font: regularFont,
-        color: rgb(0.18, 0.18, 0.18),
-      });
-      y -= 11;
-    }
-  }
+  y = drawExecutiveBlock(page, regularFont, boldFont, y, input);
 
   if (input.purchaseNotes) {
-    y -= 6;
     drawSectionTitle(page, boldFont, y, 'Observacoes da compra');
     y -= 18;
     for (const line of wrapText(input.purchaseNotes, regularFont, 9, PAGE_WIDTH - PAGE_MARGIN * 2)) {
@@ -439,34 +657,36 @@ export async function buildQuoteComparisonReportPdf(input: QuoteComparisonReport
         y,
         size: 9,
         font: regularFont,
-        color: rgb(0.18, 0.18, 0.18),
+        color: C.text,
       });
       y -= 11;
     }
+    y -= 8;
   }
 
-  y -= 10;
   drawSectionTitle(page, boldFont, y, 'Resumo por orcamento');
-  y -= 16;
+  y -= 18;
   y = drawSlotSummaryTable(page, regularFont, boldFont, y, input) - 18;
 
   drawSectionTitle(page, boldFont, y, 'Mapa detalhado por item');
-  y -= 16;
+  y -= 18;
   y = drawItemTableHeader(page, boldFont, y) - 2;
 
+  let globalRowIndex = 0;
   for (const row of input.rows) {
     const previewDescriptionLines = wrapText(row.description, regularFont, 8, ITEM_TABLE_COLUMNS.description - 8);
-    const previewWinnerLines = wrapText(row.winnerLabel, regularFont, 8, ITEM_TABLE_COLUMNS.winner - 8);
-    const previewHeight = 8 + Math.max(previewDescriptionLines.length, previewWinnerLines.length, 1) * 9;
+    const previewWinnerLines = wrapText(row.winnerLabel, boldFont, 8, ITEM_TABLE_COLUMNS.winner - 8);
+    const previewHeight = 10 + Math.max(previewDescriptionLines.length, previewWinnerLines.length, 1) * 9;
 
-    if (y - previewHeight < PAGE_MARGIN + 24) {
+    if (y - previewHeight < PAGE_MARGIN + 28) {
       ({ page, y } = addPage(document, regularFont, boldFont, input));
-      drawSectionTitle(page, boldFont, y, 'Mapa detalhado por item');
-      y -= 16;
+      drawSectionTitle(page, boldFont, y, 'Mapa detalhado por item (continuacao)');
+      y -= 18;
       y = drawItemTableHeader(page, boldFont, y) - 2;
     }
 
-    y = drawItemRow(page, regularFont, y, row) - 2;
+    y = drawItemRow(page, regularFont, boldFont, y, row, globalRowIndex) - 2;
+    globalRowIndex += 1;
   }
 
   return document.save();

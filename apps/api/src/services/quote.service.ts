@@ -1708,6 +1708,8 @@ class QuoteService {
           slotNumber,
           totalValue: row.values.find((entry) => entry.slotNumber === slotNumber)?.totalValue ?? null,
         })),
+        winnerStatus: row.winner.status,
+        winnerSlotNumbers: [...row.winner.slotNumbers],
         winnerLabel:
           row.winner.status === 'UNIQUE'
             ? `Orcamento ${row.winner.slotNumbers[0]}`
