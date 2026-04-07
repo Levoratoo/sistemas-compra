@@ -51,4 +51,38 @@ describe('supplier quote pdf parser', () => {
     const jailonHeader = extractHeaderInfo('PEDIDO Nº: 94016\nV. FRANCISCO DA SILVA LTDA');
     assert.equal(jailonHeader.quoteNumber, '94016');
   });
+  it('parseia layout com descricao em varias linhas e linha de preco separada como no Instituto IDEAS', () => {
+    const rows = parseSupplierQuoteRows(`
+1 CALÇA ATLAS -
+CREME (38)
+R$310,00 6 R$ 1,860,00
+2 CALÇA ATLAS -
+CREME (44)
+R$310,00 2 R$ 620,00
+20 PRANCHA DE
+RESGATE COM
+TIRANTE
+R$1,000,0
+0 01 R$ 1,000,00
+29 LUVA PROTETORA
+C.A 8820
+R$70,00 8 R$ 560,00
+    `);
+
+    assert.equal(rows.length, 4);
+    assert.deepEqual(rows[0], {
+      rowIndex: 0,
+      rawText: '1 CALÇA ATLAS - CREME (38) R$310,00 6 R$ 1,860,00',
+      description: 'CALÇA ATLAS CREME (38)',
+      quantity: 6,
+      unit: null,
+      unitPrice: 310,
+      totalValue: 1860,
+    });
+    assert.equal(rows[2]?.description, 'PRANCHA DE RESGATE COM TIRANTE');
+    assert.equal(rows[2]?.quantity, 1);
+    assert.equal(rows[2]?.unitPrice, 1000);
+    assert.equal(rows[2]?.totalValue, 1000);
+    assert.equal(rows[3]?.description, 'LUVA PROTETORA C.A 8820');
+  });
 });

@@ -200,7 +200,15 @@ function parsePtBrNumber(raw: string | null | undefined): number | null {
     return null;
   }
 
-  const cleaned = raw.replace(/[R$\s]/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.');
+  let cleaned = raw.replace(/[R$\s]/g, '');
+
+  if ((cleaned.match(/,/g) ?? []).length > 1 && !cleaned.includes('.')) {
+    const lastComma = cleaned.lastIndexOf(',');
+    cleaned = `${cleaned.slice(0, lastComma).replace(/,/g, '')}.${cleaned.slice(lastComma + 1)}`;
+  } else {
+    cleaned = cleaned.replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.');
+  }
+
   const parsed = Number(cleaned);
   return Number.isFinite(parsed) ? parsed : null;
 }
@@ -226,7 +234,7 @@ function parseMoneyToken(raw: string | null | undefined): number | null {
     return null;
   }
 
-  if (/[,.]\d{2,4}$/.test(raw) || /\d+\.\d{3},\d{2}$/.test(raw)) {
+  if (/(?:[.,]\d{2,4})$/.test(raw)) {
     return parsePtBrNumber(raw);
   }
 
@@ -922,6 +930,270 @@ export function parseSupplierQuoteRows(text: string) {
     });
 
     index += Math.max(0, Math.min(best.linesUsed, CONTINUATION_MAX_LINES) - 1);
+  }
+
+  return mergeParsedRows(results, parseNumberedBlockRows(text));
+}
+
+function normalizeBrokenPriceText(text: string) {
+  return normalizeWhitespace(
+    text
+      .replace(/(\d{1,3}(?:[.,]\d{3})*,\d)\s+(\d{1,2})(?=\s)/g, '$1$2')
+      .replace(/(\d)\s+([.,]\d{2,4}\b)/g, '$1$2'),
+  );
+}
+
+function parseSeparatedPriceLine(text: string) {
+  const normalized = normalizeBrokenPriceText(text);
+  const match = normalized.match(
+    /(?:R\$?\s*)?(?<unitPrice>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4})\s+(?<qty>\d{1,4}(?:[.,]\d{1,3})?)\s+(?:R\$?\s*)?(?<total>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4})/i,
+  );
+
+  if (!match?.groups) {
+    return null;
+  }
+
+  const unitPrice = parseMoneyToken(match.groups.unitPrice);
+  const totalValue = parseMoneyToken(match.groups.total);
+  const quantity = parseQuantityValue(match.groups.qty, unitPrice, totalValue);
+
+  if (unitPrice === null || totalValue === null) {
+    return null;
+  }
+
+  return {
+    unitPrice,
+    totalValue,
+    quantity,
+  };
+}
+
+function parseExplicitCurrencyInlineRow(line: string) {
+  const normalized = normalizeBrokenPriceText(line);
+  const match = normalized.match(
+    /^\d{1,3}\s*[:.-]?\s*(?<description>.+?)\s+R\$?\s*(?<unitPrice>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4})\s+(?<qty>\d{1,4}(?:[.,]\d{1,3})?)\s+R\$?\s*(?<total>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4})\s*$/i,
+  );
+
+  if (!match?.groups) {
+    return null;
+  }
+
+  const description = cleanupNumberedBlockDescription([match.groups.description]);
+  const unitPrice = parseMoneyToken(match.groups.unitPrice);
+  const totalValue = parseMoneyToken(match.groups.total);
+  const quantity = parseQuantityValue(match.groups.qty, unitPrice, totalValue);
+
+  if (!description || unitPrice === null || totalValue === null) {
+    return null;
+  }
+
+  return {
+    description,
+    unitPrice,
+    totalValue,
+    quantity,
+  };
+}
+
+function isLikelyNumberedDescriptionStart(line: string) {
+  if (!/^\d{1,3}\b/.test(line) || !/[a-z]/i.test(line)) {
+    return false;
+  }
+
+  const normalized = normalizeSupplierQuoteMatchText(line);
+  return normalized.length >= 4 && !HEADER_SKIP_PATTERNS.some((pattern) => normalized.includes(pattern));
+}
+
+function cleanupNumberedDescriptionStart(line: string) {
+  return normalizeWhitespace(line.replace(/^\d{1,3}\s*[:.-]?\s*/, ''));
+}
+
+function cleanupNumberedBlockDescription(parts: string[]) {
+  return normalizeWhitespace(
+    parts
+      .map((part) => part.replace(/^\d{1,3}\s*[:.-]?\s*/, ''))
+      .join(' ')
+      .replace(/\s*[-–—]+\s*/g, ' ')
+      .replace(/\s+,/g, ',')
+      .replace(/\s+\./g, '.')
+      .replace(/\s+:/g, ':'),
+  );
+}
+
+function buildParsedRowMergeKey(row: Pick<SupplierQuoteParsedRow, 'description' | 'quantity' | 'unitPrice' | 'totalValue'>) {
+  return [
+    normalizeSupplierQuoteMatchText(row.description),
+    row.quantity ?? 'q:null',
+    row.unitPrice ?? 'u:null',
+    row.totalValue ?? 't:null',
+  ].join('|');
+}
+
+function mergeParsedRows(primary: SupplierQuoteParsedRow[], secondary: SupplierQuoteParsedRow[]) {
+  const merged = new Map<string, SupplierQuoteParsedRow>();
+
+  for (const row of [...primary, ...secondary]) {
+    const key = buildParsedRowMergeKey(row);
+    const existing = merged.get(key);
+
+    if (!existing) {
+      merged.set(key, {
+        ...row,
+        rowIndex: merged.size,
+      });
+      continue;
+    }
+
+    const keepCurrent =
+      row.description.length > existing.description.length ||
+      (existing.unit == null && row.unit != null) ||
+      (existing.quantity == null && row.quantity != null);
+
+    if (keepCurrent) {
+      merged.set(key, {
+        ...row,
+        rowIndex: existing.rowIndex,
+      });
+    }
+  }
+
+  const scoreRow = (row: SupplierQuoteParsedRow) =>
+    row.description.trim().length +
+    (row.unit ? 12 : 0) +
+    (row.totalValue && row.totalValue > 0 ? 20 : 0) +
+    (row.quantity && row.quantity >= 1 ? 12 : 0) +
+    (Number.isInteger(row.quantity ?? Number.NaN) ? 6 : 0);
+
+  const dedupedByRawText = new Map<string, SupplierQuoteParsedRow>();
+  for (const row of merged.values()) {
+    const rawKey = normalizeWhitespace(row.rawText);
+    const existing = dedupedByRawText.get(rawKey);
+    if (!existing || scoreRow(row) > scoreRow(existing)) {
+      dedupedByRawText.set(rawKey, row);
+    }
+  }
+
+  return [...dedupedByRawText.values()]
+    .filter((row) => row.description.trim().length > 0)
+    .sort((left, right) => left.rowIndex - right.rowIndex)
+    .map((row, index) => ({
+      ...row,
+      rowIndex: index,
+    }));
+}
+
+function parseNumberedBlockRows(text: string) {
+  const lines = text
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((line) => normalizeLine(line))
+    .filter(Boolean);
+
+  const results: SupplierQuoteParsedRow[] = [];
+  const seen = new Set<string>();
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const startLine = lines[index] ?? '';
+    if (!isLikelyNumberedDescriptionStart(startLine)) {
+      continue;
+    }
+
+    const inlineCurrencyRow = parseExplicitCurrencyInlineRow(startLine);
+    if (inlineCurrencyRow) {
+      const key = `${normalizeSupplierQuoteMatchText(inlineCurrencyRow.description)}|${inlineCurrencyRow.unitPrice}|${inlineCurrencyRow.totalValue}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        results.push({
+          rowIndex: results.length,
+          rawText: startLine,
+          description: inlineCurrencyRow.description,
+          quantity: inlineCurrencyRow.quantity,
+          unit: null,
+          unitPrice: inlineCurrencyRow.unitPrice,
+          totalValue: inlineCurrencyRow.totalValue,
+        });
+      }
+      continue;
+    }
+
+    const descriptionParts = [cleanupNumberedDescriptionStart(startLine)];
+    const rawParts = [startLine];
+    let priceParsed: { unitPrice: number; totalValue: number; quantity: number | null } | null = null;
+    let linesUsed = 1;
+
+    for (let offset = 1; offset <= 5 && index + offset < lines.length; offset += 1) {
+      const nextLine = lines[index + offset] ?? '';
+
+      if (isLikelyNumberedDescriptionStart(nextLine)) {
+        break;
+      }
+
+      const hasPriceSignal = /R\$/i.test(nextLine) || countMoneyTokens(nextLine) > 0;
+      if (!hasPriceSignal) {
+        const normalizedNext = normalizeSupplierQuoteMatchText(nextLine);
+        if (
+          normalizedNext &&
+          !HEADER_SKIP_PATTERNS.some((pattern) => normalizedNext.includes(pattern)) &&
+          !normalizedNext.startsWith('pagina ') &&
+          !normalizedNext.startsWith('pag ')
+        ) {
+          descriptionParts.push(nextLine);
+          rawParts.push(nextLine);
+        }
+        continue;
+      }
+
+      const singlePrice = parseSeparatedPriceLine(nextLine);
+      const combinedPrice =
+        !singlePrice && offset < 5 && index + offset + 1 < lines.length
+          ? parseSeparatedPriceLine(`${nextLine} ${lines[index + offset + 1] ?? ''}`)
+          : null;
+
+      if (singlePrice || combinedPrice) {
+        priceParsed = singlePrice ?? combinedPrice;
+        rawParts.push(nextLine);
+        linesUsed = offset + 1;
+        if (!singlePrice && combinedPrice && index + offset + 1 < lines.length) {
+          rawParts.push(lines[index + offset + 1] ?? '');
+          linesUsed = offset + 2;
+        }
+        break;
+      }
+
+      const normalizedNext = normalizeSupplierQuoteMatchText(nextLine);
+      if (
+        normalizedNext &&
+        !HEADER_SKIP_PATTERNS.some((pattern) => normalizedNext.includes(pattern)) &&
+        !normalizedNext.startsWith('pagina ') &&
+        !normalizedNext.startsWith('pag ')
+      ) {
+        descriptionParts.push(nextLine);
+        rawParts.push(nextLine);
+      }
+    }
+
+    const description = cleanupNumberedBlockDescription(descriptionParts);
+    if (!description || !priceParsed) {
+      continue;
+    }
+
+    const key = `${normalizeSupplierQuoteMatchText(description)}|${priceParsed.unitPrice}|${priceParsed.totalValue}`;
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    results.push({
+      rowIndex: results.length,
+      rawText: rawParts.join(' '),
+      description,
+      quantity: priceParsed.quantity,
+      unit: null,
+      unitPrice: priceParsed.unitPrice,
+      totalValue: priceParsed.totalValue,
+    });
+
+    index += Math.max(0, linesUsed - 1);
   }
 
   return results;
