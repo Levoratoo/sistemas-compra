@@ -112,6 +112,7 @@ const HEADER_SUPPLIER_SKIP_PATTERNS = [
   'fone',
   'telefone',
   'contato',
+  'dados da venda',
   'validade',
   'prazo',
   'condicao',
@@ -204,7 +205,11 @@ function parsePtBrNumber(raw: string | null | undefined): number | null {
 
   let cleaned = raw.replace(/[R$\s]/g, '');
 
-  if ((cleaned.match(/,/g) ?? []).length > 1 && !cleaned.includes('.')) {
+  if (cleaned.includes(',') && cleaned.includes('.')) {
+    const lastComma = cleaned.lastIndexOf(',');
+    const lastDot = cleaned.lastIndexOf('.');
+    cleaned = lastDot > lastComma ? cleaned.replace(/,/g, '') : cleaned.replace(/\./g, '').replace(',', '.');
+  } else if ((cleaned.match(/,/g) ?? []).length > 1 && !cleaned.includes('.')) {
     const lastComma = cleaned.lastIndexOf(',');
     cleaned = `${cleaned.slice(0, lastComma).replace(/,/g, '')}.${cleaned.slice(lastComma + 1)}`;
   } else {
@@ -384,6 +389,10 @@ function countMoneyTokens(line: string) {
 }
 
 function isLikelyNewItemStart(line: string) {
+  if (startsWithProductLabel(line)) {
+    return true;
+  }
+
   const tokens = line.split(/\s+/).filter(Boolean);
   if (tokens.length < 3) {
     return false;
@@ -821,6 +830,14 @@ function tryParseTabularPattern(line: string): ParsedCandidate | null {
 
 function parseCandidateText(text: string, linesUsed: number): ParsedCandidateWithMeta | null {
   const normalizedText = normalizeLine(text);
+  const productLabeledCandidate = parseProductLabeledInlineRow(normalizedText);
+  if (productLabeledCandidate) {
+    return {
+      candidate: productLabeledCandidate,
+      score: buildCandidateScore(productLabeledCandidate, normalizedText, linesUsed) + 80,
+    };
+  }
+
   const candidates = [
     tryParseTrailingQuantityPattern(normalizedText),
     tryParseGenericTailPattern(normalizedText),
@@ -889,6 +906,10 @@ export function parseSupplierQuoteRows(text: string) {
       continue;
     }
 
+    if (startsWithProductLabel(line)) {
+      continue;
+    }
+
     const parsedCandidates = buildLineCandidates(sourceLines, index)
       .map((candidate) => {
         const parsed = parseCandidateText(candidate.text, candidate.linesUsed);
@@ -938,7 +959,10 @@ export function parseSupplierQuoteRows(text: string) {
   }
 
   return mergeParsedRows(
-    mergeParsedRows(results, parseNumberedBlockRows(text)),
+    mergeParsedRows(
+      mergeParsedRows(results, parseProductLabeledRows(text)),
+      parseNumberedBlockRows(text),
+    ),
     parseUnnumberedBlockRows(text),
   );
 }
@@ -974,6 +998,35 @@ function parseSeparatedPriceLine(text: string) {
     totalValue,
     quantity,
   };
+}
+
+function startsWithProductLabel(line: string) {
+  return /^(?:prod(?:uto|utos)?|produ)\s*:/i.test(line);
+}
+
+function stripProductLabelPrefix(value: string) {
+  return value.replace(/^(?:prod(?:uto|utos)?|produ)\s*:\s*/i, '');
+}
+
+function cleanupQuoteDescription(parts: string[]) {
+  return normalizeWhitespace(
+    parts
+      .map((part) => stripProductLabelPrefix(stripLeadingItemNumberSegment(part)))
+      .join(' ')
+      .replace(/\s*[-â€“â€”]+\s*/g, ' ')
+      .replace(/\s+,/g, ',')
+      .replace(/\s+\./g, '.')
+      .replace(/\s+:/g, ':')
+      .replace(/^[:.-]+\s*/, ''),
+  );
+}
+
+function isMoneyOnlyLine(line: string) {
+  return !/[a-z]/i.test(line) && parseMoneyToken(line) !== null;
+}
+
+function isQuantityOnlyLine(line: string) {
+  return !/[a-z]/i.test(line) && /^[0-9]{1,4}(?:[.,][0-9]{1,3})?$/.test(line.trim());
 }
 
 function parseExplicitCurrencyInlineRow(line: string) {
@@ -1027,6 +1080,53 @@ function parseExplicitCurrencyInlineUnnumberedRow(line: string) {
     unitPrice,
     totalValue,
     quantity,
+  };
+}
+
+function parseProductLabeledInlineParts(line: string) {
+  const normalized = normalizeBrokenPriceText(line);
+  const match = normalized.match(
+    /^(?:prod(?:uto|utos)?|produ)\s*:\s*(?<description>.+?)\s+(?:R\$?\s*)?(?<unitPrice>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4})\s+(?<qty>\d{1,4}(?:[.,]\d{1,3})?)\s+(?:R\$?\s*)?(?<total>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4})\s*$/i,
+  );
+
+  if (!match?.groups) {
+    return null;
+  }
+
+  const unitPrice = parseMoneyToken(match.groups.unitPrice);
+  const totalValue = parseMoneyToken(match.groups.total);
+  const quantity = parseQuantityValue(match.groups.qty, unitPrice, totalValue);
+
+  if (unitPrice === null || totalValue === null) {
+    return null;
+  }
+
+  return {
+    descriptionPart: match.groups.description,
+    unitPrice,
+    totalValue,
+    quantity,
+  };
+}
+
+function parseProductLabeledInlineRow(line: string) {
+  const parts = parseProductLabeledInlineParts(line);
+  if (!parts) {
+    return null;
+  }
+
+  const description = cleanupQuoteDescription([parts.descriptionPart]);
+  if (!description) {
+    return null;
+  }
+
+  return {
+    rawText: line,
+    description,
+    unit: null,
+    unitPrice: parts.unitPrice,
+    totalValue: parts.totalValue,
+    quantity: parts.quantity,
   };
 }
 
@@ -1116,6 +1216,216 @@ function cleanupNumberedBlockDescription(parts: string[]) {
       .replace(/\s+:/g, ':')
       .replace(/^[:.-]+\s*/, ''),
   );
+}
+
+function isLikelyProductDescriptionContinuationLine(line: string) {
+  const normalized = normalizeSupplierQuoteMatchText(line);
+  if (!normalized || isPageMarkerNormalized(normalized) || isLikelyTabularHeaderNormalized(normalized)) {
+    return false;
+  }
+
+  if (startsWithProductLabel(line) || isLikelyNumberedDescriptionStart(line)) {
+    return false;
+  }
+
+  if (isMoneyOnlyLine(line) || isQuantityOnlyLine(line) || parseSeparatedPriceLine(line)) {
+    return false;
+  }
+
+  if (
+    /^(?:boa vista|av(?:enida)?\b|endereco\b|documento assinado\b|govbr\b|cnpj\b|total\b|obs\b)/i.test(normalized) ||
+    /^[a-z\s.-]+-\s*[a-z]{2}\s+\d{4}$/i.test(normalized)
+  ) {
+    return false;
+  }
+
+  return /[a-z]/i.test(line);
+}
+
+function parseProductLabeledRows(text: string) {
+  const lines = text
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((line) => normalizeLine(line))
+    .filter(Boolean);
+
+  const results: SupplierQuoteParsedRow[] = [];
+  const seen = new Set<string>();
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const startLine = lines[index] ?? '';
+    if (!startsWithProductLabel(startLine)) {
+      continue;
+    }
+
+    const inlineParts = parseProductLabeledInlineParts(startLine);
+    if (inlineParts) {
+      const descriptionParts = [inlineParts.descriptionPart];
+      const rawParts = [startLine];
+      let linesUsed = 1;
+
+      for (let offset = 1; offset <= 2 && index + offset < lines.length; offset += 1) {
+        const nextLine = lines[index + offset] ?? '';
+        if (!isLikelyProductDescriptionContinuationLine(nextLine)) {
+          break;
+        }
+
+        descriptionParts.push(nextLine);
+        rawParts.push(nextLine);
+        linesUsed = offset + 1;
+      }
+
+      const description = cleanupQuoteDescription(descriptionParts);
+      const key = `${normalizeSupplierQuoteMatchText(description)}|${inlineParts.unitPrice}|${inlineParts.totalValue}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        results.push({
+          rowIndex: results.length,
+          rawText: rawParts.join(' '),
+          description,
+          quantity: inlineParts.quantity,
+          unit: null,
+          unitPrice: inlineParts.unitPrice,
+          totalValue: inlineParts.totalValue,
+        });
+      }
+
+      index += Math.max(0, linesUsed - 1);
+      continue;
+    }
+
+    const descriptionParts = [startLine];
+    const rawParts = [startLine];
+    let priceParsed: { unitPrice: number; totalValue: number; quantity: number | null } | null = null;
+    let linesUsed = 1;
+
+    for (let offset = 1; offset <= 5 && index + offset < lines.length; offset += 1) {
+      const nextLine = lines[index + offset] ?? '';
+
+      if (startsWithProductLabel(nextLine) || isLikelyNumberedDescriptionStart(nextLine)) {
+        break;
+      }
+
+      const singlePrice = parseSeparatedPriceLine(nextLine);
+      const combinedPrice =
+        !singlePrice && offset < 5 && index + offset + 1 < lines.length
+          ? parseSeparatedPriceLine(`${nextLine} ${lines[index + offset + 1] ?? ''}`)
+          : null;
+
+      if (singlePrice || combinedPrice) {
+        priceParsed = singlePrice ?? combinedPrice;
+        rawParts.push(nextLine);
+        linesUsed = offset + 1;
+        if (!singlePrice && combinedPrice && index + offset + 1 < lines.length) {
+          rawParts.push(lines[index + offset + 1] ?? '');
+          linesUsed = offset + 2;
+        }
+
+        for (let tailOffset = linesUsed; tailOffset <= linesUsed + 1 && index + tailOffset < lines.length; tailOffset += 1) {
+          const tailLine = lines[index + tailOffset] ?? '';
+          if (!isLikelyProductDescriptionContinuationLine(tailLine)) {
+            break;
+          }
+
+          descriptionParts.push(tailLine);
+          rawParts.push(tailLine);
+          linesUsed = tailOffset;
+        }
+        break;
+      }
+
+      if (!isLikelyProductDescriptionContinuationLine(nextLine)) {
+        break;
+      }
+
+      descriptionParts.push(nextLine);
+      rawParts.push(nextLine);
+    }
+
+    const description = cleanupQuoteDescription(descriptionParts);
+    if (!description || !priceParsed) {
+      continue;
+    }
+
+    const key = `${normalizeSupplierQuoteMatchText(description)}|${priceParsed.unitPrice}|${priceParsed.totalValue}`;
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    results.push({
+      rowIndex: results.length,
+      rawText: rawParts.join(' '),
+      description,
+      quantity: priceParsed.quantity,
+      unit: null,
+      unitPrice: priceParsed.unitPrice,
+      totalValue: priceParsed.totalValue,
+    });
+
+    index += Math.max(0, linesUsed - 1);
+  }
+
+  return results;
+}
+
+function parseProductDescriptionOnlyRows(text: string) {
+  const lines = text
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((line) => normalizeLine(line))
+    .filter(Boolean)
+    .filter((line) => !/^---\s*pagina\b/i.test(line));
+
+  const results: SupplierQuoteParsedRow[] = [];
+  const seen = new Set<string>();
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const startLine = lines[index] ?? '';
+    if (!startsWithProductLabel(startLine) || parseProductLabeledInlineParts(startLine)) {
+      continue;
+    }
+
+    const descriptionParts = [startLine];
+    const rawParts = [startLine];
+    let linesUsed = 1;
+
+    for (let offset = 1; offset <= 2 && index + offset < lines.length; offset += 1) {
+      const nextLine = lines[index + offset] ?? '';
+      if (!isLikelyProductDescriptionContinuationLine(nextLine)) {
+        break;
+      }
+
+      descriptionParts.push(nextLine);
+      rawParts.push(nextLine);
+      linesUsed = offset + 1;
+    }
+
+    const description = cleanupQuoteDescription(descriptionParts);
+    if (!description) {
+      continue;
+    }
+
+    const key = normalizeSupplierQuoteMatchText(description);
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    results.push({
+      rowIndex: results.length,
+      rawText: rawParts.join(' '),
+      description,
+      quantity: null,
+      unit: null,
+      unitPrice: null,
+      totalValue: null,
+    });
+
+    index += Math.max(0, linesUsed - 1);
+  }
+
+  return results;
 }
 
 function buildParsedRowMergeKey(row: Pick<SupplierQuoteParsedRow, 'description' | 'quantity' | 'unitPrice' | 'totalValue'>) {
@@ -1222,7 +1532,7 @@ function parseNumberedBlockRows(text: string) {
     for (let offset = 1; offset <= 5 && index + offset < lines.length; offset += 1) {
       const nextLine = lines[index + offset] ?? '';
 
-      if (isLikelyNumberedDescriptionStart(nextLine)) {
+      if (startsWithProductLabel(nextLine) || isLikelyNumberedDescriptionStart(nextLine)) {
         break;
       }
 
@@ -1361,6 +1671,10 @@ function parseUnnumberedBlockRows(text: string) {
 
   for (let index = 0; index < lines.length; index += 1) {
     const startLine = lines[index] ?? '';
+    if (startsWithProductLabel(startLine)) {
+      continue;
+    }
+
     const inlineCurrencyRow = parseExplicitCurrencyInlineUnnumberedRow(startLine);
     if (inlineCurrencyRow) {
       const key = `${normalizeSupplierQuoteMatchText(inlineCurrencyRow.description)}|${inlineCurrencyRow.unitPrice}|${inlineCurrencyRow.totalValue}`;
@@ -1391,7 +1705,7 @@ function parseUnnumberedBlockRows(text: string) {
     for (let offset = 1; offset <= 5 && index + offset < lines.length; offset += 1) {
       const nextLine = lines[index + offset] ?? '';
 
-      if (isLikelyNumberedDescriptionStart(nextLine)) {
+      if (startsWithProductLabel(nextLine) || isLikelyNumberedDescriptionStart(nextLine)) {
         break;
       }
 
@@ -1500,6 +1814,11 @@ function sanitizeSupplierHeaderLine(line: string) {
       .replace(/\bCPF\/CNPJ:.*$/i, ''),
   );
 
+  const emailAliasMatch = sanitized.match(/([A-Z0-9._%+-]{3,})(?:@|Q)(?:GMAIL|HOTMAIL|OUTLOOK|YAHOO)\.COM/i);
+  if (emailAliasMatch?.[1]) {
+    return normalizeWhitespace(emailAliasMatch[1]).toUpperCase();
+  }
+
   const legalEntityMatch = sanitized.match(/([A-Z][A-Z0-9.&'/-]*(?:\s+[A-Z0-9.&'/-]+){1,10}\s+(?:LTDA|ME|EPP|S\/A))/i);
   if (legalEntityMatch?.[1]) {
     return normalizeWhitespace(legalEntityMatch[1]);
@@ -1529,6 +1848,10 @@ function scoreSupplierLine(line: string) {
     score += 2;
   }
 
+  if (/gmail|hotmail|outlook|yahoo|\.com/i.test(sanitized)) {
+    score -= 12;
+  }
+
   if (sanitized === sanitized.toUpperCase()) {
     score += 3;
   }
@@ -1539,6 +1862,10 @@ function scoreSupplierLine(line: string) {
 
   if (/cnpj|cpf|cep|fone|telefone|cliente|endereco|cidade|bairro/i.test(sanitized)) {
     score -= 8;
+  }
+
+  if (/instituto|desenvolvimento|ensino|assistencia|saude/i.test(sanitized)) {
+    score -= 12;
   }
 
   if (/\d{2}\/\d{2}\/\d{2,4}/.test(sanitized)) {
@@ -1633,6 +1960,37 @@ function mergeQuoteHeaderInfos(primary: SupplierQuoteHeaderInfo, secondary: Supp
     quoteNumber: scoreQuoteNumber(secondary.quoteNumber) > scoreQuoteNumber(primary.quoteNumber) ? secondary.quoteNumber : primary.quoteNumber,
     quoteDate: primary.quoteDate ?? secondary.quoteDate,
   };
+}
+
+function mergeDescriptionOnlyRows(primary: SupplierQuoteParsedRow[], secondary: SupplierQuoteParsedRow[]) {
+  const merged = [...primary];
+  const pricedDescriptions = new Set(
+    primary
+      .filter((row) => row.unitPrice !== null || row.totalValue !== null)
+      .map((row) => normalizeSupplierQuoteMatchText(row.description)),
+  );
+
+  for (const row of secondary) {
+    if (row.unitPrice !== null || row.totalValue !== null) {
+      continue;
+    }
+
+    const normalizedDescription = normalizeSupplierQuoteMatchText(row.description);
+    if (!normalizedDescription || pricedDescriptions.has(normalizedDescription)) {
+      continue;
+    }
+
+    if (merged.some((entry) => normalizeSupplierQuoteMatchText(entry.description) === normalizedDescription)) {
+      continue;
+    }
+
+    merged.push({
+      ...row,
+      rowIndex: merged.length,
+    });
+  }
+
+  return merged;
 }
 
 function inferQuantityFromPrices(unitPrice: number | null, totalValue: number | null) {
@@ -1758,6 +2116,41 @@ function parseSparseTableRows(text: string) {
   return results;
 }
 
+async function extractTargetedProductRowsViaOcr(buffer: Buffer) {
+  const text = repairUtf8MisinterpretedAsLatin1(
+    (
+      await extractPdfTextViaOcr(buffer, {
+        maxPages: 2,
+        renderScale: 400,
+        pageSegMode: 6,
+        regions: [
+          {
+            pageNumber: 2,
+            xRatio: 0.02,
+            yRatio: 0.03,
+            widthRatio: 0.96,
+            heightRatio: 0.28,
+            label: 'product-table-upper',
+          },
+        ],
+      })
+    ).trim(),
+  );
+
+  const sanitizedText = text.replace(/^---[^\n]+---\s*/gim, '').trim();
+  if (!sanitizedText) {
+    return {
+      text,
+      rows: [] as SupplierQuoteParsedRow[],
+    };
+  }
+
+  return {
+    text: sanitizedText,
+    rows: mergeDescriptionOnlyRows(parseSupplierQuoteRows(sanitizedText), parseProductDescriptionOnlyRows(sanitizedText)),
+  };
+}
+
 async function extractSparseTableRowsViaOcr(buffer: Buffer) {
   const sparseText = repairUtf8MisinterpretedAsLatin1(
     (
@@ -1793,6 +2186,16 @@ function countMeaningfulLines(text: string) {
 }
 
 function shouldAttemptOcr(directText: string, directRows: SupplierQuoteParsedRow[]) {
+  const meaningfulLineCount = countMeaningfulLines(directText);
+  const normalizedLines = directText
+    .split(/\r?\n/)
+    .map((line) => normalizeLine(line))
+    .filter(Boolean);
+  const productLabelLineCount = normalizedLines.filter((line) => startsWithProductLabel(line)).length;
+  const suspiciousMergedRowCount = directRows.filter(
+    (row) => (row.rawText.match(/\bprod(?:uto|utos)?\s*:/gi) ?? []).length > 1,
+  ).length;
+
   if (directText.trim().length < DIRECT_TEXT_MIN_LENGTH) {
     return true;
   }
@@ -1805,7 +2208,15 @@ function shouldAttemptOcr(directText: string, directRows: SupplierQuoteParsedRow
     return true;
   }
 
-  if (directRows.length < 2 && countMeaningfulLines(directText) > 12) {
+  if (directRows.length < 2 && meaningfulLineCount > 12) {
+    return true;
+  }
+
+  if (productLabelLineCount >= 4 && directRows.length + 2 < productLabelLineCount) {
+    return true;
+  }
+
+  if (suspiciousMergedRowCount > 0) {
     return true;
   }
 
@@ -1859,20 +2270,35 @@ export async function extractSupplierQuotePdfPreview(buffer: Buffer, originalFil
     const ocrText = repairUtf8MisinterpretedAsLatin1((await extractPdfTextViaOcr(buffer)).trim());
     const ocrRows = parseSupplierQuoteRows(ocrText);
     const ocrHeader = extractHeaderInfo(ocrText);
+    const targetedProductOcr = await extractTargetedProductRowsViaOcr(buffer);
+    const targetedPricedRows = targetedProductOcr.rows.filter(
+      (row) => (row.unitPrice !== null || row.totalValue !== null) && startsWithProductLabel(row.rawText),
+    );
+    const mergedOcrRows =
+      ocrRows.length > 0 || targetedProductOcr.rows.length > 0
+        ? mergeDescriptionOnlyRows(
+            mergeParsedRows(ocrRows.length > 0 ? ocrRows : directRows, targetedPricedRows),
+            targetedProductOcr.rows,
+          )
+        : ocrRows;
     lastOcrText = ocrText;
     lastOcrHeader = ocrHeader;
 
-    if (ocrRows.length > 0) {
+    if (mergedOcrRows.length > 0) {
       const ocrPreview: SupplierQuotePdfPreview = {
         extractionMode: 'OCR',
-        fullText: ocrText,
+        fullText: [ocrText, targetedProductOcr.text].filter(Boolean).join('\n\n'),
         supplierNameDetected: mergeQuoteHeaderInfos(ocrHeader, directHeader).supplierNameDetected,
         quoteNumber: mergeQuoteHeaderInfos(ocrHeader, directHeader).quoteNumber,
         quoteDate: mergeQuoteHeaderInfos(ocrHeader, directHeader).quoteDate,
-        rows: ocrRows,
+        rows: mergedOcrRows,
       };
 
-      if (!bestPreview || ocrRows.length > directRows.length || scoreExtraction(ocrRows, ocrHeader) > scoreExtraction(directRows, directHeader)) {
+      if (
+        !bestPreview ||
+        mergedOcrRows.length > directRows.length ||
+        scoreExtraction(mergedOcrRows, ocrHeader) > scoreExtraction(directRows, directHeader)
+      ) {
         bestPreview = ocrPreview;
       }
     }

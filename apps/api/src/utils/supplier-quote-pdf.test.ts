@@ -44,12 +44,54 @@ describe('supplier quote pdf parser', () => {
     assert.equal(rows[0]?.totalValue, 69);
   });
 
+  it('parseia linha inline com prefixo Produto e mantem quantidade e preco corretos', () => {
+    const rows = parseSupplierQuoteRows('Produto: CALÇA ATLAS - CREME (38) 290,00 6 1.740,00');
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.description, 'CALÇA ATLAS CREME (38)');
+    assert.equal(rows[0]?.quantity, 6);
+    assert.equal(rows[0]?.unitPrice, 290);
+    assert.equal(rows[0]?.totalValue, 1740);
+  });
+
+  it('parseia OCR com decimal misto em valor total e recupera item de produto inline', () => {
+    const rows = parseSupplierQuoteRows(`
+Produto: LANTERNA TATICA PARA USO DE BOMBEIROS 70,00 08 560.00
+Produto: UND BATERIAS PARA LANTERNAS 30,00 08 240,00
+Produtos: PROTETOR AURICULAR CA 5745 130.00 08 1,040.00
+    `);
+
+    assert.equal(rows.length, 3);
+    assert.equal(rows[0]?.description, 'LANTERNA TATICA PARA USO DE BOMBEIROS');
+    assert.equal(rows[0]?.quantity, 8);
+    assert.equal(rows[0]?.unitPrice, 70);
+    assert.equal(rows[0]?.totalValue, 560);
+    assert.equal(rows[1]?.description, 'UND BATERIAS PARA LANTERNAS');
+    assert.equal(rows[1]?.quantity, 8);
+    assert.equal(rows[1]?.unitPrice, 30);
+    assert.equal(rows[1]?.totalValue, 240);
+    assert.equal(rows[2]?.description, 'PROTETOR AURICULAR CA 5745');
+    assert.equal(rows[2]?.quantity, 8);
+    assert.equal(rows[2]?.unitPrice, 130);
+    assert.equal(rows[2]?.totalValue, 1040);
+  });
+
   it('extrai numero do orcamento e pedido do cabecalho', () => {
     const wemHeader = extractHeaderInfo('Num. Orçamento: 003048 Data: 09/02/26\nW&M COMERCIO DE PRODUTOS MEDICOS HOSPITALARES LTDA');
     assert.equal(wemHeader.quoteNumber, '003048');
 
     const jailonHeader = extractHeaderInfo('PEDIDO Nº: 94016\nV. FRANCISCO DA SILVA LTDA');
     assert.equal(jailonHeader.quoteNumber, '94016');
+  });
+
+  it('extrai alias do fornecedor a partir de e-mail OCR quando o nome vier ruidoso', () => {
+    const header = extractHeaderInfo(`
+<b FIRE JGPREVENFIRE CNPJ- o
+jgprevenfireQgmail.com
+DADOS DA VENDA
+CLIENTE: Instituto de Desenvolvimento
+    `);
+
+    assert.equal(header.supplierNameDetected, 'JGPREVENFIRE');
   });
   it('parseia layout com descricao em varias linhas e linha de preco separada como no Instituto IDEAS', () => {
     const rows = parseSupplierQuoteRows(`
