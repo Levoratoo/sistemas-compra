@@ -946,15 +946,15 @@ function SupplierQuoteImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-hidden p-0 sm:max-w-5xl">
-        <DialogHeader className="border-b border-border/70 px-6 py-5">
+      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden p-0 sm:max-w-5xl">
+        <DialogHeader className="shrink-0 border-b border-border/70 px-6 py-5">
           <DialogTitle>Importar PDF do fornecedor</DialogTitle>
           <DialogDescription>
             Envie o PDF do fornecedor para o orcamento {slot?.slotNumber ?? 'selecionado'} e revise o casamento dos itens antes de aplicar.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 overflow-y-auto px-6 py-5">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
           <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-3">
             <p className="text-sm font-medium text-foreground">
               {slot?.supplierId ? `Fornecedor: ${slotDisplayName(slot)}` : 'Selecione um fornecedor primeiro'}
@@ -1050,7 +1050,7 @@ function SupplierQuoteImportDialog({
                   );
                 })}
               </div>
-              <div className="flex justify-end gap-2">
+              <div className="sticky bottom-0 flex justify-end gap-2 border-t border-border/70 bg-card/95 px-1 pt-4 backdrop-blur">
                 <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
                   Fechar
                 </Button>
