@@ -85,4 +85,49 @@ R$70,00 8 R$ 560,00
     assert.equal(rows[2]?.totalValue, 1000);
     assert.equal(rows[3]?.description, 'LUVA PROTETORA C.A 8820');
   });
+
+  it('parseia layout sem numeracao de item com descricao em bloco e preco abaixo', () => {
+    const rows = parseSupplierQuoteRows(`
+CALÇA ATLAS -
+CREME (38)
+R$300,00 6 R$ 1,800,00
+CAMISETA
+VERMELHA
+BOMBEIRO CIVIL,
+PP OU PV- (P)
+R$82,00 2 R$ 164,00
+PRANCHA DE
+RESGATE COM
+TIRANTE
+R$1,050,00 01 R$ 1,050,00
+    `);
+
+    assert.equal(rows.length, 3);
+    assert.equal(rows[0]?.description, 'CALÇA ATLAS CREME (38)');
+    assert.equal(rows[0]?.quantity, 6);
+    assert.equal(rows[0]?.unitPrice, 300);
+    assert.equal(rows[0]?.totalValue, 1800);
+    assert.equal(rows[1]?.description, 'CAMISETA VERMELHA BOMBEIRO CIVIL, PP OU PV (P)');
+    assert.equal(rows[2]?.description, 'PRANCHA DE RESGATE COM TIRANTE');
+    assert.equal(rows[2]?.quantity, 1);
+    assert.equal(rows[2]?.unitPrice, 1050);
+    assert.equal(rows[2]?.totalValue, 1050);
+  });
+  it('ignora marcador de pagina e preserva codigo CA em layout sem numeracao', () => {
+    const rows = parseSupplierQuoteRows(`
+GANDOLETA
+VERMELHA XG
+1 of 2
+R$240,00 1 R$ 240,00
+MASCARA DE PROTECAO C.A
+30592
+R$24,00 30 R$ 720,00
+    `);
+
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.description, 'MASCARA DE PROTECAO C.A 30592');
+    assert.equal(rows[0]?.quantity, 30);
+    assert.equal(rows[0]?.unitPrice, 24);
+    assert.equal(rows[0]?.totalValue, 720);
+  });
 });

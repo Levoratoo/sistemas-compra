@@ -76,6 +76,8 @@ const HEADER_SKIP_PATTERNS = [
   'totais',
   'sub total',
   'subtotal',
+  'preco total',
+  'preco uni',
   'total geral',
   'total do orcamento',
   'total liquido',
@@ -360,6 +362,9 @@ function shouldSkipLine(line: string) {
     return true;
   }
   if (HEADER_SKIP_PATTERNS.some((pattern) => normalized.includes(pattern))) {
+    return true;
+  }
+  if (/^\d+\s+of\s+\d+$/i.test(normalized)) {
     return true;
   }
   if (normalized.startsWith('pagina ') || normalized.startsWith('pag ')) {
@@ -932,7 +937,10 @@ export function parseSupplierQuoteRows(text: string) {
     index += Math.max(0, Math.min(best.linesUsed, CONTINUATION_MAX_LINES) - 1);
   }
 
-  return mergeParsedRows(results, parseNumberedBlockRows(text));
+  return mergeParsedRows(
+    mergeParsedRows(results, parseNumberedBlockRows(text)),
+    parseUnnumberedBlockRows(text),
+  );
 }
 
 function normalizeBrokenPriceText(text: string) {
@@ -995,28 +1003,118 @@ function parseExplicitCurrencyInlineRow(line: string) {
   };
 }
 
+function parseExplicitCurrencyInlineUnnumberedRow(line: string) {
+  const normalized = normalizeBrokenPriceText(line);
+  const match = normalized.match(
+    /^(?<description>[A-ZÀ-ÿ].+?)\s+R\$?\s*(?<unitPrice>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4})\s+(?<qty>\d{1,4}(?:[.,]\d{1,3})?)\s+R\$?\s*(?<total>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4})\s*$/i,
+  );
+
+  if (!match?.groups) {
+    return null;
+  }
+
+  const description = cleanupNumberedBlockDescription([match.groups.description]);
+  const unitPrice = parseMoneyToken(match.groups.unitPrice);
+  const totalValue = parseMoneyToken(match.groups.total);
+  const quantity = parseQuantityValue(match.groups.qty, unitPrice, totalValue);
+
+  if (!description || unitPrice === null || totalValue === null) {
+    return null;
+  }
+
+  return {
+    description,
+    unitPrice,
+    totalValue,
+    quantity,
+  };
+}
+
 function isLikelyNumberedDescriptionStart(line: string) {
   if (!/^\d{1,3}\b/.test(line) || !/[a-z]/i.test(line)) {
     return false;
   }
 
   const normalized = normalizeSupplierQuoteMatchText(line);
-  return normalized.length >= 4 && !HEADER_SKIP_PATTERNS.some((pattern) => normalized.includes(pattern));
+  return (
+    normalized.length >= 4 &&
+    !isPageMarkerNormalized(normalized) &&
+    !HEADER_SKIP_PATTERNS.some((pattern) => normalized.includes(pattern))
+  );
+}
+
+function stripLeadingItemNumberSegment(value: string) {
+  return value.replace(/^\d{1,3}(?:\s*[:.-])?\s+(?=[^\d])/u, '');
+}
+
+function isPageMarkerNormalized(normalized: string) {
+  return (
+    /^\d+\s+of\s+\d+$/i.test(normalized) ||
+    /^pagina\s+\d+$/i.test(normalized) ||
+    /^pag\s+\d+$/i.test(normalized)
+  );
+}
+
+function isLikelyTabularHeaderNormalized(normalized: string) {
+  if (!normalized) {
+    return false;
+  }
+
+  if (
+    [
+      'cod produto qtde',
+      'codigo descricao',
+      'cod descricao',
+      'cod un produto',
+      'descricao un quantidade',
+      'qtde unid valor unit',
+      'quantidade unitario total',
+      'valor unit',
+      'valor total',
+      'preco c desc',
+      'pco c desc',
+      'vi total',
+      'p liquido',
+    ].some((pattern) => normalized.includes(pattern))
+  ) {
+    return true;
+  }
+
+  const headerTokenCount = normalized
+    .split(' ')
+    .filter((token) =>
+      new Set([
+        'cod',
+        'codigo',
+        'descricao',
+        'qtde',
+        'quantidade',
+        'unid',
+        'unitario',
+        'valor',
+        'total',
+        'produto',
+        'embalagem',
+      ]).has(token),
+    ).length;
+
+  return headerTokenCount >= 4;
 }
 
 function cleanupNumberedDescriptionStart(line: string) {
-  return normalizeWhitespace(line.replace(/^\d{1,3}\s*[:.-]?\s*/, ''));
+  return normalizeWhitespace(stripLeadingItemNumberSegment(line).replace(/^[:.-]+\s*/, ''));
 }
 
 function cleanupNumberedBlockDescription(parts: string[]) {
   return normalizeWhitespace(
     parts
-      .map((part) => part.replace(/^\d{1,3}\s*[:.-]?\s*/, ''))
+      .map((part) => stripLeadingItemNumberSegment(part))
       .join(' ')
       .replace(/\s*[-–—]+\s*/g, ' ')
       .replace(/\s+,/g, ',')
       .replace(/\s+\./g, '.')
-      .replace(/\s+:/g, ':'),
+      .replace(/\s+:/g, ':')
+      .replace(/^[:.-]+\s*/, ''),
   );
 }
 
@@ -1134,8 +1232,7 @@ function parseNumberedBlockRows(text: string) {
         if (
           normalizedNext &&
           !HEADER_SKIP_PATTERNS.some((pattern) => normalizedNext.includes(pattern)) &&
-          !normalizedNext.startsWith('pagina ') &&
-          !normalizedNext.startsWith('pag ')
+          !isPageMarkerNormalized(normalizedNext)
         ) {
           descriptionParts.push(nextLine);
           rawParts.push(nextLine);
@@ -1164,12 +1261,167 @@ function parseNumberedBlockRows(text: string) {
       if (
         normalizedNext &&
         !HEADER_SKIP_PATTERNS.some((pattern) => normalizedNext.includes(pattern)) &&
-        !normalizedNext.startsWith('pagina ') &&
-        !normalizedNext.startsWith('pag ')
+        !isPageMarkerNormalized(normalizedNext)
       ) {
         descriptionParts.push(nextLine);
         rawParts.push(nextLine);
       }
+    }
+
+    const description = cleanupNumberedBlockDescription(descriptionParts);
+    if (!description || !priceParsed) {
+      continue;
+    }
+
+    const key = `${normalizeSupplierQuoteMatchText(description)}|${priceParsed.unitPrice}|${priceParsed.totalValue}`;
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    results.push({
+      rowIndex: results.length,
+      rawText: rawParts.join(' '),
+      description,
+      quantity: priceParsed.quantity,
+      unit: null,
+      unitPrice: priceParsed.unitPrice,
+      totalValue: priceParsed.totalValue,
+    });
+
+    index += Math.max(0, linesUsed - 1);
+  }
+
+  return results;
+}
+
+function isLikelyStandaloneDescriptionLine(line: string) {
+  if (!/[a-z]/i.test(line) || /R\$/i.test(line) || countMoneyTokens(line) > 0) {
+    return false;
+  }
+
+  const normalized = normalizeSupplierQuoteMatchText(line);
+  if (!normalized || normalized.length < 5 || isPageMarkerNormalized(normalized) || isLikelyTabularHeaderNormalized(normalized)) {
+    return false;
+  }
+
+  return ![
+    ...HEADER_SKIP_PATTERNS,
+    'prezados',
+    'objeto',
+    'trata se',
+    'cotacao comercial',
+    'prestacao de servico',
+    'forne imento',
+    'validade de 30 dias',
+    'proposta',
+    'boa vista',
+    'roraimed',
+    'seguranca do trabalho',
+    'cnpj',
+    'item quant preco',
+    'preco uni',
+  ].some((pattern) => normalized.includes(pattern));
+}
+
+function isLikelyDescriptionContinuationLine(line: string, previousDescriptionParts: string[]) {
+  if (isLikelyStandaloneDescriptionLine(line)) {
+    return true;
+  }
+
+  const normalized = normalizeSupplierQuoteMatchText(line);
+  if (!normalized) {
+    return false;
+  }
+
+  if (/^[a-z]{1,3}$/.test(normalized) || /^[a-z]{1,3}\s+[a-z]{1,3}$/.test(normalized)) {
+    return true;
+  }
+
+  if (/^ca[: ]?\d{3,6}$/i.test(normalized) || /^c a \d{3,6}$/i.test(normalized)) {
+    return true;
+  }
+
+  if (/^\d{4,6}$/.test(normalized) && previousDescriptionParts.some((part) => /\bC\.?A\b/i.test(part))) {
+    return true;
+  }
+
+  return false;
+}
+
+function parseUnnumberedBlockRows(text: string) {
+  const lines = text
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((line) => normalizeLine(line))
+    .filter(Boolean);
+
+  const results: SupplierQuoteParsedRow[] = [];
+  const seen = new Set<string>();
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const startLine = lines[index] ?? '';
+    const inlineCurrencyRow = parseExplicitCurrencyInlineUnnumberedRow(startLine);
+    if (inlineCurrencyRow) {
+      const key = `${normalizeSupplierQuoteMatchText(inlineCurrencyRow.description)}|${inlineCurrencyRow.unitPrice}|${inlineCurrencyRow.totalValue}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        results.push({
+          rowIndex: results.length,
+          rawText: startLine,
+          description: inlineCurrencyRow.description,
+          quantity: inlineCurrencyRow.quantity,
+          unit: null,
+          unitPrice: inlineCurrencyRow.unitPrice,
+          totalValue: inlineCurrencyRow.totalValue,
+        });
+      }
+      continue;
+    }
+
+    if (!isLikelyStandaloneDescriptionLine(startLine)) {
+      continue;
+    }
+
+    const descriptionParts = [startLine];
+    const rawParts = [startLine];
+    let priceParsed: { unitPrice: number; totalValue: number; quantity: number | null } | null = null;
+    let linesUsed = 1;
+
+    for (let offset = 1; offset <= 5 && index + offset < lines.length; offset += 1) {
+      const nextLine = lines[index + offset] ?? '';
+
+      if (isLikelyNumberedDescriptionStart(nextLine)) {
+        break;
+      }
+
+      const hasPriceSignal = /R\$/i.test(nextLine) || countMoneyTokens(nextLine) > 0;
+      if (!hasPriceSignal) {
+        if (!isLikelyDescriptionContinuationLine(nextLine, descriptionParts)) {
+          break;
+        }
+
+        descriptionParts.push(nextLine);
+        rawParts.push(nextLine);
+        continue;
+      }
+
+      const singlePrice = parseSeparatedPriceLine(nextLine);
+      const combinedPrice =
+        !singlePrice && offset < 5 && index + offset + 1 < lines.length
+          ? parseSeparatedPriceLine(`${nextLine} ${lines[index + offset + 1] ?? ''}`)
+          : null;
+
+      if (singlePrice || combinedPrice) {
+        priceParsed = singlePrice ?? combinedPrice;
+        rawParts.push(nextLine);
+        linesUsed = offset + 1;
+        if (!singlePrice && combinedPrice && index + offset + 1 < lines.length) {
+          rawParts.push(lines[index + offset + 1] ?? '');
+          linesUsed = offset + 2;
+        }
+      }
+      break;
     }
 
     const description = cleanupNumberedBlockDescription(descriptionParts);
