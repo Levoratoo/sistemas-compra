@@ -34,7 +34,7 @@ import { usePurchasesMutations, usePurchasesQuery } from '@/hooks/use-purchases'
 import { useProjectQuery } from '@/hooks/use-projects';
 import { useSuppliersQuery } from '@/hooks/use-suppliers';
 import type { BudgetItemPayload } from '@/services/budget-items-service';
-import { getProjectDocumentDownloadUrl } from '@/services/documents-service';
+import { openProjectDocumentInNewTab } from '@/services/documents-service';
 
 const purchaseOrderSchema = z.object({
   supplierId: z.string().optional(),
@@ -790,15 +790,17 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
                     <p className="mt-1 font-black text-card-foreground">{formatCurrency(order.totalRealValue)}</p>
                   </div>
                   {order.generatedDocument ? (
-                    <Button asChild type="button" variant="secondary">
-                      <a
-                        href={getProjectDocumentDownloadUrl(projectId, order.generatedDocument.id)}
-                        rel="noopener noreferrer"
-                        target="_blank"
-                      >
-                        <FileText className="size-4" />
-                        Ordem de compra
-                      </a>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() =>
+                        void openProjectDocumentInNewTab(projectId, order.generatedDocument!.id).catch((err) =>
+                          toast.error(err instanceof Error ? err.message : 'Não foi possível abrir o documento.'),
+                        )
+                      }
+                    >
+                      <FileText className="size-4" />
+                      Ordem de compra
                     </Button>
                   ) : null}
                   <Button

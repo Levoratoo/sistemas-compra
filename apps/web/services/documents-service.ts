@@ -1,4 +1,4 @@
-import { apiRequest, getApiBaseUrl } from '@/services/api-client';
+import { apiGetBlob, apiRequest, getApiBaseUrl } from '@/services/api-client';
 import type {
   DocumentType,
   ExtractedFieldReviewStatus,
@@ -105,6 +105,25 @@ export function moveProjectDocumentToFolder(
 export function getProjectDocumentDownloadUrl(projectId: string, documentId: string) {
   const base = getApiBaseUrl().replace(/\/+$/, '');
   return `${base}/projects/${projectId}/documents/${documentId}/download`;
+}
+
+/**
+ * Abre o PDF/arquivo numa nova aba com o token JWT (evita `window.open` direto na URL da API).
+ * Se o bloqueador impedir nova aba, dispara download com o nome sugerido pelo servidor.
+ */
+export async function openProjectDocumentInNewTab(projectId: string, documentId: string) {
+  const { blob, filename } = await apiGetBlob(`projects/${projectId}/documents/${documentId}/download`);
+  const objectUrl = URL.createObjectURL(blob);
+  const child = window.open(objectUrl, '_blank', 'noopener,noreferrer');
+  if (!child) {
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = filename ?? 'documento';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 600_000);
 }
 
 export function createProjectDocument(projectId: string, payload: DocumentPayload) {

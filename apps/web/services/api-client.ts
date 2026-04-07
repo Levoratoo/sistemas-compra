@@ -127,6 +127,64 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}) 
   return payload as T;
 }
 
+function parseFilenameFromContentDisposition(value: string | null): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  const starMatch = /filename\*=(?:UTF-8''|UTF8'')([^;\s]+)/i.exec(trimmed);
+  if (starMatch?.[1]) {
+    try {
+      return decodeURIComponent(starMatch[1].replace(/^"+|"+$/g, ''));
+    } catch {
+      return starMatch[1];
+    }
+  }
+  const quoted = /filename="([^"]+)"/i.exec(trimmed);
+  if (quoted?.[1]) {
+    return quoted[1];
+  }
+  const unquoted = /filename=([^;\s]+)/i.exec(trimmed);
+  if (unquoted?.[1]) {
+    return unquoted[1].replace(/^"+|"+$/g, '');
+  }
+  return undefined;
+}
+
+/** GET binário com `Authorization` (ex.: download de documento). */
+export async function apiGetBlob(path: string): Promise<{ blob: Blob; filename?: string }> {
+  let response: Response;
+  try {
+    response = await fetch(buildUrl(path), {
+      method: 'GET',
+      headers: authHeaders(),
+      cache: 'no-store',
+    });
+  } catch (e) {
+    rethrowIfNetworkFailure(e);
+  }
+
+  if (!response.ok) {
+    const text = await response.text();
+    let message = 'Falha ao baixar o arquivo.';
+    if (text) {
+      try {
+        const payload = JSON.parse(text) as ApiErrorPayload;
+        if (payload?.message) {
+          message = payload.message;
+        }
+      } catch {
+        /* resposta não JSON */
+      }
+    }
+    throw new ApiError(message, response.status, undefined);
+  }
+
+  const filename = parseFilenameFromContentDisposition(response.headers.get('Content-Disposition'));
+  const blob = await response.blob();
+  return { blob, filename };
+}
+
 export async function apiUploadJson<T>(path: string, formData: FormData, method: 'POST' | 'PUT' = 'POST') {
   let response: Response;
   try {

@@ -55,7 +55,7 @@ import { useProjectDocumentFoldersQuery, useProjectDocumentsQuery } from '@/hook
 import {
   createProjectDocumentFolder,
   deleteProjectDocumentFolder,
-  getProjectDocumentDownloadUrl,
+  openProjectDocumentInNewTab,
   moveProjectDocumentToFolder,
   updateProjectDocumentFolder,
 } from '@/services/documents-service';
@@ -899,15 +899,18 @@ export function DocumentsPanel({ projectId }: { projectId: string }) {
                             <p className="font-semibold">{document.originalFileName}</p>
                             <p className="text-xs text-muted-foreground">{document.mimeType || 'Tipo não informado'}</p>
                             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                              <a
+                              <button
+                                type="button"
                                 className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline"
-                                href={getProjectDocumentDownloadUrl(projectId, document.id)}
-                                rel="noopener noreferrer"
-                                target="_blank"
+                                onClick={() =>
+                                  void openProjectDocumentInNewTab(projectId, document.id).catch((err) =>
+                                    toast.error(err instanceof Error ? err.message : 'Não foi possível baixar o arquivo.'),
+                                  )
+                                }
                               >
                                 <Download className="size-3.5" />
                                 Baixar original
-                              </a>
+                              </button>
                               {document.extractedFields.length > 0 ? (
                                 <Link
                                   className="text-xs font-medium text-primary underline-offset-4 hover:underline"

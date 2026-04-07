@@ -44,7 +44,7 @@ import { useSuppliersQuery } from '@/hooks/use-suppliers';
 import { getItemCategoryLabel, itemCategoryOptions } from '@/lib/constants';
 import { formatCurrency, formatDate, formatNumber } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { getProjectDocumentDownloadUrl } from '@/services/documents-service';
+import { openProjectDocumentInNewTab } from '@/services/documents-service';
 import type {
   BudgetItem,
   ItemCategory,
@@ -1532,7 +1532,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
       toast.success(
         `Relatorio do mapa gerado para ${result.purchaseTitle}${result.folderPathLabel ? ` em ${result.folderPathLabel}` : ''}.`,
       );
-      window.open(getProjectDocumentDownloadUrl(projectId, result.documentId), '_blank', 'noopener,noreferrer');
+      await openProjectDocumentInNewTab(projectId, result.documentId);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Nao foi possivel gerar o relatorio do mapa comparativo.');
     }
@@ -1753,6 +1753,35 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
             </div>
             {activeView === 'comparison' ? (
               <div className="space-y-4">
+                <div className="flex flex-wrap justify-end gap-2 rounded-2xl border border-border/70 bg-card/50 px-4 py-3 shadow-sm">
+                  <Button
+                    disabled={quoteMutations.generateComparisonReport.isPending || rows.length === 0}
+                    type="button"
+                    variant="secondary"
+                    onClick={() => void handleGenerateComparisonReport()}
+                  >
+                    <FileText className="size-4" aria-hidden />
+                    {quoteMutations.generateComparisonReport.isPending ? 'Gerando relatorio...' : 'Gerar relatorio do mapa'}
+                  </Button>
+                  <Button
+                    disabled={quoteMutations.applyWinner.isPending || (comparison?.resolvedRowCount ?? 0) === 0}
+                    type="button"
+                    variant="secondary"
+                    onClick={() => void handleApply()}
+                  >
+                    <Trophy className="size-4" aria-hidden />
+                    {quoteMutations.applyWinner.isPending ? 'Aplicando...' : 'Aplicar vencedor por item'}
+                  </Button>
+                  <Button
+                    disabled={quoteMutations.generatePurchaseOrders.isPending || (comparison?.resolvedRowCount ?? 0) === 0}
+                    type="button"
+                    onClick={() => setGenerateDialogOpen(true)}
+                  >
+                    <ArrowUpFromLine className="size-4" aria-hidden />
+                    Gerar pedidos por fornecedor
+                  </Button>
+                </div>
+
                 <div className="grid gap-3 md:grid-cols-4">
                   <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-4">
                     <div className="flex items-center gap-2 text-muted-foreground">
@@ -1861,38 +1890,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                     title="Mapa comparativo sem itens"
                   />
                 ) : (
-                  <>
-                    <ComparisonTable rows={rows} slots={slots} />
-
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <Button
-                        disabled={quoteMutations.generateComparisonReport.isPending || rows.length === 0}
-                        type="button"
-                        variant="secondary"
-                        onClick={() => void handleGenerateComparisonReport()}
-                      >
-                        <FileText className="size-4" aria-hidden />
-                        {quoteMutations.generateComparisonReport.isPending ? 'Gerando relatorio...' : 'Gerar relatorio do mapa'}
-                      </Button>
-                      <Button
-                        disabled={quoteMutations.applyWinner.isPending || (comparison?.resolvedRowCount ?? 0) === 0}
-                        type="button"
-                        variant="secondary"
-                        onClick={() => void handleApply()}
-                      >
-                        <Trophy className="size-4" aria-hidden />
-                        {quoteMutations.applyWinner.isPending ? 'Aplicando...' : 'Aplicar vencedor por item'}
-                      </Button>
-                      <Button
-                        disabled={quoteMutations.generatePurchaseOrders.isPending || (comparison?.resolvedRowCount ?? 0) === 0}
-                        type="button"
-                        onClick={() => setGenerateDialogOpen(true)}
-                      >
-                        <ArrowUpFromLine className="size-4" aria-hidden />
-                        Gerar pedidos por fornecedor
-                      </Button>
-                    </div>
-                  </>
+                  <ComparisonTable rows={rows} slots={slots} />
                 )}
               </div>
             ) : activeSlot ? (
@@ -1921,15 +1919,19 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                           <Building2 className="size-4" aria-hidden />
                           <span>Ultimo PDF importado em {formatDate(activeSlot.latestImportedDocument.createdAt)}</span>
-                          <a
+                          <button
+                            type="button"
                             className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
-                            href={getProjectDocumentDownloadUrl(projectId, activeSlot.latestImportedDocument.id)}
-                            rel="noreferrer"
-                            target="_blank"
+                            onClick={() =>
+                              void openProjectDocumentInNewTab(projectId, activeSlot.latestImportedDocument!.id).catch(
+                                (err) =>
+                                  toast.error(err instanceof Error ? err.message : 'Nao foi possivel abrir o arquivo.'),
+                              )
+                            }
                           >
                             Abrir arquivo
                             <ExternalLink className="size-3.5" aria-hidden />
-                          </a>
+                          </button>
                         </div>
                       ) : null}
                     </div>
