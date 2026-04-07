@@ -12,6 +12,7 @@ import type {
   CreateQuotePurchaseInput,
   GenerateQuotePurchaseOrderInput,
   UpdateQuoteItemInput,
+  UpdateQuotePurchaseInput,
   UpdateQuotePurchaseItemsInput,
   UpdateQuoteSupplierInput,
 } from '../modules/quote/quote.schemas.js';
@@ -1000,6 +1001,32 @@ class QuoteService {
     });
 
     await ensureQuoteSlotsForPurchase(projectId, purchase.id);
+    return buildProjectQuotesModuleState(projectId);
+  }
+
+  async updateQuotePurchase(projectId: string, purchaseId: string, input: UpdateQuotePurchaseInput) {
+    await ensureProjectExists(projectId);
+    await findQuotePurchaseSummary(projectId, purchaseId);
+
+    await prisma.projectQuotePurchase.update({
+      where: { id: purchaseId },
+      data: {
+        title: input.title.trim(),
+        notes: normalizeOptionalText(input.notes),
+      },
+    });
+
+    return buildProjectQuotesModuleState(projectId);
+  }
+
+  async deleteQuotePurchase(projectId: string, purchaseId: string) {
+    await ensureProjectExists(projectId);
+    await findQuotePurchaseSummary(projectId, purchaseId);
+
+    await prisma.projectQuotePurchase.delete({
+      where: { id: purchaseId },
+    });
+
     return buildProjectQuotesModuleState(projectId);
   }
 

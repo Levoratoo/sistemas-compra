@@ -7,6 +7,7 @@ import type {
   CreateQuotePurchaseInput,
   GenerateQuotePurchaseOrderInput,
   UpdateQuoteItemInput,
+  UpdateQuotePurchaseInput,
   UpdateQuotePurchaseItemsInput,
   UpdateQuoteSupplierInput,
 } from '../modules/quote/quote.schemas.js';
@@ -25,6 +26,20 @@ class QuoteController {
       request.body as CreateQuotePurchaseInput,
     );
     response.status(201).json(result);
+  }
+
+  async updatePurchase(request: Request, response: Response) {
+    const result = await quoteService.updateQuotePurchase(
+      String(request.params.id),
+      String(request.params.purchaseId),
+      request.body as UpdateQuotePurchaseInput,
+    );
+    response.json(result);
+  }
+
+  async deletePurchase(request: Request, response: Response) {
+    const result = await quoteService.deleteQuotePurchase(String(request.params.id), String(request.params.purchaseId));
+    response.json(result);
   }
 
   async addPurchaseItems(request: Request, response: Response) {

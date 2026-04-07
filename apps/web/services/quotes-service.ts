@@ -13,6 +13,11 @@ export type CreateQuotePurchasePayload = {
   notes?: string | null;
 };
 
+export type UpdateQuotePurchasePayload = {
+  title: string;
+  notes?: string | null;
+};
+
 export type AddQuotePurchaseItemsPayload = {
   budgetItemIds: string[];
 };
@@ -47,6 +52,19 @@ export function createProjectQuotePurchase(projectId: string, payload: CreateQuo
   return apiRequest<ProjectQuotesState>(`projects/${projectId}/quotes/purchases`, {
     method: 'POST',
     body: payload,
+  });
+}
+
+export function updateProjectQuotePurchase(projectId: string, purchaseId: string, payload: UpdateQuotePurchasePayload) {
+  return apiRequest<ProjectQuotesState>(`projects/${projectId}/quotes/purchases/${purchaseId}`, {
+    method: 'PUT',
+    body: payload,
+  });
+}
+
+export function deleteProjectQuotePurchase(projectId: string, purchaseId: string) {
+  return apiRequest<ProjectQuotesState>(`projects/${projectId}/quotes/purchases/${purchaseId}`, {
+    method: 'DELETE',
   });
 }
 

@@ -16,6 +16,7 @@ import {
   quotePurchaseSlotItemParamsSchema,
   quotePurchaseSlotParamsSchema,
   updateQuoteItemSchema,
+  updateQuotePurchaseSchema,
   updateQuotePurchaseItemsSchema,
   updateQuoteSupplierSchema,
 } from './quote.schemas.js';
@@ -40,6 +41,18 @@ quoteRouter.post(
   '/projects/:id/quotes/purchases',
   validateRequest({ params: quoteProjectParamsSchema, body: createQuotePurchaseSchema }),
   asyncHandler((request, response) => quoteController.createPurchase(request, response)),
+);
+
+quoteRouter.put(
+  '/projects/:id/quotes/purchases/:purchaseId',
+  validateRequest({ params: quotePurchaseParamsSchema, body: updateQuotePurchaseSchema }),
+  asyncHandler((request, response) => quoteController.updatePurchase(request, response)),
+);
+
+quoteRouter.delete(
+  '/projects/:id/quotes/purchases/:purchaseId',
+  validateRequest({ params: quotePurchaseParamsSchema }),
+  asyncHandler((request, response) => quoteController.deletePurchase(request, response)),
 );
 
 quoteRouter.post(

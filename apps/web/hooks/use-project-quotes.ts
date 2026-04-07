@@ -7,9 +7,11 @@ import {
   applyProjectQuotePdfImport,
   applyProjectQuoteWinner,
   createProjectQuotePurchase,
+  deleteProjectQuotePurchase,
   generateProjectQuotePurchaseOrders,
   listProjectQuotes,
   removeProjectQuotePurchaseItem,
+  updateProjectQuotePurchase,
   updateProjectQuoteItem,
   updateProjectQuoteSupplier,
   uploadProjectQuotePdfImport,
@@ -17,6 +19,7 @@ import {
   type CreateQuotePurchasePayload,
   type GenerateQuotePurchaseOrderPayload,
   type QuoteApplyMode,
+  type UpdateQuotePurchasePayload,
   type UpdateQuoteItemPayload,
   type UpdateQuoteSupplierPayload,
 } from '@/services/quotes-service';
@@ -54,6 +57,21 @@ export function useProjectQuotesMutations(projectId: string) {
     createPurchase: useMutation({
       mutationFn: (payload: CreateQuotePurchasePayload) => createProjectQuotePurchase(projectId, payload),
       onSuccess: setQuotesState,
+    }),
+    updatePurchase: useMutation({
+      mutationFn: ({ purchaseId, payload }: { purchaseId: string; payload: UpdateQuotePurchasePayload }) =>
+        updateProjectQuotePurchase(projectId, purchaseId, payload),
+      onSuccess: setQuotesState,
+    }),
+    deletePurchase: useMutation({
+      mutationFn: (purchaseId: string) => deleteProjectQuotePurchase(projectId, purchaseId),
+      onSuccess: async (state) => {
+        setQuotesState(state);
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['purchases', projectId] }),
+          queryClient.invalidateQueries({ queryKey: ['dashboard', 'project', projectId] }),
+        ]);
+      },
     }),
     addPurchaseItems: useMutation({
       mutationFn: ({ purchaseId, payload }: { purchaseId: string; payload: AddQuotePurchaseItemsPayload }) =>

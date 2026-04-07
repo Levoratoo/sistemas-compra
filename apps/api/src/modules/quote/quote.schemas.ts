@@ -44,6 +44,11 @@ export const createQuotePurchaseSchema = z.object({
   notes: optionalTrimmedString().nullable().optional(),
 });
 
+export const updateQuotePurchaseSchema = z.object({
+  title: z.string().trim().min(1),
+  notes: optionalTrimmedString().nullable().optional(),
+});
+
 export const updateQuotePurchaseItemsSchema = z.object({
   budgetItemIds: z.array(z.string().min(1)).min(1),
 });
@@ -94,6 +99,7 @@ export const applyQuoteImportSchema = z.object({
 });
 
 export type CreateQuotePurchaseInput = z.infer<typeof createQuotePurchaseSchema>;
+export type UpdateQuotePurchaseInput = z.infer<typeof updateQuotePurchaseSchema>;
 export type UpdateQuotePurchaseItemsInput = z.infer<typeof updateQuotePurchaseItemsSchema>;
 export type UpdateQuoteSupplierInput = z.infer<typeof updateQuoteSupplierSchema>;
 export type UpdateQuoteItemInput = z.infer<typeof updateQuoteItemSchema>;

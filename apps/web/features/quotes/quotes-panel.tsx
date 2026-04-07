@@ -12,7 +12,9 @@ import {
   FileText,
   LayoutGrid,
   Search,
+  SquarePen,
   Store,
+  Trash2,
   Trophy,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -525,26 +527,33 @@ function NewQuoteItemDialog({
   );
 }
 
-function NewQuotePurchaseDialog({
+function QuotePurchaseDialog({
   open,
   onOpenChange,
+  purchase,
   pending,
   onSubmit,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  purchase?: Pick<ProjectQuoteState, 'id' | 'title' | 'notes'> | null;
   pending: boolean;
   onSubmit: (payload: { title: string; notes?: string | null }) => Promise<void>;
 }) {
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
+  const isEditing = Boolean(purchase);
 
   useEffect(() => {
     if (!open) {
       setTitle('');
       setNotes('');
+      return;
     }
-  }, [open]);
+
+    setTitle(purchase?.title ?? '');
+    setNotes(purchase?.notes ?? '');
+  }, [open, purchase]);
 
   async function handleSubmit() {
     if (!title.trim()) {
@@ -562,9 +571,11 @@ function NewQuotePurchaseDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Nova compra para orcamento</DialogTitle>
+          <DialogTitle>{isEditing ? 'Editar compra do orcamento' : 'Nova compra para orcamento'}</DialogTitle>
           <DialogDescription>
-            Cada compra tera seus proprios itens, 3 fornecedores e mapa comparativo.
+            {isEditing
+              ? 'Atualize o nome e as observacoes desta compra sem perder os itens e orcamentos ja vinculados.'
+              : 'Cada compra tera seus proprios itens, 3 fornecedores e mapa comparativo.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -594,7 +605,7 @@ function NewQuotePurchaseDialog({
             Cancelar
           </Button>
           <Button disabled={pending} type="button" onClick={() => void handleSubmit()}>
-            {pending ? 'Salvando...' : 'Criar compra'}
+            {pending ? 'Salvando...' : isEditing ? 'Salvar alteracoes' : 'Criar compra'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1151,7 +1162,8 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
   const [activePurchaseId, setActivePurchaseId] = useState<string | null>(null);
   const [supplierPickerSlot, setSupplierPickerSlot] = useState<ProjectQuoteSlot | null>(null);
   const [newItemDialogOpen, setNewItemDialogOpen] = useState(false);
-  const [newPurchaseDialogOpen, setNewPurchaseDialogOpen] = useState(false);
+  const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
+  const [editingPurchase, setEditingPurchase] = useState<ProjectQuoteState | null>(null);
   const [manageItemsDialogOpen, setManageItemsDialogOpen] = useState(false);
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -1198,19 +1210,79 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
           (row.quantity ?? 0) > 0,
       ).length
     : 0;
+  const purchaseDialogPending = quoteMutations.createPurchase.isPending || quoteMutations.updatePurchase.isPending;
+  const purchaseDeletePending = quoteMutations.deletePurchase.isPending;
 
   useEffect(() => {
     setImportPreview(null);
   }, [activePurchase?.id, activeSlotNumber]);
 
+  function handlePurchaseDialogChange(open: boolean) {
+    setPurchaseDialogOpen(open);
+    if (!open) {
+      setEditingPurchase(null);
+    }
+  }
+
+  function openCreatePurchaseDialog() {
+    setEditingPurchase(null);
+    setPurchaseDialogOpen(true);
+  }
+
+  function openEditPurchaseDialog(purchase: ProjectQuoteState) {
+    setEditingPurchase(purchase);
+    setPurchaseDialogOpen(true);
+  }
+
   async function handleCreatePurchase(payload: { title: string; notes?: string | null }) {
     try {
       const result = await quoteMutations.createPurchase.mutateAsync(payload);
       setActivePurchaseId(result.purchases[0]?.id ?? null);
-      setNewPurchaseDialogOpen(false);
+      handlePurchaseDialogChange(false);
       toast.success('Compra criada com sucesso.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Nao foi possivel criar a compra.');
+    }
+  }
+
+  async function handleUpdatePurchase(payload: { title: string; notes?: string | null }) {
+    if (!editingPurchase) {
+      return;
+    }
+
+    try {
+      await quoteMutations.updatePurchase.mutateAsync({
+        purchaseId: editingPurchase.id,
+        payload,
+      });
+      setActivePurchaseId(editingPurchase.id);
+      handlePurchaseDialogChange(false);
+      toast.success('Compra atualizada com sucesso.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel atualizar a compra.');
+    }
+  }
+
+  async function handleDeletePurchase(purchase: ProjectQuoteState) {
+    const confirmed = window.confirm(
+      `Deseja excluir a compra "${purchase.title}"? Os itens do projeto serao mantidos, mas os 3 orcamentos, o mapa comparativo e os vinculos desta compra serao removidos.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const result = await quoteMutations.deletePurchase.mutateAsync(purchase.id);
+      if (activePurchaseId === purchase.id) {
+        setActivePurchaseId(result.purchases[0]?.id ?? null);
+      }
+      if (editingPurchase?.id === purchase.id) {
+        handlePurchaseDialogChange(false);
+      }
+      toast.success('Compra excluida com sucesso.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel excluir a compra.');
     }
   }
 
@@ -1479,7 +1551,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="secondary" onClick={() => setNewPurchaseDialogOpen(true)}>
+              <Button type="button" variant="secondary" onClick={openCreatePurchaseDialog}>
                 <LayoutGrid className="size-4" aria-hidden />
                 Nova compra
               </Button>
@@ -1525,7 +1597,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                 ?.totalValue ?? purchase.comparison.overallWinner.totalValue;
 
             return (
-              <button
+              <div
                 key={purchase.id}
                 className={cn(
                   'rounded-3xl border p-4 text-left transition',
@@ -1533,8 +1605,6 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                     ? 'border-primary bg-primary/8 shadow-lg shadow-primary/10'
                     : 'border-border/70 bg-card hover:border-primary/35 hover:bg-muted/20',
                 )}
-                type="button"
-                onClick={() => setActivePurchaseId(purchase.id)}
               >
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-3">
@@ -1542,23 +1612,47 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                       <p className="font-semibold text-foreground">{purchase.title}</p>
                       <p className="text-sm text-muted-foreground">{purchase.rows.length} item(ns) vinculados</p>
                     </div>
-                    {selected ? <Badge variant="success">Ativa</Badge> : <Badge variant="neutral">Compra</Badge>}
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div className="rounded-2xl bg-muted/25 px-3 py-2">
-                      <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Resolvidos</p>
-                      <p className="mt-1 font-semibold text-foreground">{purchase.comparison.resolvedRowCount}</p>
+                    <div className="flex items-center gap-2">
+                      {selected ? <Badge variant="success">Ativa</Badge> : <Badge variant="neutral">Compra</Badge>}
+                      <Button
+                        aria-label={`Editar compra ${purchase.title}`}
+                        disabled={purchaseDialogPending || purchaseDeletePending}
+                        size="icon"
+                        type="button"
+                        variant="ghost"
+                        onClick={() => openEditPurchaseDialog(purchase)}
+                      >
+                        <SquarePen className="size-4" aria-hidden />
+                      </Button>
+                      <Button
+                        aria-label={`Excluir compra ${purchase.title}`}
+                        disabled={purchaseDeletePending || purchaseDialogPending}
+                        size="icon"
+                        type="button"
+                        variant="ghost"
+                        onClick={() => void handleDeletePurchase(purchase)}
+                      >
+                        <Trash2 className="size-4" aria-hidden />
+                      </Button>
                     </div>
-                    <div className="rounded-2xl bg-muted/25 px-3 py-2">
-                      <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Pendentes</p>
-                      <p className="mt-1 font-semibold text-foreground">{purchase.comparison.unresolvedRowCount}</p>
-                    </div>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {purchaseTotal != null ? `Melhor total atual: ${formatCurrency(purchaseTotal)}` : 'Mapa ainda sem total vencedor'}
-                  </p>
+                  <button className="block w-full space-y-3 text-left" type="button" onClick={() => setActivePurchaseId(purchase.id)}>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-2xl bg-muted/25 px-3 py-2">
+                        <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Resolvidos</p>
+                        <p className="mt-1 font-semibold text-foreground">{purchase.comparison.resolvedRowCount}</p>
+                      </div>
+                      <div className="rounded-2xl bg-muted/25 px-3 py-2">
+                        <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Pendentes</p>
+                        <p className="mt-1 font-semibold text-foreground">{purchase.comparison.unresolvedRowCount}</p>
+                      </div>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {purchaseTotal != null ? `Melhor total atual: ${formatCurrency(purchaseTotal)}` : 'Mapa ainda sem total vencedor'}
+                    </p>
+                  </button>
                 </div>
-              </button>
+              </div>
             );
           })}
         </div>
@@ -1567,7 +1661,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
           actionLabel="Criar primeira compra"
           description="Divida o projeto em compras independentes. Cada compra tera seus itens, seus 3 fornecedores e o proprio mapa comparativo."
           icon={LayoutGrid}
-          onAction={() => setNewPurchaseDialogOpen(true)}
+          onAction={openCreatePurchaseDialog}
           title="Nenhuma compra cadastrada"
         />
       )}
@@ -1587,6 +1681,24 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                 </CardDescription>
               </div>
               <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={purchaseDialogPending || purchaseDeletePending}
+                  onClick={() => openEditPurchaseDialog(activePurchase)}
+                >
+                  <SquarePen className="size-4" aria-hidden />
+                  Editar compra
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={purchaseDeletePending || purchaseDialogPending}
+                  onClick={() => void handleDeletePurchase(activePurchase)}
+                >
+                  <Trash2 className="size-4" aria-hidden />
+                  Excluir compra
+                </Button>
                 <Button type="button" variant="secondary" onClick={() => setManageItemsDialogOpen(true)}>
                   <FileText className="size-4" aria-hidden />
                   Itens da compra
@@ -1835,11 +1947,12 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
         onSelectSupplier={(supplierId) => handleSelectSupplier(supplierPickerSlot!, supplierId)}
       />
 
-      <NewQuotePurchaseDialog
-        open={newPurchaseDialogOpen}
-        pending={quoteMutations.createPurchase.isPending}
-        onOpenChange={setNewPurchaseDialogOpen}
-        onSubmit={handleCreatePurchase}
+      <QuotePurchaseDialog
+        open={purchaseDialogOpen}
+        purchase={editingPurchase}
+        pending={purchaseDialogPending}
+        onOpenChange={handlePurchaseDialogChange}
+        onSubmit={editingPurchase ? handleUpdatePurchase : handleCreatePurchase}
       />
 
       <ManageQuotePurchaseItemsDialog
