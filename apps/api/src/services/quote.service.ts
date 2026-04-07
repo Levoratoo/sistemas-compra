@@ -19,6 +19,7 @@ import type {
 import { AppError } from '../utils/app-error.js';
 import { parseOptionalDate, toIsoString } from '../utils/date.js';
 import { decimalToNumber, toDecimal } from '../utils/decimal.js';
+import { buildQuoteComparisonReportPdf, buildQuoteComparisonReportSearchText } from '../utils/quote-comparison-report-pdf.js';
 import { serializeProjectDocument, serializeSupplier } from '../utils/serializers.js';
 import { buildPurchaseOrderPdf, buildPurchaseOrderSearchText } from '../utils/purchase-order-pdf.js';
 import {
@@ -140,6 +141,31 @@ type QuotePurchaseOrderGroup = {
   supplierName: string;
   items: QuotePurchaseOrderRow[];
   totalValue: number;
+};
+
+type QuoteComparisonAnalysisSlot = {
+  slotNumber: number;
+  supplierId: string | null;
+  supplierName: string | null;
+  totalValue: number | null;
+  itemCount: number;
+  filledItemCount: number;
+  isComplete: boolean;
+  uniqueWinCount: number;
+  tieCount: number;
+};
+
+type QuoteComparisonAnalysis = {
+  headline: string;
+  summaryLines: string[];
+  bestSlotNumbers: number[];
+  bestSupplierNames: string[];
+  bestTotalValue: number | null;
+  secondBestTotalValue: number | null;
+  savingsValue: number | null;
+  savingsPercent: number | null;
+  completeSlotCount: number;
+  itemWinnerCounts: QuoteComparisonAnalysisSlot[];
 };
 
 type QuoteImportConfidence = 'HIGH' | 'REVIEW' | 'UNMATCHED';
@@ -652,6 +678,8 @@ function buildQuotePurchaseState(projectId: string, purchase: QuotePurchaseRecor
           };
   }
 
+  const comparisonAnalysis = buildQuoteComparisonAnalysis(slots, rows, overallWinner);
+
   return {
     id: purchase.id,
     projectId,
@@ -675,6 +703,7 @@ function buildQuotePurchaseState(projectId: string, purchase: QuotePurchaseRecor
       resolvedRowCount: rows.filter((row) => row.winner.status === 'UNIQUE').length,
       tieRowCount: rows.filter((row) => row.winner.status === 'TIE').length,
       unresolvedRowCount: rows.filter((row) => row.winner.status === 'NONE').length,
+      analysis: comparisonAnalysis,
     },
   };
 }
@@ -683,6 +712,118 @@ function buildProjectQuotesState(projectId: string, purchases: QuotePurchaseReco
   return {
     projectId,
     purchases: purchases.map((purchase) => buildQuotePurchaseState(projectId, purchase)),
+  };
+}
+
+function formatPercent(value: number) {
+  return new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+function buildQuoteComparisonAnalysis(
+  slots: ReturnType<typeof buildQuotePurchaseState>['slots'],
+  rows: ReturnType<typeof buildQuotePurchaseState>['rows'],
+  overallWinner: {
+    status: QuoteWinnerStatus;
+    slotNumbers: number[];
+    totalValue: number | null;
+  },
+): QuoteComparisonAnalysis {
+  const itemWinnerCounts: QuoteComparisonAnalysisSlot[] = slots.map((slot) => ({
+    slotNumber: slot.slotNumber,
+    supplierId: slot.supplierId,
+    supplierName: slot.supplier?.tradeName || slot.supplier?.legalName || null,
+    totalValue: slot.totalValue,
+    itemCount: slot.itemCount,
+    filledItemCount: slot.filledItemCount,
+    isComplete: slot.isComplete,
+    uniqueWinCount: rows.filter((row) => row.winner.status === 'UNIQUE' && row.winner.slotNumbers[0] === slot.slotNumber).length,
+    tieCount: rows.filter((row) => row.winner.status === 'TIE' && row.winner.slotNumbers.includes(slot.slotNumber)).length,
+  }));
+
+  const completeSlots = itemWinnerCounts
+    .filter((slot) => slot.isComplete && slot.totalValue !== null)
+    .sort((left, right) => (left.totalValue ?? Number.POSITIVE_INFINITY) - (right.totalValue ?? Number.POSITIVE_INFINITY));
+
+  const bestTotalValue = overallWinner.totalValue ?? completeSlots[0]?.totalValue ?? null;
+  const secondBest =
+    bestTotalValue === null
+      ? null
+      : completeSlots.find((slot) => slot.totalValue !== null && !sameMoney(slot.totalValue, bestTotalValue)) ?? null;
+  const savingsValue =
+    bestTotalValue !== null && secondBest !== null && secondBest.totalValue !== null
+      ? Number((secondBest.totalValue - bestTotalValue).toFixed(2))
+      : null;
+  const savingsPercent =
+    savingsValue !== null && secondBest !== null && secondBest.totalValue !== null
+      ? Number(((savingsValue / secondBest.totalValue) * 100).toFixed(1))
+      : null;
+  const bestSlots =
+    overallWinner.status === 'NONE'
+      ? []
+      : itemWinnerCounts.filter((slot) => overallWinner.slotNumbers.includes(slot.slotNumber));
+
+  const bestSupplierNames = bestSlots.map((slot) => slot.supplierName || `Orcamento ${slot.slotNumber}`);
+  const summaryLines: string[] = [];
+  let headline = 'Ainda nao existe um melhor orcamento geral definido.';
+
+  if (overallWinner.status === 'UNIQUE' && bestSlots[0] && bestTotalValue !== null) {
+    headline = `${bestSupplierNames[0]} (orcamento ${bestSlots[0].slotNumber}) apresenta o menor total geral: ${bestTotalValue.toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    })}.`;
+
+    if (savingsValue !== null && savingsPercent !== null) {
+      const secondBestLabel = secondBest?.supplierName || (secondBest ? `Orcamento ${secondBest.slotNumber}` : 'o segundo colocado');
+      summaryLines.push(
+        `A economia frente ao segundo melhor orcamento (${secondBestLabel}) e de ${savingsValue.toLocaleString('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
+        })} (${formatPercent(savingsPercent)}%).`,
+      );
+    }
+  } else if (overallWinner.status === 'TIE' && bestTotalValue !== null) {
+    headline = `Existe empate no melhor total geral entre ${bestSlots
+      .map((slot) => `${slot.supplierName || `Orcamento ${slot.slotNumber}`} (orcamento ${slot.slotNumber})`)
+      .join(' e ')}: ${bestTotalValue.toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    })}.`;
+  } else if (completeSlots.length === 0) {
+    headline = 'Nenhum dos 3 orcamentos esta completo o suficiente para definir o melhor total geral.';
+  }
+
+  summaryLines.push(
+    `${rows.filter((row) => row.winner.status === 'UNIQUE').length} item(ns) ja possuem vencedor unico, ${rows.filter((row) => row.winner.status === 'TIE').length} estao empatados e ${rows.filter((row) => row.winner.status === 'NONE').length} seguem pendentes.`,
+  );
+
+  const slotLead = [...itemWinnerCounts].sort(
+    (left, right) => right.uniqueWinCount - left.uniqueWinCount || left.slotNumber - right.slotNumber,
+  )[0];
+
+  if (slotLead && slotLead.uniqueWinCount > 0) {
+    summaryLines.push(
+      `${slotLead.supplierName || `Orcamento ${slotLead.slotNumber}`} lidera nas vitorias por item com ${slotLead.uniqueWinCount} item(ns) de menor valor.`,
+    );
+  }
+
+  if (rows.some((row) => row.winner.status === 'NONE')) {
+    summaryLines.push('Ainda existem itens sem comparacao fechada. O melhor total geral pode mudar quando os valores pendentes forem preenchidos.');
+  }
+
+  return {
+    headline,
+    summaryLines,
+    bestSlotNumbers: overallWinner.slotNumbers,
+    bestSupplierNames,
+    bestTotalValue,
+    secondBestTotalValue: secondBest?.totalValue ?? null,
+    savingsValue,
+    savingsPercent,
+    completeSlotCount: completeSlots.length,
+    itemWinnerCounts,
   };
 }
 
@@ -958,6 +1099,16 @@ async function ensureSupplierQuoteFolders(projectId: string, purchaseTitle: stri
     rootFolder,
     purchaseFolder,
     supplierFolder,
+  };
+}
+
+async function ensureQuoteComparisonReportFolders(projectId: string, purchaseTitle: string) {
+  const rootFolder = await ensureDocumentFolder(projectId, null, 'Relatorios de orcamento');
+  const purchaseFolder = await ensureDocumentFolder(projectId, rootFolder.id, purchaseTitle);
+
+  return {
+    rootFolder,
+    purchaseFolder,
   };
 }
 
@@ -1514,6 +1665,87 @@ class QuoteService {
       mode: input.mode,
       updatedItems: rowsToApply.length,
       skippedItems: Math.max(0, purchaseState.rows.length - rowsToApply.length),
+    };
+  }
+
+  async generateComparisonReport(projectId: string, purchaseId: string) {
+    const [project, state] = await Promise.all([
+      findQuoteProjectContext(projectId),
+      buildProjectQuotesModuleState(projectId),
+    ]);
+
+    const purchaseState = state.purchases.find((purchase) => purchase.id === purchaseId) ?? null;
+    if (!purchaseState) {
+      throw new AppError('Quote purchase not found', 404);
+    }
+
+    if (purchaseState.rows.length === 0) {
+      throw new AppError('Esta compra ainda nao possui itens para gerar o relatorio do mapa.', 409);
+    }
+
+    const saoPauloNow = getSaoPauloNowParts();
+    const issuedAt = toSaoPauloNoonDate(saoPauloNow.isoDate);
+    const { purchaseFolder } = await ensureQuoteComparisonReportFolders(projectId, purchaseState.title);
+    const projectSegment = sanitizeDocumentSegment((project.code?.trim() || project.name?.trim() || 'PROJETO').toUpperCase());
+    const purchaseSegment = sanitizeDocumentSegment(purchaseState.title.toUpperCase());
+    const fileName = `${projectSegment}_${purchaseSegment}_relatorio_mapa_${saoPauloNow.isoDate}.pdf`;
+
+    const pdfInput = {
+      issuerName: project.organizationName,
+      issuerCity: project.city,
+      issuerState: project.state,
+      projectCode: project.code,
+      projectName: project.name,
+      purchaseTitle: purchaseState.title,
+      purchaseNotes: purchaseState.notes,
+      issuedAtLabel: saoPauloNow.label,
+      analysis: purchaseState.comparison.analysis,
+      slotTotals: purchaseState.comparison.slotTotals,
+      rows: purchaseState.rows.map((row) => ({
+        description: row.description,
+        quantity: row.quantity,
+        slotTotals: QUOTE_SLOT_NUMBERS.map((slotNumber) => ({
+          slotNumber,
+          totalValue: row.values.find((entry) => entry.slotNumber === slotNumber)?.totalValue ?? null,
+        })),
+        winnerLabel:
+          row.winner.status === 'UNIQUE'
+            ? `Orcamento ${row.winner.slotNumbers[0]}`
+            : row.winner.status === 'TIE'
+              ? `Empate ${row.winner.slotNumbers.map((slotNumber) => `O${slotNumber}`).join('/')}`
+              : 'Pendente',
+      })),
+    } satisfies Parameters<typeof buildQuoteComparisonReportPdf>[0];
+
+    const pdfBytes = await buildQuoteComparisonReportPdf(pdfInput);
+    const searchText = buildQuoteComparisonReportSearchText(pdfInput);
+    const document = await documentService.createProjectDocument(projectId, {
+      folderId: purchaseFolder.id,
+      documentType: 'OTHER_ATTACHMENT',
+      originalFileName: fileName,
+      mimeType: 'application/pdf',
+      documentDate: issuedAt.toISOString(),
+      contentText: searchText,
+      searchText,
+      notes: `Relatorio gerado do mapa comparativo da compra ${purchaseState.title}.`,
+      processingStatus: 'PROCESSED',
+      reviewStatus: 'REVIEWED',
+      previewJson: {
+        kind: 'QUOTE_COMPARISON_REPORT',
+        purchaseId,
+        purchaseTitle: purchaseState.title,
+        analysis: purchaseState.comparison.analysis,
+      },
+      originalFileBuffer: Buffer.from(pdfBytes),
+    });
+
+    return {
+      purchaseId,
+      purchaseTitle: purchaseState.title,
+      documentId: document.id,
+      documentFileName: document.originalFileName,
+      folderPathLabel: document.folderPathLabel ?? null,
+      analysis: purchaseState.comparison.analysis,
     };
   }
 

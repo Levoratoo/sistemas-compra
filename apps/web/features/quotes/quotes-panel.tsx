@@ -94,6 +94,15 @@ function currencyOrDash(value: number | null | undefined) {
   return value == null ? '-' : formatCurrency(value);
 }
 
+function percentOrDash(value: number | null | undefined) {
+  return value == null
+    ? '-'
+    : `${new Intl.NumberFormat('pt-BR', {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      }).format(value)}%`;
+}
+
 function slotDisplayName(slot: ProjectQuoteSlot) {
   return slot.supplier?.tradeName || slot.supplier?.legalName || `Orcamento ${slot.slotNumber}`;
 }
@@ -1194,6 +1203,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
   const slots = activePurchase?.slots ?? [];
   const rows = activePurchase?.rows ?? [];
   const comparison = activePurchase?.comparison ?? null;
+  const comparisonAnalysis = comparison?.analysis ?? null;
   const availableBudgetItems = useMemo(
     () => (project?.budgetItems ?? []).filter((item) => !item.contextOnly),
     [project?.budgetItems],
@@ -1510,6 +1520,24 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
     }
   }
 
+  async function handleGenerateComparisonReport() {
+    if (!activePurchase) {
+      return;
+    }
+
+    try {
+      const result = await quoteMutations.generateComparisonReport.mutateAsync({
+        purchaseId: activePurchase.id,
+      });
+      toast.success(
+        `Relatorio do mapa gerado para ${result.purchaseTitle}${result.folderPathLabel ? ` em ${result.folderPathLabel}` : ''}.`,
+      );
+      window.open(getProjectDocumentDownloadUrl(projectId, result.documentId), '_blank', 'noopener,noreferrer');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel gerar o relatorio do mapa comparativo.');
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -1758,20 +1786,68 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                   </div>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-3">
-                  {comparison?.slotTotals.map((slotTotal) => (
-                    <div key={slotTotal.slotNumber} className="rounded-2xl border border-border/70 bg-card px-4 py-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="font-semibold text-foreground">Orcamento {slotTotal.slotNumber}</p>
-                        <SlotStatusBadge slot={slots.find((slot) => slot.slotNumber === slotTotal.slotNumber) ?? slots[0]!} />
+                {comparisonAnalysis ? (
+                  <div className="rounded-3xl border border-primary/20 bg-primary/5 p-5">
+                    <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="success">Analise automatica</Badge>
+                          <Badge variant="neutral">{comparisonAnalysis.completeSlotCount} orcamento(s) completos</Badge>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-lg font-semibold text-foreground">{comparisonAnalysis.headline}</p>
+                          <div className="space-y-1.5">
+                            {comparisonAnalysis.summaryLines.map((line, index) => (
+                              <p key={`${index}-${line}`} className="text-sm leading-relaxed text-muted-foreground">
+                                {line}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-                      <p className="mt-2 text-sm text-muted-foreground">{slotTotal.supplierName || 'Fornecedor nao definido'}</p>
-                      <p className="mt-4 text-xl font-semibold text-foreground">{currencyOrDash(slotTotal.totalValue)}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {slotTotal.filledItemCount}/{slotTotal.itemCount} item(ns) precificados
-                      </p>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[320px]">
+                        <div className="rounded-2xl border border-border/70 bg-card px-4 py-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Melhor fechado</p>
+                          <p className="mt-2 text-lg font-semibold text-foreground">{currencyOrDash(comparisonAnalysis.bestTotalValue)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {comparisonAnalysis.bestSupplierNames.length > 0
+                              ? comparisonAnalysis.bestSupplierNames.join(' | ')
+                              : 'Aguardando orcamentos completos'}
+                          </p>
+                        </div>
+                        <div className="rounded-2xl border border-border/70 bg-card px-4 py-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Economia vs 2o melhor</p>
+                          <p className="mt-2 text-lg font-semibold text-foreground">{currencyOrDash(comparisonAnalysis.savingsValue)}</p>
+                          <p className="text-xs text-muted-foreground">{percentOrDash(comparisonAnalysis.savingsPercent)}</p>
+                        </div>
+                      </div>
                     </div>
-                  ))}
+                  </div>
+                ) : null}
+
+                <div className="grid gap-3 md:grid-cols-3">
+                  {comparison?.slotTotals.map((slotTotal) => {
+                    const slotAnalysis =
+                      comparisonAnalysis?.itemWinnerCounts.find((entry) => entry.slotNumber === slotTotal.slotNumber) ?? null;
+
+                    return (
+                      <div key={slotTotal.slotNumber} className="rounded-2xl border border-border/70 bg-card px-4 py-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-semibold text-foreground">Orcamento {slotTotal.slotNumber}</p>
+                          <SlotStatusBadge slot={slots.find((slot) => slot.slotNumber === slotTotal.slotNumber) ?? slots[0]!} />
+                        </div>
+                        <p className="mt-2 text-sm text-muted-foreground">{slotTotal.supplierName || 'Fornecedor nao definido'}</p>
+                        <p className="mt-4 text-xl font-semibold text-foreground">{currencyOrDash(slotTotal.totalValue)}</p>
+                        <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                          <p>
+                            {slotTotal.filledItemCount}/{slotTotal.itemCount} item(ns) precificados
+                          </p>
+                          <p>Vitorias por item: {slotAnalysis?.uniqueWinCount ?? 0}</p>
+                          <p>Empates compartilhados: {slotAnalysis?.tieCount ?? 0}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {rows.length === 0 ? (
@@ -1789,6 +1865,15 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                     <ComparisonTable rows={rows} slots={slots} />
 
                     <div className="flex flex-wrap justify-end gap-2">
+                      <Button
+                        disabled={quoteMutations.generateComparisonReport.isPending || rows.length === 0}
+                        type="button"
+                        variant="secondary"
+                        onClick={() => void handleGenerateComparisonReport()}
+                      >
+                        <FileText className="size-4" aria-hidden />
+                        {quoteMutations.generateComparisonReport.isPending ? 'Gerando relatorio...' : 'Gerar relatorio do mapa'}
+                      </Button>
                       <Button
                         disabled={quoteMutations.applyWinner.isPending || (comparison?.resolvedRowCount ?? 0) === 0}
                         type="button"

@@ -99,6 +99,12 @@ quoteRouter.post(
 );
 
 quoteRouter.post(
+  '/projects/:id/quotes/purchases/:purchaseId/comparison-report',
+  validateRequest({ params: quotePurchaseParamsSchema }),
+  asyncHandler((request, response) => quoteController.generateComparisonReport(request, response)),
+);
+
+quoteRouter.post(
   '/projects/:id/quotes/purchases/:purchaseId/generate-purchase-orders',
   validateRequest({ params: quotePurchaseParamsSchema, body: generateQuotePurchaseOrderSchema }),
   asyncHandler((request, response) => quoteController.generatePurchaseOrders(request, response)),

@@ -310,6 +310,28 @@ export interface ProjectQuoteComparison {
   resolvedRowCount: number;
   tieRowCount: number;
   unresolvedRowCount: number;
+  analysis: {
+    headline: string;
+    summaryLines: string[];
+    bestSlotNumbers: number[];
+    bestSupplierNames: string[];
+    bestTotalValue: number | null;
+    secondBestTotalValue: number | null;
+    savingsValue: number | null;
+    savingsPercent: number | null;
+    completeSlotCount: number;
+    itemWinnerCounts: Array<{
+      slotNumber: number;
+      supplierId: string | null;
+      supplierName: string | null;
+      totalValue: number | null;
+      itemCount: number;
+      filledItemCount: number;
+      isComplete: boolean;
+      uniqueWinCount: number;
+      tieCount: number;
+    }>;
+  };
 }
 
 export interface ProjectQuoteState extends EntityTimestamps {
@@ -403,6 +425,15 @@ export interface ProjectQuotePurchaseOrderResult {
     folderPathLabel: string | null;
   }>;
   skippedItems: number;
+}
+
+export interface ProjectQuoteComparisonReportResult {
+  purchaseId: string;
+  purchaseTitle: string;
+  documentId: string;
+  documentFileName: string;
+  folderPathLabel: string | null;
+  analysis: ProjectQuoteComparison['analysis'];
 }
 
 export interface PurchaseOrderItem extends EntityTimestamps {

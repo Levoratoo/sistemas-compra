@@ -8,6 +8,7 @@ import {
   applyProjectQuoteWinner,
   createProjectQuotePurchase,
   deleteProjectQuotePurchase,
+  generateProjectQuoteComparisonReport,
   generateProjectQuotePurchaseOrders,
   listProjectQuotes,
   removeProjectQuotePurchaseItem,
@@ -113,6 +114,15 @@ export function useProjectQuotesMutations(projectId: string) {
       mutationFn: ({ purchaseId, mode }: { purchaseId: string; mode: QuoteApplyMode }) =>
         applyProjectQuoteWinner(projectId, purchaseId, mode),
       onSuccess: invalidateOperationalData,
+    }),
+    generateComparisonReport: useMutation({
+      mutationFn: ({ purchaseId }: { purchaseId: string }) => generateProjectQuoteComparisonReport(projectId, purchaseId),
+      onSuccess: async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['project-documents', projectId] }),
+          queryClient.invalidateQueries({ queryKey: ['project-document-folders', projectId] }),
+        ]);
+      },
     }),
     generatePurchaseOrders: useMutation({
       mutationFn: ({ purchaseId, payload }: { purchaseId: string; payload: GenerateQuotePurchaseOrderPayload }) =>

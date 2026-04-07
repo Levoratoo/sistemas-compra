@@ -2,6 +2,7 @@ import { apiRequest, apiUploadJson } from '@/services/api-client';
 import type {
   ProjectQuoteImportApplyPayload,
   ProjectQuoteImportPreview,
+  ProjectQuoteComparisonReportResult,
   ProjectQuotePurchaseOrderResult,
   ProjectQuotesState,
 } from '@/types/api';
@@ -121,6 +122,12 @@ export function applyProjectQuoteWinner(projectId: string, purchaseId: string, m
       body: { mode },
     },
   );
+}
+
+export function generateProjectQuoteComparisonReport(projectId: string, purchaseId: string) {
+  return apiRequest<ProjectQuoteComparisonReportResult>(`projects/${projectId}/quotes/purchases/${purchaseId}/comparison-report`, {
+    method: 'POST',
+  });
 }
 
 export function generateProjectQuotePurchaseOrders(

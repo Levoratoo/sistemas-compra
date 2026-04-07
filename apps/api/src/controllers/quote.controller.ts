@@ -90,6 +90,14 @@ class QuoteController {
     response.json(result);
   }
 
+  async generateComparisonReport(request: Request, response: Response) {
+    const result = await quoteService.generateComparisonReport(
+      String(request.params.id),
+      String(request.params.purchaseId),
+    );
+    response.status(201).json(result);
+  }
+
   async generatePurchaseOrders(request: Request, response: Response) {
     const result = await quoteService.generatePurchaseOrderDocuments(
       String(request.params.id),
