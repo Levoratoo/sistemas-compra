@@ -79,6 +79,21 @@ class PurchaseRepository {
     });
   }
 
+  findOrderBySourceQuotePurchaseAndSupplier(
+    sourceQuotePurchaseId: string,
+    supplierId: string,
+    glpiNumber: string,
+  ) {
+    return prisma.purchaseOrder.findFirst({
+      where: {
+        sourceQuotePurchaseId,
+        supplierId,
+        glpiNumber,
+      },
+      include: purchaseOrderInclude,
+    });
+  }
+
   replaceOrderItems(
     purchaseOrderId: string,
     items: Prisma.PurchaseOrderItemUncheckedCreateInput[],

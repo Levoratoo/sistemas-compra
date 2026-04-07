@@ -7,12 +7,16 @@ import { asyncHandler } from '../../utils/async-handler.js';
 import {
   applyQuoteWinnerSchema,
   applyQuoteImportSchema,
+  createQuotePurchaseSchema,
   generateQuotePurchaseOrderSchema,
   quoteImportDocumentParamsSchema,
-  quoteItemParamsSchema,
   quoteProjectParamsSchema,
-  quoteSlotParamsSchema,
+  quotePurchaseItemParamsSchema,
+  quotePurchaseParamsSchema,
+  quotePurchaseSlotItemParamsSchema,
+  quotePurchaseSlotParamsSchema,
   updateQuoteItemSchema,
+  updateQuotePurchaseItemsSchema,
   updateQuoteSupplierSchema,
 } from './quote.schemas.js';
 
@@ -32,45 +36,57 @@ quoteRouter.get(
   asyncHandler((request, response) => quoteController.listByProject(request, response)),
 );
 
+quoteRouter.post(
+  '/projects/:id/quotes/purchases',
+  validateRequest({ params: quoteProjectParamsSchema, body: createQuotePurchaseSchema }),
+  asyncHandler((request, response) => quoteController.createPurchase(request, response)),
+);
+
+quoteRouter.post(
+  '/projects/:id/quotes/purchases/:purchaseId/items',
+  validateRequest({ params: quotePurchaseParamsSchema, body: updateQuotePurchaseItemsSchema }),
+  asyncHandler((request, response) => quoteController.addPurchaseItems(request, response)),
+);
+
+quoteRouter.delete(
+  '/projects/:id/quotes/purchases/:purchaseId/items/:budgetItemId',
+  validateRequest({ params: quotePurchaseItemParamsSchema }),
+  asyncHandler((request, response) => quoteController.removePurchaseItem(request, response)),
+);
+
 quoteRouter.put(
-  '/projects/:id/quotes/:slotNumber/supplier',
-  validateRequest({ params: quoteSlotParamsSchema, body: updateQuoteSupplierSchema }),
+  '/projects/:id/quotes/purchases/:purchaseId/slots/:slotNumber/supplier',
+  validateRequest({ params: quotePurchaseSlotParamsSchema, body: updateQuoteSupplierSchema }),
   asyncHandler((request, response) => quoteController.updateSupplier(request, response)),
 );
 
 quoteRouter.put(
-  '/projects/:id/quotes/:slotNumber/items/:budgetItemId',
-  validateRequest({ params: quoteItemParamsSchema, body: updateQuoteItemSchema }),
+  '/projects/:id/quotes/purchases/:purchaseId/slots/:slotNumber/items/:budgetItemId',
+  validateRequest({ params: quotePurchaseSlotItemParamsSchema, body: updateQuoteItemSchema }),
   asyncHandler((request, response) => quoteController.updateItem(request, response)),
 );
 
-quoteRouter.put(
-  '/projects/:id/quotes/:slotNumber/select',
-  validateRequest({ params: quoteSlotParamsSchema }),
-  asyncHandler((request, response) => quoteController.selectSlot(request, response)),
-);
-
 quoteRouter.post(
-  '/projects/:id/quotes/:slotNumber/import-pdf',
+  '/projects/:id/quotes/purchases/:purchaseId/slots/:slotNumber/import-pdf',
   uploadSupplierQuotePdf.single('file'),
-  validateRequest({ params: quoteSlotParamsSchema }),
+  validateRequest({ params: quotePurchaseSlotParamsSchema }),
   asyncHandler((request, response) => quoteController.importPdf(request, response)),
 );
 
 quoteRouter.post(
-  '/projects/:id/quotes/:slotNumber/import-pdf/:documentId/apply',
+  '/projects/:id/quotes/purchases/:purchaseId/slots/:slotNumber/import-pdf/:documentId/apply',
   validateRequest({ params: quoteImportDocumentParamsSchema, body: applyQuoteImportSchema }),
   asyncHandler((request, response) => quoteController.applyImportedPdf(request, response)),
 );
 
 quoteRouter.post(
-  '/projects/:id/quotes/apply-winner',
-  validateRequest({ params: quoteProjectParamsSchema, body: applyQuoteWinnerSchema }),
+  '/projects/:id/quotes/purchases/:purchaseId/apply-winner',
+  validateRequest({ params: quotePurchaseParamsSchema, body: applyQuoteWinnerSchema }),
   asyncHandler((request, response) => quoteController.applyWinner(request, response)),
 );
 
 quoteRouter.post(
-  '/projects/:id/quotes/generate-purchase-order',
-  validateRequest({ params: quoteProjectParamsSchema, body: generateQuotePurchaseOrderSchema }),
-  asyncHandler((request, response) => quoteController.generatePurchaseOrder(request, response)),
+  '/projects/:id/quotes/purchases/:purchaseId/generate-purchase-orders',
+  validateRequest({ params: quotePurchaseParamsSchema, body: generateQuotePurchaseOrderSchema }),
+  asyncHandler((request, response) => quoteController.generatePurchaseOrders(request, response)),
 );

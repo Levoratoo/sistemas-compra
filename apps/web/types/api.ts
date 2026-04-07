@@ -289,7 +289,6 @@ export interface ProjectQuoteSlot extends EntityTimestamps {
   filledItemCount: number;
   totalValue: number | null;
   isComplete: boolean;
-  isSelected: boolean;
   latestImportedDocument: ProjectDocument | null;
 }
 
@@ -313,12 +312,19 @@ export interface ProjectQuoteComparison {
   unresolvedRowCount: number;
 }
 
-export interface ProjectQuoteState {
+export interface ProjectQuoteState extends EntityTimestamps {
+  id: string;
   projectId: string;
-  selectedSlotNumber: number | null;
+  title: string;
+  notes: string | null;
   slots: ProjectQuoteSlot[];
   rows: ProjectQuoteRow[];
   comparison: ProjectQuoteComparison;
+}
+
+export interface ProjectQuotesState {
+  projectId: string;
+  purchases: ProjectQuoteState[];
 }
 
 export type ProjectQuoteImportMatchConfidence = 'HIGH' | 'REVIEW' | 'UNMATCHED';
@@ -352,6 +358,7 @@ export interface ProjectQuoteImportRow {
 
 export interface ProjectQuoteImportPreview {
   projectId: string;
+  purchaseId: string;
   slotNumber: number;
   supplierId: string;
   supplierName: string;
@@ -383,11 +390,19 @@ export interface ProjectQuoteImportApplyPayload {
 }
 
 export interface ProjectQuotePurchaseOrderResult {
-  slotNumber: number;
-  purchaseOrderId: string;
-  documentId: string;
-  documentFileName: string;
-  folderPathLabel: string | null;
+  purchaseId: string;
+  purchaseTitle: string;
+  generatedOrders: Array<{
+    supplierId: string;
+    supplierName: string;
+    itemCount: number;
+    totalValue: number;
+    purchaseOrderId: string;
+    documentId: string;
+    documentFileName: string;
+    folderPathLabel: string | null;
+  }>;
+  skippedItems: number;
 }
 
 export interface PurchaseOrderItem extends EntityTimestamps {

@@ -2,17 +2,15 @@
 
 import { type ChangeEvent, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AlertTriangle,
   ArrowUpFromLine,
   Building2,
   CheckCircle2,
   CircleDollarSign,
   Dices,
   ExternalLink,
-  FileText,
   FilePlus2,
+  FileText,
   LayoutGrid,
-  LoaderCircle,
   Search,
   Store,
   Trophy,
@@ -46,21 +44,23 @@ import { formatCurrency, formatDate, formatNumber } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { getProjectDocumentDownloadUrl } from '@/services/documents-service';
 import type {
+  BudgetItem,
   ItemCategory,
   ProjectQuoteImportAction,
   ProjectQuoteImportApplyPayload,
   ProjectQuoteImportPreview,
   ProjectQuoteImportRow,
   ProjectQuoteRow,
+  ProjectQuoteState,
   ProjectQuoteSlot,
 } from '@/types/api';
 
 type QuoteView = 'slot-1' | 'slot-2' | 'slot-3' | 'comparison';
 
 const viewTabs: Array<{ value: QuoteView; label: string }> = [
-  { value: 'slot-1', label: 'Orçamento 1' },
-  { value: 'slot-2', label: 'Orçamento 2' },
-  { value: 'slot-3', label: 'Orçamento 3' },
+  { value: 'slot-1', label: 'Orcamento 1' },
+  { value: 'slot-2', label: 'Orcamento 2' },
+  { value: 'slot-3', label: 'Orcamento 3' },
   { value: 'comparison', label: 'Mapa comparativo' },
 ];
 
@@ -69,7 +69,6 @@ type QuoteImportDecisionMap = Record<
   {
     action: ProjectQuoteImportAction;
     matchedBudgetItemId: string | null;
-    validationChoice: 'YES' | 'NO' | null;
   }
 >;
 
@@ -84,44 +83,17 @@ function buildInitialQuoteImportDecisions(preview: ProjectQuoteImportPreview | n
       {
         action: row.suggestedAction,
         matchedBudgetItemId: row.matchedBudgetItemId,
-        validationChoice: row.requiresNameValidation ? null : 'YES',
       },
     ]),
   );
 }
 
-function isReviewValidationResolved(
-  row: ProjectQuoteImportRow,
-  decision: QuoteImportDecisionMap[number] | undefined,
-) {
-  if (!row.requiresNameValidation) {
-    return true;
-  }
-
-  const action = decision?.action ?? row.suggestedAction;
-  const matchedBudgetItemId = decision?.matchedBudgetItemId ?? row.matchedBudgetItemId;
-
-  if (action === 'CREATE_EXTRA' || action === 'IGNORE') {
-    return true;
-  }
-
-  if (action !== 'APPLY' || !matchedBudgetItemId) {
-    return false;
-  }
-
-  if (matchedBudgetItemId !== row.matchedBudgetItemId) {
-    return true;
-  }
-
-  return decision?.validationChoice === 'YES';
-}
-
 function currencyOrDash(value: number | null | undefined) {
-  return value == null ? '—' : formatCurrency(value);
+  return value == null ? '-' : formatCurrency(value);
 }
 
 function slotDisplayName(slot: ProjectQuoteSlot) {
-  return slot.supplier?.tradeName || slot.supplier?.legalName || `Orçamento ${slot.slotNumber}`;
+  return slot.supplier?.tradeName || slot.supplier?.legalName || `Orcamento ${slot.slotNumber}`;
 }
 
 function generateRandomQuoteUnitPrice() {
@@ -227,17 +199,12 @@ function QuoteLineRow({
             <p className="font-medium text-foreground">{row.description}</p>
             {row.supplierQuoteExtraItem ? (
               <Badge className="border-amber-300/80 bg-amber-100 text-amber-950" variant="warning">
-                Item extra do fornecedor
+                Item extra
               </Badge>
             ) : null}
           </div>
           {row.specification ? <p className="text-xs leading-relaxed text-muted-foreground">{row.specification}</p> : null}
           <p className="text-xs text-muted-foreground">{getItemCategoryLabel(row.itemCategory)}</p>
-          {row.supplierQuoteExtraItem ? (
-            <p className="text-xs font-medium text-amber-900">
-              Nao encontrada no edital, mas presente no orcamento
-            </p>
-          ) : null}
         </div>
       </td>
       <td className="px-3 py-3 text-center align-top tabular-nums text-foreground">{formatNumber(row.quantity)}</td>
@@ -262,7 +229,7 @@ function QuoteLineRow({
         <Input
           className="h-10"
           disabled={disabled}
-          placeholder="Observações do orçamento"
+          placeholder="Observacoes do orcamento"
           value={notes}
           onBlur={() => void commitNotes()}
           onChange={(event) => setNotes(event.target.value)}
@@ -321,9 +288,7 @@ function SupplierPickerDialog({
         <DialogContent className="max-h-[85vh] overflow-hidden p-0 sm:max-w-2xl">
           <DialogHeader className="border-b border-border/70 px-6 py-5">
             <DialogTitle>Selecionar fornecedor</DialogTitle>
-            <DialogDescription>
-              Escolha o fornecedor deste orçamento ou cadastre um novo sem sair da tela.
-            </DialogDescription>
+            <DialogDescription>Escolha o fornecedor deste orcamento ou cadastre um novo sem sair da tela.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 overflow-y-auto px-6 py-5">
@@ -332,7 +297,7 @@ function SupplierPickerDialog({
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   className="pl-9"
-                  placeholder="Buscar por razão social, fantasia, documento ou contato"
+                  placeholder="Buscar por razao social, fantasia, documento ou contato"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                 />
@@ -362,10 +327,7 @@ function SupplierPickerDialog({
                 ))}
               </div>
             ) : isError ? (
-              <EmptyState
-                description="Não foi possível carregar os fornecedores."
-                title="Erro ao consultar fornecedores"
-              />
+              <EmptyState description="Nao foi possivel carregar os fornecedores." title="Erro ao consultar fornecedores" />
             ) : filteredSuppliers.length === 0 ? (
               <EmptyState
                 actionLabel="Cadastrar fornecedor"
@@ -426,10 +388,12 @@ function NewQuoteItemDialog({
   open,
   onOpenChange,
   projectId,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
+  onCreated?: (item: BudgetItem) => Promise<void> | void;
 }) {
   const { createItem } = useBudgetItemsMutations(projectId);
   const [itemCategory, setItemCategory] = useState<ItemCategory>('OTHER');
@@ -453,16 +417,16 @@ function NewQuoteItemDialog({
   async function handleSubmit() {
     const quantity = Number(plannedQuantity);
     if (!name.trim()) {
-      toast.error('Informe a descrição do item.');
+      toast.error('Informe a descricao do item.');
       return;
     }
     if (!Number.isFinite(quantity) || quantity <= 0) {
-      toast.error('Informe uma quantidade válida maior que zero.');
+      toast.error('Informe uma quantidade valida maior que zero.');
       return;
     }
 
     try {
-      await createItem.mutateAsync({
+      const created = await createItem.mutateAsync({
         itemCategory,
         name: name.trim(),
         plannedQuantity: quantity,
@@ -473,10 +437,13 @@ function NewQuoteItemDialog({
         sourceType: 'MANUAL',
         contextOnly: false,
       });
-      toast.success('Novo item adicionado ao projeto e aos orçamentos.');
+      if (onCreated) {
+        await onCreated(created);
+      }
+      toast.success('Novo item adicionado ao projeto.');
       onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível criar o item.');
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel criar o item.');
     }
   }
 
@@ -484,9 +451,9 @@ function NewQuoteItemDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Novo item para orçamento</DialogTitle>
+          <DialogTitle>Novo item para orcamento</DialogTitle>
           <DialogDescription>
-            Este item será criado no projeto inteiro e aparecerá também no controle de compras e no checklist.
+            Este item sera criado no projeto inteiro e podera ser incluido na compra ativa.
           </DialogDescription>
         </DialogHeader>
 
@@ -520,7 +487,7 @@ function NewQuoteItemDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="quote-item-name">Descrição</Label>
+            <Label htmlFor="quote-item-name">Descricao</Label>
             <Input id="quote-item-name" value={name} onChange={(event) => setName(event.target.value)} />
           </div>
 
@@ -530,7 +497,7 @@ function NewQuoteItemDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="quote-item-specification">Especificação</Label>
+            <Label htmlFor="quote-item-specification">Especificacao</Label>
             <Textarea
               id="quote-item-specification"
               rows={3}
@@ -540,7 +507,7 @@ function NewQuoteItemDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="quote-item-notes">Observações</Label>
+            <Label htmlFor="quote-item-notes">Observacoes</Label>
             <Textarea id="quote-item-notes" rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} />
           </div>
         </div>
@@ -558,17 +525,204 @@ function NewQuoteItemDialog({
   );
 }
 
+function NewQuotePurchaseDialog({
+  open,
+  onOpenChange,
+  pending,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  pending: boolean;
+  onSubmit: (payload: { title: string; notes?: string | null }) => Promise<void>;
+}) {
+  const [title, setTitle] = useState('');
+  const [notes, setNotes] = useState('');
+
+  useEffect(() => {
+    if (!open) {
+      setTitle('');
+      setNotes('');
+    }
+  }, [open]);
+
+  async function handleSubmit() {
+    if (!title.trim()) {
+      toast.error('Informe o nome da compra.');
+      return;
+    }
+
+    await onSubmit({
+      title: title.trim(),
+      notes: notes.trim() || null,
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Nova compra para orcamento</DialogTitle>
+          <DialogDescription>
+            Cada compra tera seus proprios itens, 3 fornecedores e mapa comparativo.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="quote-purchase-title">Nome da compra</Label>
+            <Input
+              id="quote-purchase-title"
+              placeholder="Ex.: Uniformes implantacao"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="quote-purchase-notes">Observacoes</Label>
+            <Textarea
+              id="quote-purchase-notes"
+              rows={3}
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button disabled={pending} type="button" onClick={() => void handleSubmit()}>
+            {pending ? 'Salvando...' : 'Criar compra'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ManageQuotePurchaseItemsDialog({
+  open,
+  onOpenChange,
+  items,
+  selectedItemIds,
+  onAdd,
+  onRemove,
+  pendingBudgetItemId,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  items: BudgetItem[];
+  selectedItemIds: string[];
+  onAdd: (budgetItemId: string) => Promise<void>;
+  onRemove: (budgetItemId: string) => Promise<void>;
+  pendingBudgetItemId: string | null;
+}) {
+  const [search, setSearch] = useState('');
+  const deferredSearch = useDeferredValue(search);
+  const selectedSet = useMemo(() => new Set(selectedItemIds), [selectedItemIds]);
+
+  useEffect(() => {
+    if (!open) {
+      setSearch('');
+    }
+  }, [open]);
+
+  const filteredItems = useMemo(() => {
+    const query = deferredSearch.trim().toLowerCase();
+    if (!query) {
+      return items;
+    }
+
+    return items.filter((item) =>
+      [item.name, item.specification, item.unit, item.notes]
+        .filter(Boolean)
+        .some((value) => value?.toLowerCase().includes(query)),
+    );
+  }, [deferredSearch, items]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[88vh] overflow-hidden p-0 sm:max-w-4xl">
+        <DialogHeader className="border-b border-border/70 px-6 py-5">
+          <DialogTitle>Gerenciar itens da compra</DialogTitle>
+          <DialogDescription>
+            Inclua ou remova itens do projeto nesta compra. O mesmo item pode aparecer em compras diferentes.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 overflow-y-auto px-6 py-5">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="Buscar item por descricao, especificacao, unidade ou observacao"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
+
+          {filteredItems.length === 0 ? (
+            <EmptyState description="Nenhum item encontrado para a busca atual." title="Lista vazia" />
+          ) : (
+            <div className="grid gap-3">
+              {filteredItems.map((item) => {
+                const selected = selectedSet.has(item.id);
+                const busy = pendingBudgetItemId === item.id;
+
+                return (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      'rounded-2xl border px-4 py-4',
+                      selected ? 'border-primary/35 bg-primary/5' : 'border-border/70 bg-card',
+                    )}
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-foreground">{item.name}</p>
+                          <Badge variant={selected ? 'success' : 'neutral'}>
+                            {selected ? 'Na compra' : 'Fora da compra'}
+                          </Badge>
+                        </div>
+                        {item.specification ? <p className="text-sm text-muted-foreground">{item.specification}</p> : null}
+                        <p className="text-xs text-muted-foreground">
+                          {getItemCategoryLabel(item.itemCategory)} | Qtd. {formatNumber(item.plannedQuantity)} | Unidade {item.unit || '-'}
+                        </p>
+                      </div>
+                      <Button
+                        disabled={busy}
+                        type="button"
+                        variant={selected ? 'outline' : 'secondary'}
+                        onClick={() => void (selected ? onRemove(item.id) : onAdd(item.id))}
+                      >
+                        {busy ? 'Salvando...' : selected ? 'Remover' : 'Adicionar'}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function GeneratePurchaseOrderDialog({
   open,
   onOpenChange,
-  slot,
+  purchase,
   projectName,
   onSubmit,
   pending,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  slot: ProjectQuoteSlot | null;
+  purchase: ProjectQuoteState | null;
   projectName: string;
   onSubmit: (payload: {
     glpiNumber: string;
@@ -609,7 +763,7 @@ function GeneratePurchaseOrderDialog({
 
   async function handleSubmit() {
     if (!glpiNumber.trim()) {
-      toast.error('Informe o GLPI para gerar a ordem de compra.');
+      toast.error('Informe o GLPI para gerar os pedidos.');
       return;
     }
 
@@ -630,10 +784,9 @@ function GeneratePurchaseOrderDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Gerar ordem de compra</DialogTitle>
+          <DialogTitle>Gerar pedidos por fornecedor</DialogTitle>
           <DialogDescription>
-            O PDF será gerado para {slot ? `o orçamento ${slot.slotNumber}` : 'o orçamento selecionado'} de{' '}
-            {projectName}.
+            O sistema vai gerar um pedido separado por fornecedor vencedor para a compra {purchase?.title || 'selecionada'} de {projectName}.
           </DialogDescription>
         </DialogHeader>
 
@@ -648,7 +801,7 @@ function GeneratePurchaseOrderDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="quote-order-reference">Referência interna</Label>
+            <Label htmlFor="quote-order-reference">Referencia interna</Label>
             <Input
               id="quote-order-reference"
               value={internalReference}
@@ -656,7 +809,7 @@ function GeneratePurchaseOrderDialog({
             />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="quote-order-delivery-address">Endereço de entrega</Label>
+            <Label htmlFor="quote-order-delivery-address">Endereco de entrega</Label>
             <Textarea
               id="quote-order-delivery-address"
               rows={3}
@@ -673,7 +826,7 @@ function GeneratePurchaseOrderDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="quote-order-payment-terms">Condição de pagamento</Label>
+            <Label htmlFor="quote-order-payment-terms">Condicao de pagamento</Label>
             <Input
               id="quote-order-payment-terms"
               value={paymentTerms}
@@ -681,7 +834,7 @@ function GeneratePurchaseOrderDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="quote-order-responsible-name">Responsável</Label>
+            <Label htmlFor="quote-order-responsible-name">Responsavel</Label>
             <Input
               id="quote-order-responsible-name"
               value={responsibleName}
@@ -689,7 +842,7 @@ function GeneratePurchaseOrderDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="quote-order-responsible-phone">Telefone do responsável</Label>
+            <Label htmlFor="quote-order-responsible-phone">Telefone do responsavel</Label>
             <Input
               id="quote-order-responsible-phone"
               value={responsiblePhone}
@@ -697,7 +850,7 @@ function GeneratePurchaseOrderDialog({
             />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="quote-order-expected-delivery-date">Previsão de entrega</Label>
+            <Label htmlFor="quote-order-expected-delivery-date">Previsao de entrega</Label>
             <Input
               id="quote-order-expected-delivery-date"
               type="date"
@@ -706,7 +859,7 @@ function GeneratePurchaseOrderDialog({
             />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="quote-order-notes">Observações</Label>
+            <Label htmlFor="quote-order-notes">Observacoes</Label>
             <Textarea id="quote-order-notes" rows={4} value={notes} onChange={(event) => setNotes(event.target.value)} />
           </div>
         </div>
@@ -716,7 +869,7 @@ function GeneratePurchaseOrderDialog({
             Cancelar
           </Button>
           <Button disabled={pending} type="button" onClick={() => void handleSubmit()}>
-            {pending ? 'Gerando PDF...' : 'Gerar ordem de compra'}
+            {pending ? 'Gerando...' : 'Gerar pedidos'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -728,7 +881,6 @@ function SupplierQuoteImportDialog({
   open,
   onOpenChange,
   slot,
-  projectId,
   budgetRows,
   preview,
   uploadPending,
@@ -739,7 +891,6 @@ function SupplierQuoteImportDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   slot: ProjectQuoteSlot | null;
-  projectId: string;
   budgetRows: ProjectQuoteRow[];
   preview: ProjectQuoteImportPreview | null;
   uploadPending: boolean;
@@ -749,623 +900,169 @@ function SupplierQuoteImportDialog({
 }) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [decisions, setDecisions] = useState<QuoteImportDecisionMap>({});
-  const [reviewPopupOpen, setReviewPopupOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!open) {
       setSelectedFile(null);
       setDecisions({});
-      setReviewPopupOpen(false);
       return;
     }
 
-    if (preview) {
-      setDecisions(buildInitialQuoteImportDecisions(preview));
-      setSelectedFile(null);
-      setReviewPopupOpen(preview.rows.some((row) => row.requiresNameValidation));
-    } else {
-      setDecisions({});
-      setReviewPopupOpen(false);
-    }
+    setDecisions(buildInitialQuoteImportDecisions(preview));
   }, [open, preview]);
 
-  const itemOptions = useMemo(
+  const budgetItemOptions = useMemo(
     () =>
       budgetRows.map((row) => ({
         id: row.budgetItemId,
-        label: row.description,
-        detail: row.specification,
+        label: row.specification ? `${row.description} | ${row.specification}` : row.description,
       })),
     [budgetRows],
   );
-  const reviewRows = useMemo(() => preview?.rows.filter((row) => row.requiresNameValidation) ?? [], [preview]);
-  const unresolvedReviewRows = useMemo(
-    () => reviewRows.filter((row) => !isReviewValidationResolved(row, decisions[row.rowIndex])),
-    [decisions, reviewRows],
-  );
-  const unresolvedReviewCount = unresolvedReviewRows.length;
 
-  function getDecision(row: ProjectQuoteImportRow) {
-    return (
-      decisions[row.rowIndex] ?? {
-        action: row.suggestedAction,
-        matchedBudgetItemId: row.matchedBudgetItemId,
-        validationChoice: row.requiresNameValidation ? null : 'YES',
-      }
-    );
-  }
-
-  function updateDecision(row: ProjectQuoteImportRow, updates: Partial<QuoteImportDecisionMap[number]>) {
-    setDecisions((current) => ({
-      ...current,
-      [row.rowIndex]: {
-        ...(current[row.rowIndex] ?? {
-          action: row.suggestedAction,
-          matchedBudgetItemId: row.matchedBudgetItemId,
-          validationChoice: row.requiresNameValidation ? null : 'YES',
-        }),
-        ...updates,
-      },
-    }));
-  }
-
-  function approveAllSuggestedReviewRows() {
-    if (!preview) {
+  async function handleUpload() {
+    if (!selectedFile) {
+      toast.error('Selecione um PDF do fornecedor.');
       return;
     }
 
-    setDecisions((current) => {
-      const next = { ...current };
-      for (const row of preview.rows.filter((entry) => entry.requiresNameValidation && entry.matchedBudgetItemId)) {
-        next[row.rowIndex] = {
-          action: 'APPLY',
-          matchedBudgetItemId: row.matchedBudgetItemId,
-          validationChoice: 'YES',
-        };
-      }
-      return next;
-    });
-  }
-
-  function openFilePicker() {
-    if (!slot?.supplierId || uploadPending) {
-      return;
-    }
-
-    fileInputRef.current?.click();
-  }
-
-  async function handleFileSelection(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0] ?? null;
-    setSelectedFile(file);
-
-    if (!file) {
-      return;
-    }
-
-    try {
-      await onUpload(file);
-    } finally {
-      event.target.value = '';
-    }
+    await onUpload(selectedFile);
   }
 
   async function handleApply() {
     if (!preview) {
-      toast.error('Importe um PDF antes de aplicar a revisao.');
-      return;
-    }
-
-    if (unresolvedReviewCount > 0) {
-      toast.error('Valide os nomes parecidos antes de aplicar a importacao.');
-      setReviewPopupOpen(true);
       return;
     }
 
     await onApply({
       rows: preview.rows.map((row) => ({
         rowIndex: row.rowIndex,
-        action: getDecision(row).action,
-        matchedBudgetItemId: getDecision(row).matchedBudgetItemId,
+        action: decisions[row.rowIndex]?.action ?? row.suggestedAction,
+        matchedBudgetItemId: decisions[row.rowIndex]?.matchedBudgetItemId ?? row.matchedBudgetItemId,
       })),
     });
   }
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-6xl">
-        <DialogHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-hidden p-0 sm:max-w-5xl">
+        <DialogHeader className="border-b border-border/70 px-6 py-5">
           <DialogTitle>Importar PDF do fornecedor</DialogTitle>
           <DialogDescription>
             Envie o PDF do fornecedor para o orcamento {slot?.slotNumber ?? 'selecionado'} e revise o casamento dos itens antes de aplicar.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5">
-          <div className="rounded-[30px] border border-primary/15 bg-[linear-gradient(135deg,rgba(236,253,245,0.95),rgba(255,255,255,0.98)_42%,rgba(239,246,255,0.92))] p-5 shadow-sm shadow-primary/10">
-            <input
-              ref={fileInputRef}
-              accept="application/pdf,.pdf"
-              className="hidden"
-              disabled={!slot?.supplierId || uploadPending}
-              type="file"
-              onChange={(event) => void handleFileSelection(event)}
-            />
-
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-stretch xl:justify-between">
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Upload</p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant={slot?.supplierId ? 'secondary' : 'warning'}>
-                    {slot?.supplierId ? `Fornecedor: ${slotDisplayName(slot)}` : 'Selecione um fornecedor primeiro'}
-                  </Badge>
-                  {uploadPending ? (
-                    <Badge variant="warning">
-                      <LoaderCircle className="mr-1 size-3 animate-spin" aria-hidden />
-                      Analisando PDF
-                    </Badge>
-                  ) : null}
-                  {preview ? (
-                    <Badge variant={preview.extractionMode === 'OCR' ? 'warning' : 'success'}>
-                      {preview.extractionMode === 'OCR' ? 'Lido com OCR' : 'Texto direto'}
-                    </Badge>
-                  ) : null}
-                  {reviewRows.length > 0 ? (
-                    <Badge variant={unresolvedReviewCount > 0 ? 'warning' : 'success'}>
-                      {unresolvedReviewCount > 0
-                        ? `${unresolvedReviewCount} nome(s) parecidos pendentes`
-                        : 'Nomes parecidos validados'}
-                    </Badge>
-                  ) : null}
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  O arquivo fica salvo em Documentos e o sistema sugere o casamento dos itens com o orcamento atual.
-                </p>
-              </div>
-
-              <button
-                className={cn(
-                  'group flex min-h-[152px] w-full flex-col justify-between rounded-[28px] border border-white/70 bg-white/80 p-5 text-left shadow-[0_18px_45px_-28px_rgba(15,23,42,0.35)] transition-all xl:max-w-[440px]',
-                  slot?.supplierId && !uploadPending && 'hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[0_24px_50px_-26px_rgba(13,148,136,0.38)]',
-                  (!slot?.supplierId || uploadPending) && 'cursor-not-allowed opacity-85',
-                )}
-                disabled={!slot?.supplierId || uploadPending}
-                type="button"
-                onClick={openFilePicker}
-              >
-                <div className="flex items-start gap-4">
-                  <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-primary/12 text-primary">
-                    {uploadPending ? <LoaderCircle className="size-6 animate-spin" aria-hidden /> : <ArrowUpFromLine className="size-6" aria-hidden />}
-                  </div>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <p className="text-base font-semibold text-foreground">
-                      {uploadPending
-                        ? 'Lendo o PDF do fornecedor'
-                        : selectedFile
-                          ? 'Trocar PDF e importar novamente'
-                          : 'Clique para escolher o PDF'}
-                    </p>
-                    <p className="text-sm leading-relaxed text-muted-foreground">
-                      {slot?.supplierId
-                        ? uploadPending
-                          ? 'O sistema esta extraindo os itens, conferindo os valores e montando a previa automaticamente.'
-                          : 'Upload em 1 clique. Escolha o arquivo e a leitura comeca na hora, sem precisar confirmar em outro botao.'
-                        : 'Defina o fornecedor deste orcamento para habilitar a importacao do PDF.'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Arquivo</p>
-                    <p className="truncate text-sm font-medium text-foreground">
-                      {selectedFile?.name ?? (preview?.document.originalFileName || 'Nenhum PDF selecionado ainda')}
-                    </p>
-                  </div>
-                  <span className="inline-flex items-center rounded-full border border-primary/15 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-                    {uploadPending ? 'Processando' : '1 clique'}
-                  </span>
-                </div>
-              </button>
-            </div>
-
-            {preview ? (
-              <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-border/70 bg-white/80 px-4 py-3">
-                <FileText className="size-4 text-primary" aria-hidden />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">{preview.document.originalFileName}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {preview.document.folderPathLabel || 'Documentos'}
-                    {preview.quoteNumber ? ` | Orcamento ${preview.quoteNumber}` : ''}
-                  </p>
-                </div>
-                <a
-                  className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
-                  href={getProjectDocumentDownloadUrl(projectId, preview.document.id)}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  Abrir PDF
-                  <ExternalLink className="size-3.5" aria-hidden />
-                </a>
-              </div>
-            ) : null}
-
-            {!preview && selectedFile && !uploadPending ? (
-              <p className="mt-3 text-xs text-muted-foreground">Arquivo pronto para leitura: {selectedFile.name}</p>
-            ) : null}
+        <div className="space-y-4 overflow-y-auto px-6 py-5">
+          <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-3">
+            <p className="text-sm font-medium text-foreground">
+              {slot?.supplierId ? `Fornecedor: ${slotDisplayName(slot)}` : 'Selecione um fornecedor primeiro'}
+            </p>
           </div>
 
-          {uploadPending ? (
-            <div className="rounded-[30px] border border-primary/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(240,253,250,0.88))] px-8 py-14 shadow-sm">
-              <div className="mx-auto flex max-w-xl flex-col items-center text-center">
-                <div className="flex size-20 items-center justify-center rounded-[28px] bg-primary/12 text-primary shadow-inner">
-                  <LoaderCircle className="size-10 animate-spin" aria-hidden />
-                </div>
-                <p className="mt-6 text-xl font-semibold text-foreground">Importando e analisando o PDF</p>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  Estamos lendo o arquivo, extraindo os itens do fornecedor e comparando com os itens do projeto para montar a revisao.
-                </p>
-                <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-                  <Badge variant="secondary">{slot?.supplierId ? slotDisplayName(slot) : 'Fornecedor'}</Badge>
-                  {selectedFile ? <Badge variant="neutral">{selectedFile.name}</Badge> : null}
-                </div>
+          {!preview ? (
+            <div className="space-y-4">
+              <Input
+                ref={fileInputRef}
+                accept="application/pdf,.pdf"
+                type="file"
+                onChange={(event: ChangeEvent<HTMLInputElement>) => setSelectedFile(event.target.files?.[0] ?? null)}
+              />
+              <div className="flex justify-end">
+                <Button disabled={!slot?.supplierId || !selectedFile || uploadPending} type="button" onClick={() => void handleUpload()}>
+                  {uploadPending ? 'Lendo PDF...' : 'Ler PDF'}
+                </Button>
               </div>
             </div>
-          ) : preview ? (
-            <>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                <div className="rounded-2xl border border-border/70 bg-card px-4 py-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Itens lidos</p>
-                  <p className="mt-2 text-2xl font-semibold text-foreground">{preview.summary.rowCount}</p>
-                </div>
-                <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/70 px-4 py-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-800/80">Alta confianca</p>
-                  <p className="mt-2 text-2xl font-semibold text-foreground">{preview.summary.highConfidenceCount}</p>
-                </div>
-                <div className="rounded-2xl border border-amber-200/70 bg-amber-50/80 px-4 py-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-900/80">Revisar</p>
-                  <p className="mt-2 text-2xl font-semibold text-foreground">{preview.summary.reviewCount}</p>
-                </div>
-                <div className="rounded-2xl border border-sky-200/70 bg-sky-50/80 px-4 py-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sky-900/80">Itens extras</p>
-                  <p className="mt-2 text-2xl font-semibold text-foreground">{preview.summary.extraCandidateCount}</p>
-                </div>
-                <div className="rounded-2xl border border-border/70 bg-card px-4 py-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Data / fornecedor</p>
-                  <p className="mt-2 text-sm font-medium text-foreground">{preview.detectedSupplierName || preview.supplierName}</p>
-                  <p className="text-xs text-muted-foreground">{preview.quoteDate ? formatDate(preview.quoteDate) : 'Sem data'}</p>
-                </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="success">{preview.summary.highConfidenceCount} alta confianca</Badge>
+                <Badge variant="warning">{preview.summary.reviewCount} revisar</Badge>
+                <Badge variant="neutral">{preview.summary.unmatchedCount} sem match</Badge>
               </div>
+              <div className="grid gap-3">
+                {preview.rows.map((row) => {
+                  const decision = decisions[row.rowIndex] ?? {
+                    action: row.suggestedAction,
+                    matchedBudgetItemId: row.matchedBudgetItemId,
+                  };
 
-              {preview.summary.hasExistingValues ? (
-                <div className="flex items-start gap-3 rounded-2xl border border-amber-200/80 bg-amber-50/80 px-4 py-3 text-sm text-amber-950">
-                  <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
-                  <p>Este slot ja possui valores preenchidos. Ao aplicar a importacao, os valores atuais serao substituidos mediante confirmacao.</p>
-                </div>
-              ) : null}
-
-              {reviewRows.length > 0 ? (
-                <div className="flex flex-col gap-3 rounded-2xl border border-sky-200/80 bg-sky-50/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-sky-950">Validacao de nomes parecidos</p>
-                    <p className="text-xs text-sky-900/85">
-                      Confirme os itens similares do edital antes de aplicar a importacao.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={unresolvedReviewCount > 0 ? 'warning' : 'success'}>
-                      {unresolvedReviewCount > 0 ? `${unresolvedReviewCount} pendente(s)` : 'Validacao concluida'}
-                    </Badge>
-                    <Button className="rounded-2xl" size="sm" type="button" variant="outline" onClick={() => setReviewPopupOpen(true)}>
-                      Validar nomes parecidos
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="overflow-x-auto rounded-2xl border border-border/70">
-                <table className="w-full min-w-[1200px] border-collapse text-sm">
-                  <thead className="bg-muted/35">
-                    <tr>
-                      <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Linha do PDF</th>
-                      <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Valores</th>
-                      <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Confianca</th>
-                      <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Acao</th>
-                      <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Item do projeto</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {preview.rows.map((row) => {
-                      const decision = getDecision(row);
-                      const validationResolved = isReviewValidationResolved(row, decision);
-
-                      return (
-                        <tr
-                          key={row.rowIndex}
-                          className={cn(
-                            'border-b border-border/60 align-top',
-                            row.confidence === 'HIGH' && 'bg-emerald-500/[0.04]',
-                            row.confidence === 'REVIEW' && 'bg-amber-500/[0.06]',
-                            row.confidence === 'UNMATCHED' && 'bg-sky-500/[0.05]',
-                          )}
-                        >
-                          <td className="px-3 py-3">
-                            <div className="space-y-1">
-                              <p className="font-medium text-foreground">{row.description}</p>
-                              <p className="text-xs leading-relaxed text-muted-foreground">{row.rawText}</p>
-                            </div>
-                          </td>
-                          <td className="px-3 py-3">
-                            <div className="space-y-1 text-sm">
-                              <p className="font-medium text-foreground">{currencyOrDash(row.unitPrice)}</p>
-                              <p className="text-xs text-muted-foreground">
-                                Qtd. fornecedor: {formatNumber(row.quantity)} | Total: {currencyOrDash(row.totalValue)}
-                              </p>
-                            </div>
-                          </td>
-                          <td className="px-3 py-3">
-                            <div className="flex flex-wrap gap-2">
-                              <Badge variant={row.confidence === 'HIGH' ? 'success' : row.confidence === 'REVIEW' ? 'warning' : 'neutral'}>
-                                {row.confidence === 'HIGH' ? 'Alta' : row.confidence === 'REVIEW' ? 'Revisar' : 'Nao encontrado'}
-                              </Badge>
-                              {row.quantityConflict ? <Badge variant="warning">Qtd. divergente</Badge> : null}
-                              {row.requiresNameValidation ? (
-                                <Badge variant={validationResolved ? 'success' : 'warning'}>
-                                  {validationResolved ? 'Validado' : 'Validacao pendente'}
-                                </Badge>
-                              ) : null}
-                            </div>
-                            {row.matchScore != null ? (
-                              <p className="mt-2 text-xs text-muted-foreground">Score: {(row.matchScore * 100).toFixed(0)}%</p>
-                            ) : null}
-                            {row.requiresNameValidation && !validationResolved ? (
-                              <p className="mt-2 text-xs font-medium text-amber-900">
-                                Abra o popup de nomes parecidos para confirmar este item.
-                              </p>
-                            ) : null}
-                          </td>
-                          <td className="px-3 py-3">
+                  return (
+                    <div key={row.rowIndex} className="rounded-2xl border border-border/70 p-4">
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium text-foreground">{row.description}</p>
+                          <Badge variant={row.confidence === 'HIGH' ? 'success' : row.confidence === 'REVIEW' ? 'warning' : 'neutral'}>
+                            {row.confidence}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Qtd. fornecedor: {formatNumber(row.quantity)} | Total: {currencyOrDash(row.totalValue)}
+                        </p>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>Acao</Label>
                             <Select
-                              className="min-w-[180px]"
                               value={decision.action}
                               onChange={(event) =>
-                                updateDecision(row, {
-                                  action: event.target.value as ProjectQuoteImportAction,
-                                })
+                                setDecisions((current) => ({
+                                  ...current,
+                                  [row.rowIndex]: {
+                                    action: event.target.value as ProjectQuoteImportAction,
+                                    matchedBudgetItemId: current[row.rowIndex]?.matchedBudgetItemId ?? row.matchedBudgetItemId,
+                                  },
+                                }))
                               }
                             >
-                              <option value="APPLY">Aplicar no item</option>
+                              <option value="APPLY">Aplicar</option>
+                              <option value="IGNORE">Ignorar</option>
                               <option value="CREATE_EXTRA">Criar item extra</option>
-                              <option value="IGNORE">Ignorar linha</option>
                             </Select>
-                          </td>
-                          <td className="px-3 py-3">
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Item do projeto</Label>
                             <Select
-                              className="min-w-[320px]"
                               disabled={decision.action !== 'APPLY'}
                               value={decision.matchedBudgetItemId ?? ''}
                               onChange={(event) =>
-                                updateDecision(row, {
-                                  matchedBudgetItemId: event.target.value || null,
-                                  ...(row.requiresNameValidation && event.target.value && event.target.value !== row.matchedBudgetItemId
-                                    ? { validationChoice: 'NO' as const }
-                                    : {}),
-                                })
+                                setDecisions((current) => ({
+                                  ...current,
+                                  [row.rowIndex]: {
+                                    action: current[row.rowIndex]?.action ?? row.suggestedAction,
+                                    matchedBudgetItemId: event.target.value || null,
+                                  },
+                                }))
                               }
                             >
-                              <option value="">Selecionar item do projeto</option>
-                              {itemOptions.map((item) => (
-                                <option key={item.id} value={item.id}>
-                                  {item.label}
-                                  {item.detail ? ` | ${item.detail}` : ''}
+                              <option value="">Selecionar item</option>
+                              {budgetItemOptions.map((option) => (
+                                <option key={option.id} value={option.id}>
+                                  {option.label}
                                 </option>
                               ))}
                             </Select>
-                            {decision.action === 'CREATE_EXTRA' ? (
-                              <p className="mt-2 text-xs font-medium text-amber-900">Nao encontrada no edital, mas presente no orcamento</p>
-                            ) : null}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </>
-          ) : (
-            <div className="rounded-[30px] border border-dashed border-primary/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.94))] px-8 py-14 shadow-sm">
-              <div className="mx-auto flex max-w-xl flex-col items-center text-center">
-                <div className="flex size-20 items-center justify-center rounded-[28px] bg-primary/10 text-primary">
-                  <FileText className="size-10" aria-hidden />
-                </div>
-                <p className="mt-6 text-xl font-semibold text-foreground">Nenhum PDF importado ainda</p>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  Escolha o PDF do fornecedor e a previa sera gerada automaticamente para voce revisar os itens antes de aplicar.
-                </p>
-                <Button
-                  className="mt-6 rounded-2xl px-5"
-                  disabled={!slot?.supplierId}
-                  type="button"
-                  onClick={openFilePicker}
-                >
-                  <ArrowUpFromLine className="size-4" aria-hidden />
-                  {slot?.supplierId ? 'Escolher PDF agora' : 'Selecione um fornecedor primeiro'}
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+                  Fechar
+                </Button>
+                <Button disabled={applyPending} type="button" onClick={() => void handleApply()}>
+                  {applyPending ? 'Aplicando...' : 'Aplicar importacao'}
                 </Button>
               </div>
             </div>
           )}
         </div>
-
-        <DialogFooter>
-          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-            Fechar
-          </Button>
-          <Button disabled={!preview || applyPending || unresolvedReviewCount > 0} type="button" onClick={() => void handleApply()}>
-            {applyPending ? 'Aplicando...' : 'Aplicar importacao'}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
-      <Dialog open={reviewPopupOpen} onOpenChange={setReviewPopupOpen}>
-        <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-5xl">
-          <DialogHeader>
-            <DialogTitle>Validar nomes parecidos</DialogTitle>
-            <DialogDescription>
-              Compare o nome vindo do PDF com a sugestao do edital e marque sim ou nao antes de aplicar.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="warning">{reviewRows.length} linha(s) para validar</Badge>
-                <Badge variant={unresolvedReviewCount > 0 ? 'warning' : 'success'}>
-                  {unresolvedReviewCount > 0 ? `${unresolvedReviewCount} pendente(s)` : 'Tudo validado'}
-                </Badge>
-              </div>
-              <Button
-                disabled={reviewRows.length === 0}
-                type="button"
-                variant="secondary"
-                onClick={() => approveAllSuggestedReviewRows()}
-              >
-                Selecionar todos os parecidos
-              </Button>
-            </div>
-
-            <div className="overflow-x-auto rounded-2xl border border-border/70">
-              <table className="w-full min-w-[980px] border-collapse text-sm">
-                <thead className="bg-muted/35">
-                  <tr>
-                    <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Nome do orcamento / PDF</th>
-                    <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Sugestao do edital</th>
-                    <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Flag</th>
-                    <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Escolha manual</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reviewRows.map((row) => {
-                    const decision = getDecision(row);
-                    const candidateIds = new Set(row.candidateMatches.map((candidate) => candidate.budgetItemId));
-                    const prioritizedOptions = row.candidateMatches.map((candidate) => {
-                      const item = itemOptions.find((option) => option.id === candidate.budgetItemId);
-                      return {
-                        id: candidate.budgetItemId,
-                        label: item?.label ?? candidate.name,
-                        detail: item?.detail ?? candidate.specification,
-                        score: candidate.score,
-                      };
-                    });
-                    const remainingOptions = itemOptions
-                      .filter((item) => !candidateIds.has(item.id))
-                      .map((item) => ({
-                        ...item,
-                        score: null as number | null,
-                      }));
-                    const orderedOptions = [...prioritizedOptions, ...remainingOptions];
-
-                    return (
-                      <tr key={`review-${row.rowIndex}`} className="border-b border-border/60 align-top">
-                        <td className="px-3 py-3">
-                          <div className="space-y-1">
-                            <p className="font-medium text-foreground">{row.description}</p>
-                            <p className="text-xs text-muted-foreground">{row.rawText}</p>
-                          </div>
-                        </td>
-                        <td className="px-3 py-3">
-                          <div className="space-y-2">
-                            <p className="font-medium text-foreground">{row.matchedBudgetItemName || 'Sem sugestao automatica'}</p>
-                            <div className="flex flex-wrap gap-2">
-                              {row.matchScore != null ? (
-                                <Badge variant="warning">Score {(row.matchScore * 100).toFixed(0)}%</Badge>
-                              ) : null}
-                              {row.candidateMatches.map((candidate) => (
-                                <Badge key={`${row.rowIndex}-${candidate.budgetItemId}`} variant="secondary">
-                                  {candidate.name}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-3 py-3">
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              className="rounded-2xl"
-                              size="sm"
-                              type="button"
-                              variant={decision.validationChoice === 'YES' ? 'default' : 'outline'}
-                              onClick={() =>
-                                updateDecision(row, {
-                                  action: 'APPLY',
-                                  matchedBudgetItemId: row.matchedBudgetItemId,
-                                  validationChoice: 'YES',
-                                })
-                              }
-                            >
-                              Sim
-                            </Button>
-                            <Button
-                              className="rounded-2xl"
-                              size="sm"
-                              type="button"
-                              variant={decision.validationChoice === 'NO' ? 'default' : 'outline'}
-                              onClick={() =>
-                                updateDecision(row, {
-                                  action: 'APPLY',
-                                  matchedBudgetItemId: null,
-                                  validationChoice: 'NO',
-                                })
-                              }
-                            >
-                              Nao
-                            </Button>
-                          </div>
-                        </td>
-                        <td className="px-3 py-3">
-                          <Select
-                            className="min-w-[320px]"
-                            disabled={decision.validationChoice !== 'NO'}
-                            value={decision.validationChoice === 'NO' ? decision.matchedBudgetItemId ?? '' : ''}
-                            onChange={(event) =>
-                              updateDecision(row, {
-                                action: 'APPLY',
-                                matchedBudgetItemId: event.target.value || null,
-                                validationChoice: 'NO',
-                              })
-                            }
-                          >
-                            <option value="">Escolher outro item do edital</option>
-                            {orderedOptions.map((item) => (
-                              <option key={`${row.rowIndex}-${item.id}`} value={item.id}>
-                                {item.label}
-                                {item.detail ? ` | ${item.detail}` : ''}
-                                {'score' in item && item.score != null ? ` | ${(item.score * 100).toFixed(0)}%` : ''}
-                              </option>
-                            ))}
-                          </Select>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => setReviewPopupOpen(false)}>
-              Voltar para a revisao
-            </Button>
-            <Button disabled={unresolvedReviewCount > 0} type="button" onClick={() => setReviewPopupOpen(false)}>
-              Continuar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
   );
 }
 
@@ -1381,11 +1078,11 @@ function ComparisonTable({
       <table className="w-full min-w-[980px] border-collapse text-sm">
         <thead className="bg-muted/35">
           <tr>
-            <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Descrição</th>
+            <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Descricao</th>
             <th className="border-b border-border/70 px-3 py-3 text-center font-semibold text-foreground">Qtd.</th>
             {slots.map((slot) => (
               <th key={slot.slotNumber} className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">
-                Orçamento {slot.slotNumber}
+                Orcamento {slot.slotNumber}
               </th>
             ))}
             <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Vencedor</th>
@@ -1398,18 +1095,9 @@ function ComparisonTable({
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-medium text-foreground">{row.description}</p>
-                    {row.supplierQuoteExtraItem ? (
-                      <Badge className="border-amber-300/80 bg-amber-100 text-amber-950" variant="warning">
-                        Extra
-                      </Badge>
-                    ) : null}
+                    {row.supplierQuoteExtraItem ? <Badge variant="warning">Extra</Badge> : null}
                   </div>
                   {row.specification ? <p className="text-xs text-muted-foreground">{row.specification}</p> : null}
-                  {row.supplierQuoteExtraItem ? (
-                    <p className="text-xs font-medium text-amber-900">
-                      Nao encontrada no edital, mas presente no orcamento
-                    </p>
-                  ) : null}
                 </div>
               </td>
               <td className="px-3 py-3 text-center tabular-nums text-foreground">{formatNumber(row.quantity)}</td>
@@ -1432,7 +1120,7 @@ function ComparisonTable({
                     <p className="text-sm font-medium text-foreground">
                       {slots.find((slot) => slot.slotNumber === row.winner.slotNumbers[0])?.supplier?.tradeName ||
                         slots.find((slot) => slot.slotNumber === row.winner.slotNumbers[0])?.supplier?.legalName ||
-                        `Orçamento ${row.winner.slotNumbers[0]}`}
+                        `Orcamento ${row.winner.slotNumbers[0]}`}
                     </p>
                     <p className="text-xs text-muted-foreground">{currencyOrDash(row.winner.totalValue)}</p>
                   </div>
@@ -1440,7 +1128,7 @@ function ComparisonTable({
                   <div className="space-y-1">
                     <Badge variant="warning">Empate</Badge>
                     <p className="text-xs text-muted-foreground">
-                      {row.winner.slotNumbers.map((slotNumber) => `Orçamento ${slotNumber}`).join(' | ')}
+                      {row.winner.slotNumbers.map((slotNumber) => `Orcamento ${slotNumber}`).join(' | ')}
                     </p>
                   </div>
                 ) : (
@@ -1460,19 +1148,45 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
   const quotesQuery = useProjectQuotesQuery(projectId);
   const quoteMutations = useProjectQuotesMutations(projectId);
   const [activeView, setActiveView] = useState<QuoteView>('slot-1');
+  const [activePurchaseId, setActivePurchaseId] = useState<string | null>(null);
   const [supplierPickerSlot, setSupplierPickerSlot] = useState<ProjectQuoteSlot | null>(null);
   const [newItemDialogOpen, setNewItemDialogOpen] = useState(false);
+  const [newPurchaseDialogOpen, setNewPurchaseDialogOpen] = useState(false);
+  const [manageItemsDialogOpen, setManageItemsDialogOpen] = useState(false);
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importPreview, setImportPreview] = useState<ProjectQuoteImportPreview | null>(null);
   const [isGeneratingRandomValues, setIsGeneratingRandomValues] = useState(false);
+  const [pendingBudgetItemId, setPendingBudgetItemId] = useState<string | null>(null);
 
   const loading = projectQuery.isLoading || quotesQuery.isLoading;
   const project = projectQuery.data;
   const quotesState = quotesQuery.data;
-  const slots = quotesState?.slots ?? [];
-  const rows = quotesState?.rows ?? [];
-  const comparison = quotesState?.comparison;
+  const purchases = quotesState?.purchases ?? [];
+
+  useEffect(() => {
+    if (purchases.length === 0) {
+      setActivePurchaseId(null);
+      return;
+    }
+
+    if (!activePurchaseId || !purchases.some((purchase) => purchase.id === activePurchaseId)) {
+      setActivePurchaseId(purchases[0]?.id ?? null);
+    }
+  }, [activePurchaseId, purchases]);
+
+  const activePurchase = useMemo(
+    () => purchases.find((purchase) => purchase.id === activePurchaseId) ?? null,
+    [activePurchaseId, purchases],
+  );
+  const slots = activePurchase?.slots ?? [];
+  const rows = activePurchase?.rows ?? [];
+  const comparison = activePurchase?.comparison ?? null;
+  const availableBudgetItems = useMemo(
+    () => (project?.budgetItems ?? []).filter((item) => !item.contextOnly),
+    [project?.budgetItems],
+  );
+  const selectedBudgetItemIds = useMemo(() => rows.map((row) => row.budgetItemId), [rows]);
 
   const activeSlotNumber =
     activeView === 'slot-1' ? 1 : activeView === 'slot-2' ? 2 : activeView === 'slot-3' ? 3 : null;
@@ -1487,16 +1201,79 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
 
   useEffect(() => {
     setImportPreview(null);
-  }, [activeSlotNumber]);
+  }, [activePurchase?.id, activeSlotNumber]);
+
+  async function handleCreatePurchase(payload: { title: string; notes?: string | null }) {
+    try {
+      const result = await quoteMutations.createPurchase.mutateAsync(payload);
+      setActivePurchaseId(result.purchases[0]?.id ?? null);
+      setNewPurchaseDialogOpen(false);
+      toast.success('Compra criada com sucesso.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel criar a compra.');
+    }
+  }
+
+  async function handleAddPurchaseItem(budgetItemId: string) {
+    if (!activePurchase) {
+      toast.error('Crie ou selecione uma compra antes de adicionar itens.');
+      return;
+    }
+
+    setPendingBudgetItemId(budgetItemId);
+    try {
+      await quoteMutations.addPurchaseItems.mutateAsync({
+        purchaseId: activePurchase.id,
+        payload: { budgetItemIds: [budgetItemId] },
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel adicionar o item a compra.');
+    } finally {
+      setPendingBudgetItemId(null);
+    }
+  }
+
+  async function handleRemovePurchaseItem(budgetItemId: string) {
+    if (!activePurchase) {
+      return;
+    }
+
+    const row = rows.find((entry) => entry.budgetItemId === budgetItemId) ?? null;
+    const hasFilledData =
+      row?.values.some((value) => value.unitPrice != null || Boolean(value.notes?.trim())) ?? false;
+
+    if (
+      hasFilledData &&
+      !window.confirm('Remover este item apaga os valores ja lancados nos 3 orcamentos desta compra. Deseja continuar?')
+    ) {
+      return;
+    }
+
+    setPendingBudgetItemId(budgetItemId);
+    try {
+      await quoteMutations.removePurchaseItem.mutateAsync({
+        purchaseId: activePurchase.id,
+        budgetItemId,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel remover o item da compra.');
+    } finally {
+      setPendingBudgetItemId(null);
+    }
+  }
 
   async function handleSelectSupplier(slot: ProjectQuoteSlot, supplierId: string | null) {
+    if (!activePurchase) {
+      return;
+    }
+
     const isChanging = slot.supplierId !== supplierId;
     const needsReset = isChanging && slot.filledItemCount > 0;
     let confirmReset = false;
 
     if (needsReset) {
       const confirmed = window.confirm(
-        'Trocar o fornecedor deste orçamento limpa os valores e observações já preenchidos. Deseja continuar?',
+        'Trocar o fornecedor deste orcamento limpa os valores e observacoes ja preenchidos. Deseja continuar?',
       );
       if (!confirmed) {
         return;
@@ -1504,18 +1281,11 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
       confirmReset = true;
     }
 
-    try {
-      await quoteMutations.updateSupplier.mutateAsync({
-        slotNumber: slot.slotNumber,
-        payload: { supplierId, confirmReset },
-      });
-      toast.success(
-        supplierId ? `Fornecedor definido no orçamento ${slot.slotNumber}.` : `Fornecedor removido do orçamento ${slot.slotNumber}.`,
-      );
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar o fornecedor do orçamento.');
-      throw error;
-    }
+    await quoteMutations.updateSupplier.mutateAsync({
+      purchaseId: activePurchase.id,
+      slotNumber: slot.slotNumber,
+      payload: { supplierId, confirmReset },
+    });
   }
 
   async function handleSaveRow(
@@ -1523,28 +1293,19 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
     budgetItemId: string,
     payload: { unitPrice?: number | null; notes?: string | null },
   ) {
-    try {
-      await quoteMutations.updateItem.mutateAsync({
-        slotNumber,
-        budgetItemId,
-        payload,
-      });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível salvar a linha do orçamento.');
-      throw error;
+    if (!activePurchase) {
+      return;
     }
+
+    await quoteMutations.updateItem.mutateAsync({
+      purchaseId: activePurchase.id,
+      slotNumber,
+      budgetItemId,
+      payload,
+    });
   }
 
-  async function handleSelectQuoteSlot(slotNumber: number) {
-    try {
-      await quoteMutations.selectSlot.mutateAsync(slotNumber);
-      toast.success(`Orçamento ${slotNumber} selecionado para gerar a ordem de compra.`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível selecionar o orçamento.');
-    }
-  }
-
-  async function handleGeneratePurchaseOrder(payload: {
+  async function handleGeneratePurchaseOrders(payload: {
     glpiNumber: string;
     internalReference?: string | null;
     deliveryAddress?: string | null;
@@ -1555,30 +1316,31 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
     expectedDeliveryDate?: string | null;
     notes?: string | null;
   }) {
+    if (!activePurchase) {
+      return;
+    }
+
     try {
-      const result = await quoteMutations.generatePurchaseOrder.mutateAsync(payload);
-      toast.success(`PDF gerado em ${result.folderPathLabel || 'Ordens de compra'}.`);
+      const result = await quoteMutations.generatePurchaseOrders.mutateAsync({
+        purchaseId: activePurchase.id,
+        payload,
+      });
+      toast.success(
+        `${result.generatedOrders.length} pedido(s) gerado(s) para ${result.purchaseTitle}.${result.skippedItems > 0 ? ` ${result.skippedItems} item(ns) ficaram pendentes.` : ''}`,
+      );
       setGenerateDialogOpen(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível gerar a ordem de compra.');
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel gerar os pedidos.');
     }
   }
 
   async function handleGenerateRandomValues() {
-    if (!activeSlot?.supplierId) {
-      toast.error('Selecione um fornecedor antes de gerar valores aleatórios.');
+    if (!activePurchase || !activeSlot) {
       return;
     }
 
-    if (rows.length === 0) {
-      toast.error('Não existem itens disponíveis para preencher neste orçamento.');
-      return;
-    }
-
-    if (
-      activeSlotPricedCount > 0 &&
-      !window.confirm('Isso vai substituir os valores unitários já preenchidos neste orçamento. Deseja continuar?')
-    ) {
+    if (!activeSlot.supplierId) {
+      toast.error('Selecione um fornecedor antes de gerar valores de exemplo.');
       return;
     }
 
@@ -1586,624 +1348,538 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
 
     try {
       for (const row of rows) {
+        const rowValue = row.values.find((entry) => entry.slotNumber === activeSlot.slotNumber);
+        if (rowValue?.unitPrice != null) {
+          continue;
+        }
+
         await quoteMutations.updateItem.mutateAsync({
+          purchaseId: activePurchase.id,
           slotNumber: activeSlot.slotNumber,
           budgetItemId: row.budgetItemId,
           payload: { unitPrice: generateRandomQuoteUnitPrice() },
         });
       }
 
-      toast.success(`Valores aleatórios gerados em ${rows.length} item(ns).`);
+      toast.success('Valores de exemplo gerados para o orcamento ativo.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível gerar os valores aleatórios.');
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel gerar valores aleatorios.');
     } finally {
       setIsGeneratingRandomValues(false);
     }
   }
 
   async function handleUploadSupplierQuotePdf(file: File) {
-    if (!activeSlot) {
-      toast.error('Selecione um orcamento antes de importar o PDF.');
+    if (!activePurchase || !activeSlotNumber) {
       return;
     }
 
     try {
-      const nextPreview = await quoteMutations.uploadImportPdf.mutateAsync({
-        slotNumber: activeSlot.slotNumber,
+      const preview = await quoteMutations.uploadImportPdf.mutateAsync({
+        purchaseId: activePurchase.id,
+        slotNumber: activeSlotNumber,
         file,
       });
-      setImportPreview(nextPreview);
-      toast.success(`PDF lido com ${nextPreview.rows.length} linha(s) para revisao.`);
+      setImportPreview(preview);
+      toast.success('PDF lido com sucesso. Revise os itens antes de aplicar.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel importar o PDF do fornecedor.');
-      throw error;
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel importar o PDF.');
     }
   }
 
   async function handleApplySupplierQuotePdf(payload: ProjectQuoteImportApplyPayload) {
-    if (!activeSlot || !importPreview) {
-      toast.error('Importe um PDF antes de aplicar a revisao.');
+    if (!activePurchase || !activeSlotNumber || !importPreview) {
       return;
     }
 
-    let nextPayload = payload;
-    if (importPreview.summary.hasExistingValues) {
-      const confirmed = window.confirm(
-        'Aplicar este PDF vai substituir os valores ja preenchidos neste orcamento. Deseja continuar?',
-      );
-
-      if (!confirmed) {
-        return;
-      }
-
-      nextPayload = {
-        ...payload,
-        confirmReplace: true,
-      };
+    const hasExistingValues = importPreview.summary.hasExistingValues;
+    if (
+      hasExistingValues &&
+      !window.confirm(
+        'Este orcamento ja possui valores preenchidos. Aplicar a importacao vai substituir os dados atuais desta compra. Deseja continuar?',
+      )
+    ) {
+      return;
     }
 
     try {
       await quoteMutations.applyImportPdf.mutateAsync({
-        slotNumber: activeSlot.slotNumber,
+        purchaseId: activePurchase.id,
+        slotNumber: activeSlotNumber,
         documentId: importPreview.document.id,
-        payload: nextPayload,
+        payload: {
+          ...payload,
+          confirmReplace: hasExistingValues ? true : undefined,
+        },
       });
-      toast.success('PDF aplicado ao orcamento com sucesso.');
-      setImportDialogOpen(false);
       setImportPreview(null);
+      setImportDialogOpen(false);
+      toast.success('Importacao aplicada ao orcamento.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel aplicar a importacao do PDF.');
-      throw error;
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel aplicar a importacao.');
     }
   }
 
-  async function handleApply(mode: 'OVERALL' | 'PER_ITEM') {
-    const confirmed = window.confirm(
-      mode === 'OVERALL'
-        ? 'Aplicar o vencedor geral atualizará fornecedor aprovado, valor unitário e valor total dos itens do projeto. Continuar?'
-        : 'Aplicar os vencedores por item atualizará fornecedor aprovado, valor unitário e valor total de cada item resolvido. Continuar?',
-    );
-
-    if (!confirmed) {
+  async function handleApply() {
+    if (!activePurchase) {
       return;
     }
 
     try {
-      const result = await quoteMutations.applyWinner.mutateAsync(mode);
+      const result = await quoteMutations.applyWinner.mutateAsync({
+        purchaseId: activePurchase.id,
+        mode: 'PER_ITEM',
+      });
       toast.success(
-        mode === 'OVERALL'
-          ? `Vencedor geral aplicado em ${result.updatedItems} item(ns).`
-          : `Vencedores por item aplicados em ${result.updatedItems} item(ns).`,
+        `${result.updatedItems} item(ns) aplicados na compra ${activePurchase.title}.${result.skippedItems > 0 ? ` ${result.skippedItems} item(ns) ficaram sem vencedor unico.` : ''}`,
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível aplicar o vencedor.');
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel aplicar os vencedores.');
     }
   }
 
   if (loading) {
     return (
-      <div className="page-sections">
-        <Card>
-          <CardContent className="space-y-4 p-6">
-            <Skeleton className="h-8 w-72" />
-            <Skeleton className="h-4 w-full max-w-2xl" />
-          </CardContent>
-        </Card>
-        <div className="grid gap-4 md:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <Skeleton key={index} className="h-28 w-full rounded-2xl" />
-          ))}
+      <div className="space-y-4">
+        <Skeleton className="h-32 w-full rounded-3xl" />
+        <div className="grid gap-3 md:grid-cols-3">
+          <Skeleton className="h-28 w-full rounded-3xl" />
+          <Skeleton className="h-28 w-full rounded-3xl" />
+          <Skeleton className="h-28 w-full rounded-3xl" />
         </div>
-        <Skeleton className="h-[480px] w-full rounded-2xl" />
+        <Skeleton className="h-[480px] w-full rounded-3xl" />
       </div>
     );
   }
 
-  if (projectQuery.isError || quotesQuery.isError || !project || !quotesState) {
+  if (projectQuery.isError || quotesQuery.isError || !project) {
     return (
       <EmptyState
-        description="Não foi possível carregar o módulo de orçamento deste projeto."
-        title="Falha ao abrir orçamento"
+        description="Nao foi possivel carregar a estrutura de compras e orcamentos deste projeto."
+        icon={CircleDollarSign}
+        title="Erro ao carregar orcamentos"
       />
     );
   }
 
-  const canApplyOverall = comparison?.overallWinner.status === 'UNIQUE';
-  const canApplyPerItem = (comparison?.resolvedRowCount ?? 0) > 0;
-  const canGeneratePurchaseOrder = Boolean(activeSlot?.isSelected && activeSlot?.supplierId && activeSlotPricedCount > 0);
-  const completedSlotsCount = slots.filter((slot) => slot.isComplete).length;
-  const selectedSlotNumber = slots.find((slot) => slot.isSelected)?.slotNumber ?? null;
-  const activeSlotProgress = activeSlot ? getQuoteFillProgress(activeSlot.filledItemCount, activeSlot.itemCount) : 0;
-
   return (
-    <div className="page-sections">
-      <Card className="relative overflow-hidden border-primary/15 bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.18),transparent_36%),radial-gradient(circle_at_top_right,rgba(56,189,248,0.14),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))] shadow-xl shadow-slate-950/5">
-        <div className="pointer-events-none absolute inset-x-10 bottom-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
-        <CardHeader className="relative border-b border-white/70 pb-5">
+    <div className="space-y-6">
+      <Card className="overflow-hidden border-border/70">
+        <CardHeader className="gap-4 border-b border-border/70 bg-muted/20">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-3">
-              <CardTitle className="flex items-center gap-3 text-xl">
-                <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/12 text-primary shadow-sm shadow-primary/10 ring-1 ring-primary/15">
-                  <CircleDollarSign className="size-5" aria-hidden />
-                </div>
-                Orçamentos do projeto
-              </CardTitle>
-              <CardDescription className="max-w-3xl text-[15px] leading-7">
-                Cada orçamento representa um fornecedor para toda a lista do projeto. Os itens vêm automaticamente do mesmo conjunto usado em Controle de compras e Checklist.
-              </CardDescription>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="secondary" className="bg-white/90 px-3 py-1 text-slate-700 ring-slate-200/90">
-                  3 orçamentos fixos
-                </Badge>
-                <Badge variant="success" className="px-3 py-1">
-                  {completedSlotsCount} completo(s)
-                </Badge>
-                <Badge variant="neutral" className="px-3 py-1">
-                  {selectedSlotNumber ? `Orçamento ${selectedSlotNumber} selecionado` : 'Nenhum orçamento selecionado'}
-                </Badge>
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="neutral">Modulo de compras por orcamento</Badge>
+                <Badge variant="warning">3 fornecedores por compra</Badge>
               </div>
+              <CardTitle className="text-2xl">Orcamentos por compra</CardTitle>
+              <CardDescription className="max-w-3xl text-sm leading-relaxed">
+                Cada compra possui seus proprios itens, ate 3 fornecedores, mapa comparativo proprio e pedidos separados
+                por fornecedor vencedor.
+              </CardDescription>
             </div>
-            <div className="flex flex-wrap gap-2 lg:justify-end">
-              <Button className="h-11 rounded-2xl px-5 shadow-sm shadow-primary/10" type="button" variant="secondary" onClick={() => setNewItemDialogOpen(true)}>
-                <FilePlus2 className="size-4" aria-hidden />
-                Novo item
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="secondary" onClick={() => setNewPurchaseDialogOpen(true)}>
+                <LayoutGrid className="size-4" aria-hidden />
+                Nova compra
               </Button>
-              {activeView === 'comparison' ? (
-                <>
-                  <Button
-                    className="h-11 rounded-2xl px-5"
-                    disabled={!canApplyOverall || quoteMutations.applyWinner.isPending}
-                    type="button"
-                    variant="outline"
-                    onClick={() => void handleApply('OVERALL')}
-                  >
-                    <Trophy className="size-4" aria-hidden />
-                    Aplicar vencedor geral
-                  </Button>
-                  <Button
-                    className="h-11 rounded-2xl px-5 shadow-sm shadow-primary/15"
-                    disabled={!canApplyPerItem || quoteMutations.applyWinner.isPending}
-                    type="button"
-                    onClick={() => void handleApply('PER_ITEM')}
-                  >
-                    <CheckCircle2 className="size-4" aria-hidden />
-                    Aplicar vencedores por item
-                  </Button>
-                </>
-              ) : null}
+              <Button type="button" onClick={() => setManageItemsDialogOpen(true)} disabled={!activePurchase}>
+                <FileText className="size-4" aria-hidden />
+                Gerenciar itens
+              </Button>
             </div>
           </div>
         </CardHeader>
+        <CardContent className="grid gap-3 py-5 md:grid-cols-4">
+          <div className="rounded-2xl border border-border/70 bg-card px-4 py-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Projeto</p>
+            <p className="mt-2 font-semibold text-foreground">{project.name}</p>
+            <p className="text-sm text-muted-foreground">{project.code}</p>
+          </div>
+          <div className="rounded-2xl border border-border/70 bg-card px-4 py-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Compras</p>
+            <p className="mt-2 text-3xl font-semibold text-foreground">{purchases.length}</p>
+            <p className="text-sm text-muted-foreground">Cada compra tem 3 orcamentos fixos</p>
+          </div>
+          <div className="rounded-2xl border border-border/70 bg-card px-4 py-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Itens no projeto</p>
+            <p className="mt-2 text-3xl font-semibold text-foreground">{availableBudgetItems.length}</p>
+            <p className="text-sm text-muted-foreground">Itens disponiveis para vincular em compras</p>
+          </div>
+          <div className="rounded-2xl border border-border/70 bg-card px-4 py-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Compra ativa</p>
+            <p className="mt-2 font-semibold text-foreground">{activePurchase?.title || 'Nenhuma selecionada'}</p>
+            <p className="text-sm text-muted-foreground">
+              {activePurchase ? `${rows.length} item(ns) nesta compra` : 'Crie a primeira compra para comecar'}
+            </p>
+          </div>
+        </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {viewTabs.map((tab) => {
-          const slot = tab.value.startsWith('slot-')
-            ? slots.find((entry) => entry.slotNumber === Number(tab.value.replace('slot-', ''))) ?? null
-            : null;
-          const active = activeView === tab.value;
-          const slotProgress = slot ? getQuoteFillProgress(slot.filledItemCount, slot.itemCount) : 0;
+      {purchases.length > 0 ? (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {purchases.map((purchase) => {
+            const selected = purchase.id === activePurchaseId;
+            const purchaseTotal =
+              purchase.comparison.slotTotals.find((slotTotal) => slotTotal.slotNumber === purchase.comparison.overallWinner.slotNumbers[0])
+                ?.totalValue ?? purchase.comparison.overallWinner.totalValue;
 
-          return (
-            <button
-              key={tab.value}
-              className={cn(
-                'relative overflow-hidden rounded-[28px] border px-5 py-5 text-left transition duration-200',
-                active
-                  ? 'border-primary/35 bg-[linear-gradient(180deg,rgba(20,184,166,0.14),rgba(255,255,255,0.96))] shadow-xl shadow-primary/10'
-                  : 'border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.92))] hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-lg hover:shadow-slate-950/5',
-              )}
-              type="button"
-              onClick={() => setActiveView(tab.value)}
-            >
-              <div
+            return (
+              <button
+                key={purchase.id}
                 className={cn(
-                  'absolute inset-x-5 top-0 h-1 rounded-b-full transition-opacity',
-                  active ? 'bg-gradient-to-r from-primary via-teal-400 to-sky-400 opacity-100' : 'bg-gradient-to-r from-primary/60 to-sky-300/70 opacity-0',
+                  'rounded-3xl border p-4 text-left transition',
+                  selected
+                    ? 'border-primary bg-primary/8 shadow-lg shadow-primary/10'
+                    : 'border-border/70 bg-card hover:border-primary/35 hover:bg-muted/20',
                 )}
-              />
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1 space-y-3">
-                  <p className="text-base font-semibold text-foreground">{tab.label}</p>
-                  {slot ? (
-                    <div className="space-y-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="truncate text-sm font-medium text-foreground">{slotDisplayName(slot)}</p>
-                      {slot.isSelected ? <Badge variant="secondary">Selecionado</Badge> : null}
+                type="button"
+                onClick={() => setActivePurchaseId(purchase.id)}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-foreground">{purchase.title}</p>
+                      <p className="text-sm text-muted-foreground">{purchase.rows.length} item(ns) vinculados</p>
                     </div>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                      <span>{slot.filledItemCount}/{slot.itemCount} itens</span>
-                      <span>{slotProgress}% concluído</span>
-                      <span>{currencyOrDash(slot.totalValue)}</span>
+                    {selected ? <Badge variant="success">Ativa</Badge> : <Badge variant="neutral">Compra</Badge>}
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="rounded-2xl bg-muted/25 px-3 py-2">
+                      <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Resolvidos</p>
+                      <p className="mt-1 font-semibold text-foreground">{purchase.comparison.resolvedRowCount}</p>
                     </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-slate-200/80">
-                      <div
-                        className={cn(
-                          'h-full rounded-full transition-all',
-                          active ? 'bg-gradient-to-r from-primary to-sky-400' : 'bg-gradient-to-r from-primary/80 to-sky-300',
-                        )}
-                        style={{ width: `${slotProgress}%` }}
-                      />
+                    <div className="rounded-2xl bg-muted/25 px-3 py-2">
+                      <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Pendentes</p>
+                      <p className="mt-1 font-semibold text-foreground">{purchase.comparison.unresolvedRowCount}</p>
                     </div>
-                    </div>
-                  ) : (
-                    <p className="mt-1 text-xs text-muted-foreground">Comparação entre os 3 orçamentos</p>
-                  )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {purchaseTotal != null ? `Melhor total atual: ${formatCurrency(purchaseTotal)}` : 'Mapa ainda sem total vencedor'}
+                  </p>
                 </div>
-                {slot ? <SlotStatusBadge slot={slot} /> : <Badge variant="secondary">Resumo</Badge>}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {rows.length === 0 ? (
+              </button>
+            );
+          })}
+        </div>
+      ) : (
         <EmptyState
-          actionLabel="Criar item"
-          description="Ainda não existem itens de compra neste projeto. Cadastre um item manual para começar os orçamentos."
+          actionLabel="Criar primeira compra"
+          description="Divida o projeto em compras independentes. Cada compra tera seus itens, seus 3 fornecedores e o proprio mapa comparativo."
           icon={LayoutGrid}
-          onAction={() => setNewItemDialogOpen(true)}
-          title="Nenhum item disponível para orçamento"
+          onAction={() => setNewPurchaseDialogOpen(true)}
+          title="Nenhuma compra cadastrada"
         />
-      ) : activeView === 'comparison' ? (
-        <>
-          <div className="grid gap-4 lg:grid-cols-3">
-            {slots.map((slot) => {
-              const isOverallWinner = comparison?.overallWinner.slotNumbers.includes(slot.slotNumber) ?? false;
+      )}
 
-              return (
-                <Card
-                  key={slot.slotNumber}
-                  className={cn(
-                    'border-border/70 shadow-sm',
-                    isOverallWinner && comparison?.overallWinner.status === 'UNIQUE' && 'border-emerald-400/70 bg-emerald-500/[0.06]',
-                    isOverallWinner && comparison?.overallWinner.status === 'TIE' && 'border-amber-300/80 bg-amber-500/[0.06]',
-                  )}
-                >
-                  <CardHeader className="space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <CardTitle className="text-base">Orçamento {slot.slotNumber}</CardTitle>
-                        <CardDescription>{slotDisplayName(slot)}</CardDescription>
-                      </div>
-                      <SlotStatusBadge slot={slot} />
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-2xl bg-muted/25 px-4 py-3">
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Total</p>
-                        <p className="mt-2 text-lg font-semibold text-foreground">{currencyOrDash(slot.totalValue)}</p>
-                      </div>
-                      <div className="rounded-2xl bg-muted/25 px-4 py-3">
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Preenchido</p>
-                        <p className="mt-2 text-lg font-semibold text-foreground">
-                          {slot.filledItemCount}/{slot.itemCount}
-                        </p>
-                      </div>
-                    </div>
-                  </CardHeader>
-                </Card>
-              );
-            })}
-          </div>
-
-          <Card className="border-border/70 shadow-sm">
-            <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <CardTitle className="text-lg">Mapa comparativo</CardTitle>
-                <CardDescription>Menor valor por item e total geral do fornecedor.</CardDescription>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="success">{comparison?.resolvedRowCount ?? 0} item(ns) resolvidos</Badge>
-                <Badge variant="warning">{comparison?.tieRowCount ?? 0} empate(s)</Badge>
-                <Badge variant="neutral">{comparison?.unresolvedRowCount ?? 0} pendente(s)</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Vencedor geral</p>
-                <div className="mt-2 flex flex-wrap items-center gap-3">
-                  {comparison?.overallWinner.status === 'UNIQUE' ? (
-                    <>
-                      <Badge variant="success">Menor total geral</Badge>
-                      <span className="font-medium text-foreground">
-                        {slots.find((slot) => slot.slotNumber === comparison.overallWinner.slotNumbers[0])?.supplier?.tradeName ||
-                          slots.find((slot) => slot.slotNumber === comparison.overallWinner.slotNumbers[0])?.supplier?.legalName ||
-                          `Orçamento ${comparison.overallWinner.slotNumbers[0]}`}
-                      </span>
-                      <span className="tabular-nums text-muted-foreground">{currencyOrDash(comparison.overallWinner.totalValue)}</span>
-                    </>
-                  ) : comparison?.overallWinner.status === 'TIE' ? (
-                    <>
-                      <Badge variant="warning">Empate geral</Badge>
-                      <span className="text-muted-foreground">
-                        {comparison.overallWinner.slotNumbers.map((slotNumber) => `Orçamento ${slotNumber}`).join(' | ')}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <Badge variant="neutral">Sem vencedor geral</Badge>
-                      <span className="text-muted-foreground">Preencha integralmente os 3 orçamentos para comparar o total.</span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <ComparisonTable rows={rows} slots={slots} />
-            </CardContent>
-          </Card>
-        </>
-      ) : activeSlot ? (
-        <>
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1.18fr)_minmax(320px,0.82fr)]">
-            <Card className="relative overflow-hidden border-primary/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(240,253,250,0.9))] shadow-xl shadow-slate-950/5">
-              <CardHeader className="space-y-5">
-                <div className="flex flex-wrap items-start justify-between gap-4 rounded-[28px] border border-white/70 bg-white/60 p-5 backdrop-blur-sm">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Store className="size-5 text-primary" aria-hidden />
-                      <CardTitle className="text-lg">Fornecedor do orçamento {activeSlot.slotNumber}</CardTitle>
-                    </div>
-                    <CardDescription>
-                      Se trocar o fornecedor depois de preencher valores, o sistema limpa o orçamento deste slot mediante confirmação.
-                    </CardDescription>
-                  </div>
-                  <SlotStatusBadge slot={activeSlot} />
-                </div>
-
-                <div className="rounded-[28px] border border-primary/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(236,253,245,0.88))] p-6 shadow-inner shadow-primary/5">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="space-y-1">
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Fornecedor atual</p>
-                      <p className="text-xl font-semibold text-foreground">{slotDisplayName(activeSlot)}</p>
-                      {activeSlot.supplier ? (
-                        <p className="text-sm text-muted-foreground">
-                          {[activeSlot.supplier.documentNumber, activeSlot.supplier.phone, activeSlot.supplier.email]
-                            .filter(Boolean)
-                            .join(' | ') || 'Sem dados complementares'}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">Selecione um fornecedor para habilitar a tabela.</p>
-                      )}
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 lg:justify-end">
-                      <Button
-                        className="h-11 rounded-2xl px-5"
-                        disabled={quoteMutations.selectSlot.isPending || activeSlot.isSelected}
-                        type="button"
-                        onClick={() => void handleSelectQuoteSlot(activeSlot.slotNumber)}
-                        variant={activeSlot.isSelected ? 'secondary' : 'outline'}
-                      >
-                        {activeSlot.isSelected ? 'Orçamento selecionado' : 'Selecionar orçamento'}
-                      </Button>
-                      <Button className="h-11 rounded-2xl px-5 shadow-sm shadow-primary/15" type="button" onClick={() => setSupplierPickerSlot(activeSlot)}>
-                        <Building2 className="size-4" aria-hidden />
-                        {activeSlot.supplier ? 'Trocar fornecedor' : 'Selecionar fornecedor'}
-                      </Button>
-                      <Button
-                        className="h-11 rounded-2xl px-5"
-                        disabled={!activeSlot.supplierId}
-                        type="button"
-                        variant="outline"
-                        onClick={() => setImportDialogOpen(true)}
-                      >
-                        <ArrowUpFromLine className="size-4" aria-hidden />
-                        Importar PDF do fornecedor
-                      </Button>
-                    </div>
-                  </div>
-                  {activeSlot.latestImportedDocument ? (
-                    <a
-                      className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-900 transition-colors hover:bg-sky-100"
-                      href={getProjectDocumentDownloadUrl(projectId, activeSlot.latestImportedDocument.id)}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      <FileText className="size-3.5" aria-hidden />
-                      Ultimo PDF importado
-                      <ExternalLink className="size-3.5" aria-hidden />
-                    </a>
-                  ) : null}
-                </div>
-                {activeSlot.latestImportedDocument ? (
-                  <div className="rounded-2xl border border-sky-200/70 bg-sky-50/70 px-4 py-3 text-sm text-sky-950">
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">{activeSlot.latestImportedDocument.originalFileName}</p>
-                        <p className="text-xs text-sky-900/80">
-                          {activeSlot.latestImportedDocument.folderPathLabel || 'Documentos'}
-                          {activeSlot.latestImportedDocument.documentDate
-                            ? ` | ${formatDate(activeSlot.latestImportedDocument.documentDate)}`
-                            : ''}
-                        </p>
-                      </div>
-                      <a
-                        className="inline-flex items-center gap-1 text-xs font-semibold text-sky-900 underline-offset-4 hover:underline"
-                        href={getProjectDocumentDownloadUrl(projectId, activeSlot.latestImportedDocument.id)}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        Abrir PDF
-                        <ExternalLink className="size-3.5" aria-hidden />
-                      </a>
-                    </div>
-                  </div>
-                ) : null}
+      {activePurchase ? (
+        <Card className="border-border/70">
+          <CardHeader className="gap-4 border-b border-border/70 bg-card/70">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  {activeSlot.isSelected ? <Badge variant="secondary">Este é o orçamento selecionado</Badge> : null}
-                  <Badge variant={activeSlotPricedCount > 0 ? 'success' : 'neutral'}>
-                    {activeSlotPricedCount} item(ns) com preço
-                  </Badge>
+                  <Badge variant="neutral">Compra ativa</Badge>
+                  <Badge variant="warning">{rows.length} item(ns)</Badge>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    className="hidden"
-                    disabled={quoteMutations.selectSlot.isPending || activeSlot.isSelected}
-                    type="button"
-                    variant="outline"
-                    onClick={() => void handleSelectQuoteSlot(activeSlot.slotNumber)}
-                  >
-                    Selecionar orçamento
-                  </Button>
-                  <Button
-                    className="h-11 rounded-2xl px-5 shadow-sm shadow-primary/15"
-                    disabled={!canGeneratePurchaseOrder || quoteMutations.generatePurchaseOrder.isPending}
-                    type="button"
-                    onClick={() => setGenerateDialogOpen(true)}
-                  >
-                    Gerar ordem de compra
-                  </Button>
-                </div>
-              </CardHeader>
-            </Card>
-
-            <Card className="relative overflow-hidden border-sky-200/60 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.16),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.99),rgba(241,245,249,0.93))] shadow-xl shadow-slate-950/5">
-              <CardHeader className="space-y-5">
-                <div className="flex items-start justify-between gap-4 rounded-[28px] border border-white/70 bg-white/70 px-5 py-4 backdrop-blur-sm">
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700/80">Preenchimento</p>
-                    <p className="text-sm text-muted-foreground">Acompanhe a evolução deste orçamento em tempo real.</p>
-                  </div>
-                  <div className="rounded-2xl bg-sky-50 px-4 py-3 text-right ring-1 ring-sky-100">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sky-700/80">Progresso</p>
-                    <p className="mt-1 text-2xl font-semibold text-slate-900">{activeSlotProgress}%</p>
-                  </div>
-                </div>
-                <CardTitle className="text-lg">Resumo deste orçamento</CardTitle>
-                <div className="h-2 overflow-hidden rounded-full bg-slate-200/80">
-                  <div className="h-full rounded-full bg-gradient-to-r from-sky-400 via-primary to-teal-400 transition-all" style={{ width: `${activeSlotProgress}%` }} />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-[24px] bg-white/80 px-4 py-4 ring-1 ring-slate-200/80">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Itens</p>
-                    <p className="mt-2 text-2xl font-semibold text-foreground">{activeSlot.itemCount}</p>
-                  </div>
-                  <div className="rounded-[24px] bg-emerald-50/80 px-4 py-4 ring-1 ring-emerald-100">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Preenchidos</p>
-                    <p className="mt-2 text-2xl font-semibold text-foreground">{activeSlot.filledItemCount}</p>
-                  </div>
-                  <div className="rounded-[24px] bg-sky-50/80 px-4 py-4 ring-1 ring-sky-100">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Total</p>
-                    <p className="mt-2 text-2xl font-semibold text-foreground">{currencyOrDash(activeSlot.totalValue)}</p>
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-          </div>
-
-          <Card className="border-border/70 shadow-sm">
-            <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div>
-                <CardTitle className="text-lg">Linhas do orçamento</CardTitle>
-                <CardDescription>
-                  Descrição e quantidade vêm automaticamente do projeto. Preencha o valor unitário e observações deste fornecedor.
+                <CardTitle className="text-xl">{activePurchase.title}</CardTitle>
+                <CardDescription className="max-w-3xl">
+                  {activePurchase.notes?.trim() || 'Defina os itens desta compra e preencha os 3 orcamentos para comparar por item.'}
                 </CardDescription>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  className="h-auto min-h-7 max-w-[min(100%,18rem)] shrink-0 gap-1.5 whitespace-normal rounded-xl px-2 py-1 text-center text-[10px] font-semibold leading-tight normal-case"
-                  disabled={!activeSlot.supplierId || quoteMutations.uploadImportPdf.isPending}
-                  size="sm"
-                  type="button"
-                  title="Importa um PDF do fornecedor, interpreta os valores e abre a revisao antes de aplicar."
-                  variant="secondary"
-                  onClick={() => setImportDialogOpen(true)}
-                >
-                  <ArrowUpFromLine className="size-3.5 shrink-0" aria-hidden />
-                  <span>{quoteMutations.uploadImportPdf.isPending ? 'Lendo PDF...' : 'Importar PDF do fornecedor'}</span>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="secondary" onClick={() => setManageItemsDialogOpen(true)}>
+                  <FileText className="size-4" aria-hidden />
+                  Itens da compra
                 </Button>
-                <Button
-                  className="h-auto min-h-7 max-w-[min(100%,18rem)] shrink-0 gap-1.5 whitespace-normal rounded-xl px-2 py-1 text-center text-[10px] font-semibold leading-tight normal-case"
-                  disabled={!activeSlot.supplierId || isGeneratingRandomValues || rows.length === 0}
-                  size="sm"
-                  type="button"
-                  title="Preenche os valores unitários deste orçamento com dados aleatórios para testes."
-                  variant="secondary"
-                  onClick={() => void handleGenerateRandomValues()}
-                >
-                  <Dices className="size-3.5 shrink-0" aria-hidden />
-                  <span>{isGeneratingRandomValues ? 'Gerando valores...' : 'Gerar informações aleatórias'}</span>
+                <Button type="button" variant="secondary" onClick={() => setNewItemDialogOpen(true)}>
+                  <FilePlus2 className="size-4" aria-hidden />
+                  Novo item no projeto
                 </Button>
-                <Badge variant={activeSlot.supplierId ? 'secondary' : 'warning'}>
-                  {activeSlot.supplierId ? 'Tabela habilitada' : 'Selecione um fornecedor'}
-                </Badge>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto rounded-2xl border border-border/70">
-                <table className="w-full min-w-[880px] border-collapse text-sm">
-                  <thead className="bg-muted/35">
-                    <tr>
-                      <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Descrição</th>
-                      <th className="border-b border-border/70 px-3 py-3 text-center font-semibold text-foreground">Qtd.</th>
-                      <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Valor unitário</th>
-                      <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Valor total</th>
-                      <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Observações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row) => (
-                      <QuoteLineRow
-                        key={`${activeSlot.slotNumber}-${row.budgetItemId}`}
-                        disabled={!activeSlot.supplierId || isGeneratingRandomValues}
-                        row={row}
-                        slotNumber={activeSlot.slotNumber}
-                        onSave={(budgetItemId, payload) => handleSaveRow(activeSlot.slotNumber, budgetItemId, payload)}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6 py-6">
+            {rows.length === 0 ? (
+              <EmptyState
+                actionLabel="Adicionar itens"
+                description="Esta compra ainda nao possui itens. Inclua itens do projeto para iniciar os 3 orcamentos."
+                icon={FileText}
+                onAction={() => setManageItemsDialogOpen(true)}
+                secondaryActionLabel="Criar novo item"
+                onSecondaryAction={() => setNewItemDialogOpen(true)}
+                title="Compra sem itens"
+              />
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {viewTabs.map((tab) => (
+                    <Button
+                      key={tab.value}
+                      type="button"
+                      variant={activeView === tab.value ? 'default' : 'secondary'}
+                      onClick={() => setActiveView(tab.value)}
+                    >
+                      {tab.label}
+                    </Button>
+                  ))}
+                </div>
+                {activeView === 'comparison' ? (
+                  <div className="space-y-4">
+                    <div className="grid gap-3 md:grid-cols-4">
+                      <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-4">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <CheckCircle2 className="size-4" aria-hidden />
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em]">Itens resolvidos</p>
+                        </div>
+                        <p className="mt-3 text-3xl font-semibold text-foreground">{comparison?.resolvedRowCount ?? 0}</p>
+                      </div>
+                      <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-4">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Trophy className="size-4" aria-hidden />
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em]">Empates</p>
+                        </div>
+                        <p className="mt-3 text-3xl font-semibold text-foreground">{comparison?.tieRowCount ?? 0}</p>
+                      </div>
+                      <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-4">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <CircleDollarSign className="size-4" aria-hidden />
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em]">Pendentes</p>
+                        </div>
+                        <p className="mt-3 text-3xl font-semibold text-foreground">{comparison?.unresolvedRowCount ?? 0}</p>
+                      </div>
+                      <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-4">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Store className="size-4" aria-hidden />
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em]">Melhor total</p>
+                        </div>
+                        <p className="mt-3 text-lg font-semibold text-foreground">
+                          {currencyOrDash(comparison?.overallWinner.totalValue)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-3">
+                      {comparison?.slotTotals.map((slotTotal) => (
+                        <div key={slotTotal.slotNumber} className="rounded-2xl border border-border/70 bg-card px-4 py-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="font-semibold text-foreground">Orcamento {slotTotal.slotNumber}</p>
+                            <SlotStatusBadge slot={slots.find((slot) => slot.slotNumber === slotTotal.slotNumber) ?? slots[0]!} />
+                          </div>
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            {slotTotal.supplierName || 'Fornecedor nao definido'}
+                          </p>
+                          <p className="mt-4 text-xl font-semibold text-foreground">{currencyOrDash(slotTotal.totalValue)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {slotTotal.filledItemCount}/{slotTotal.itemCount} item(ns) precificados
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <ComparisonTable rows={rows} slots={slots} />
+
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button
+                        disabled={quoteMutations.applyWinner.isPending || (comparison?.resolvedRowCount ?? 0) === 0}
+                        type="button"
+                        variant="secondary"
+                        onClick={() => void handleApply()}
+                      >
+                        <Trophy className="size-4" aria-hidden />
+                        {quoteMutations.applyWinner.isPending ? 'Aplicando...' : 'Aplicar vencedor por item'}
+                      </Button>
+                      <Button
+                        disabled={quoteMutations.generatePurchaseOrders.isPending || (comparison?.resolvedRowCount ?? 0) === 0}
+                        type="button"
+                        onClick={() => setGenerateDialogOpen(true)}
+                      >
+                        <ArrowUpFromLine className="size-4" aria-hidden />
+                        Gerar pedidos por fornecedor
+                      </Button>
+                    </div>
+                  </div>
+                ) : activeSlot ? (
+                  <div className="space-y-4">
+                    <div className="rounded-3xl border border-border/70 bg-muted/20 p-5">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="neutral">Orcamento {activeSlot.slotNumber}</Badge>
+                            <SlotStatusBadge slot={activeSlot} />
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-lg font-semibold text-foreground">{slotDisplayName(activeSlot)}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {activeSlot.supplierId
+                                ? `${activeSlot.filledItemCount}/${activeSlot.itemCount} item(ns) preenchidos`
+                                : 'Nenhum fornecedor definido para este orcamento'}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                            <span>Progresso: {getQuoteFillProgress(activeSlot.filledItemCount, activeSlot.itemCount)}%</span>
+                            <span>Total atual: {currencyOrDash(activeSlot.totalValue)}</span>
+                            <span>Itens com preco: {activeSlotPricedCount}</span>
+                          </div>
+                          {activeSlot.latestImportedDocument ? (
+                            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                              <Building2 className="size-4" aria-hidden />
+                              <span>Ultimo PDF importado em {formatDate(activeSlot.latestImportedDocument.createdAt)}</span>
+                              <a
+                                className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+                                href={getProjectDocumentDownloadUrl(projectId, activeSlot.latestImportedDocument.id)}
+                                rel="noreferrer"
+                                target="_blank"
+                              >
+                                Abrir arquivo
+                                <ExternalLink className="size-3.5" aria-hidden />
+                              </a>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <Button type="button" variant="secondary" onClick={() => setSupplierPickerSlot(activeSlot)}>
+                            <Store className="size-4" aria-hidden />
+                            {activeSlot.supplierId ? 'Trocar fornecedor' : 'Selecionar fornecedor'}
+                          </Button>
+                          <Button
+                            disabled={!activeSlot.supplierId}
+                            type="button"
+                            variant="secondary"
+                            onClick={() => setImportDialogOpen(true)}
+                          >
+                            <ArrowUpFromLine className="size-4" aria-hidden />
+                            Importar PDF
+                          </Button>
+                          <Button
+                            disabled={!activeSlot.supplierId || isGeneratingRandomValues}
+                            type="button"
+                            variant="secondary"
+                            onClick={() => void handleGenerateRandomValues()}
+                          >
+                            <Dices className="size-4" aria-hidden />
+                            {isGeneratingRandomValues ? 'Gerando...' : 'Preencher exemplo'}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {!activeSlot.supplierId ? (
+                      <EmptyState
+                        actionLabel="Selecionar fornecedor"
+                        description="Defina o fornecedor deste orcamento antes de preencher valores ou importar o PDF."
+                        icon={Store}
+                        onAction={() => setSupplierPickerSlot(activeSlot)}
+                        title="Fornecedor nao selecionado"
                       />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </>
+                    ) : (
+                      <div className="overflow-x-auto rounded-2xl border border-border/70">
+                        <table className="w-full min-w-[980px] border-collapse text-sm">
+                          <thead className="bg-muted/35">
+                            <tr>
+                              <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">
+                                Descricao
+                              </th>
+                              <th className="border-b border-border/70 px-3 py-3 text-center font-semibold text-foreground">
+                                Qtd.
+                              </th>
+                              <th className="border-b border-border/70 px-3 py-3 text-right font-semibold text-foreground">
+                                Valor unitario
+                              </th>
+                              <th className="border-b border-border/70 px-3 py-3 text-right font-semibold text-foreground">
+                                Total
+                              </th>
+                              <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">
+                                Observacoes
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rows.map((row) => (
+                              <QuoteLineRow
+                                key={`${activeSlot.slotNumber}-${row.budgetItemId}`}
+                                disabled={quoteMutations.updateItem.isPending}
+                                row={row}
+                                slotNumber={activeSlot.slotNumber}
+                                onSave={(budgetItemId, payload) => handleSaveRow(activeSlot.slotNumber, budgetItemId, payload)}
+                              />
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </>
+            )}
+          </CardContent>
+        </Card>
       ) : null}
 
       <SupplierPickerDialog
         open={Boolean(supplierPickerSlot)}
         slot={supplierPickerSlot}
-        onOpenChange={(next) => {
-          if (!next) {
+        onOpenChange={(open) => {
+          if (!open) {
             setSupplierPickerSlot(null);
           }
         }}
-        onSelectSupplier={async (supplierId) => {
-          if (!supplierPickerSlot) {
-            return;
-          }
-          await handleSelectSupplier(supplierPickerSlot, supplierId);
-          setSupplierPickerSlot(null);
-        }}
+        onSelectSupplier={(supplierId) => handleSelectSupplier(supplierPickerSlot!, supplierId)}
+      />
+
+      <NewQuotePurchaseDialog
+        open={newPurchaseDialogOpen}
+        pending={quoteMutations.createPurchase.isPending}
+        onOpenChange={setNewPurchaseDialogOpen}
+        onSubmit={handleCreatePurchase}
+      />
+
+      <ManageQuotePurchaseItemsDialog
+        open={manageItemsDialogOpen}
+        items={availableBudgetItems}
+        pendingBudgetItemId={pendingBudgetItemId}
+        selectedItemIds={selectedBudgetItemIds}
+        onOpenChange={setManageItemsDialogOpen}
+        onAdd={handleAddPurchaseItem}
+        onRemove={handleRemovePurchaseItem}
       />
 
       <GeneratePurchaseOrderDialog
         open={generateDialogOpen}
-        slot={activeSlot}
+        pending={quoteMutations.generatePurchaseOrders.isPending}
         projectName={project.name}
-        pending={quoteMutations.generatePurchaseOrder.isPending}
+        purchase={activePurchase}
         onOpenChange={setGenerateDialogOpen}
-        onSubmit={handleGeneratePurchaseOrder}
+        onSubmit={handleGeneratePurchaseOrders}
       />
 
       <SupplierQuoteImportDialog
         open={importDialogOpen}
-        slot={activeSlot}
-        projectId={projectId}
+        applyPending={quoteMutations.applyImportPdf.isPending}
         budgetRows={rows}
         preview={importPreview}
+        slot={activeSlot}
         uploadPending={quoteMutations.uploadImportPdf.isPending}
-        applyPending={quoteMutations.applyImportPdf.isPending}
-        onOpenChange={(next) => {
-          setImportDialogOpen(next);
-          if (!next) {
+        onOpenChange={(open) => {
+          setImportDialogOpen(open);
+          if (!open) {
             setImportPreview(null);
           }
         }}
-        onUpload={handleUploadSupplierQuotePdf}
         onApply={handleApplySupplierQuotePdf}
+        onUpload={handleUploadSupplierQuotePdf}
       />
 
-      <NewQuoteItemDialog open={newItemDialogOpen} onOpenChange={setNewItemDialogOpen} projectId={projectId} />
+      <NewQuoteItemDialog
+        open={newItemDialogOpen}
+        projectId={projectId}
+        onOpenChange={setNewItemDialogOpen}
+        onCreated={async (item) => {
+          if (activePurchase) {
+            await handleAddPurchaseItem(item.id);
+          }
+        }}
+      />
     </div>
   );
 }

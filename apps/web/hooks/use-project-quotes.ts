@@ -3,20 +3,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
-  applyProjectQuoteWinner,
+  addProjectQuotePurchaseItems,
   applyProjectQuotePdfImport,
-  generateProjectQuotePurchaseOrder,
+  applyProjectQuoteWinner,
+  createProjectQuotePurchase,
+  generateProjectQuotePurchaseOrders,
   listProjectQuotes,
-  selectProjectQuoteSlot,
-  uploadProjectQuotePdfImport,
+  removeProjectQuotePurchaseItem,
   updateProjectQuoteItem,
   updateProjectQuoteSupplier,
+  uploadProjectQuotePdfImport,
+  type AddQuotePurchaseItemsPayload,
+  type CreateQuotePurchasePayload,
   type GenerateQuotePurchaseOrderPayload,
   type QuoteApplyMode,
   type UpdateQuoteItemPayload,
   type UpdateQuoteSupplierPayload,
 } from '@/services/quotes-service';
-import type { ProjectQuoteImportApplyPayload, ProjectQuoteState } from '@/types/api';
+import type { ProjectQuoteImportApplyPayload, ProjectQuotesState } from '@/types/api';
 
 export function useProjectQuotesQuery(projectId: string) {
   return useQuery({
@@ -29,7 +33,7 @@ export function useProjectQuotesQuery(projectId: string) {
 export function useProjectQuotesMutations(projectId: string) {
   const queryClient = useQueryClient();
 
-  const setQuotesState = (state: ProjectQuoteState) => {
+  const setQuotesState = (state: ProjectQuotesState) => {
     queryClient.setQueryData(['project-quotes', projectId], state);
   };
 
@@ -47,45 +51,54 @@ export function useProjectQuotesMutations(projectId: string) {
   };
 
   return {
+    createPurchase: useMutation({
+      mutationFn: (payload: CreateQuotePurchasePayload) => createProjectQuotePurchase(projectId, payload),
+      onSuccess: setQuotesState,
+    }),
+    addPurchaseItems: useMutation({
+      mutationFn: ({ purchaseId, payload }: { purchaseId: string; payload: AddQuotePurchaseItemsPayload }) =>
+        addProjectQuotePurchaseItems(projectId, purchaseId, payload),
+      onSuccess: setQuotesState,
+    }),
+    removePurchaseItem: useMutation({
+      mutationFn: ({ purchaseId, budgetItemId }: { purchaseId: string; budgetItemId: string }) =>
+        removeProjectQuotePurchaseItem(projectId, purchaseId, budgetItemId),
+      onSuccess: setQuotesState,
+    }),
     updateSupplier: useMutation({
       mutationFn: ({
+        purchaseId,
         slotNumber,
         payload,
       }: {
+        purchaseId: string;
         slotNumber: number;
         payload: UpdateQuoteSupplierPayload;
-      }) => updateProjectQuoteSupplier(projectId, slotNumber, payload),
+      }) => updateProjectQuoteSupplier(projectId, purchaseId, slotNumber, payload),
       onSuccess: setQuotesState,
     }),
     updateItem: useMutation({
       mutationFn: ({
+        purchaseId,
         slotNumber,
         budgetItemId,
         payload,
       }: {
+        purchaseId: string;
         slotNumber: number;
         budgetItemId: string;
         payload: UpdateQuoteItemPayload;
-      }) => updateProjectQuoteItem(projectId, slotNumber, budgetItemId, payload),
+      }) => updateProjectQuoteItem(projectId, purchaseId, slotNumber, budgetItemId, payload),
       onSuccess: setQuotesState,
     }),
-    selectSlot: useMutation({
-      mutationFn: (slotNumber: number) => selectProjectQuoteSlot(projectId, slotNumber),
-      onSuccess: async (state) => {
-        setQuotesState(state);
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ['project', projectId] }),
-          queryClient.invalidateQueries({ queryKey: ['projects'] }),
-        ]);
-      },
-    }),
     applyWinner: useMutation({
-      mutationFn: (mode: QuoteApplyMode) => applyProjectQuoteWinner(projectId, mode),
+      mutationFn: ({ purchaseId, mode }: { purchaseId: string; mode: QuoteApplyMode }) =>
+        applyProjectQuoteWinner(projectId, purchaseId, mode),
       onSuccess: invalidateOperationalData,
     }),
-    generatePurchaseOrder: useMutation({
-      mutationFn: (payload: GenerateQuotePurchaseOrderPayload) =>
-        generateProjectQuotePurchaseOrder(projectId, payload),
+    generatePurchaseOrders: useMutation({
+      mutationFn: ({ purchaseId, payload }: { purchaseId: string; payload: GenerateQuotePurchaseOrderPayload }) =>
+        generateProjectQuotePurchaseOrders(projectId, purchaseId, payload),
       onSuccess: async () => {
         await invalidateOperationalData();
         await Promise.all([
@@ -95,8 +108,8 @@ export function useProjectQuotesMutations(projectId: string) {
       },
     }),
     uploadImportPdf: useMutation({
-      mutationFn: ({ slotNumber, file }: { slotNumber: number; file: File }) =>
-        uploadProjectQuotePdfImport(projectId, slotNumber, file),
+      mutationFn: ({ purchaseId, slotNumber, file }: { purchaseId: string; slotNumber: number; file: File }) =>
+        uploadProjectQuotePdfImport(projectId, purchaseId, slotNumber, file),
       onSuccess: async () => {
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ['project-quotes', projectId] }),
@@ -107,14 +120,16 @@ export function useProjectQuotesMutations(projectId: string) {
     }),
     applyImportPdf: useMutation({
       mutationFn: ({
+        purchaseId,
         slotNumber,
         documentId,
         payload,
       }: {
+        purchaseId: string;
         slotNumber: number;
         documentId: string;
         payload: ProjectQuoteImportApplyPayload;
-      }) => applyProjectQuotePdfImport(projectId, slotNumber, documentId, payload),
+      }) => applyProjectQuotePdfImport(projectId, purchaseId, slotNumber, documentId, payload),
       onSuccess: async (state) => {
         setQuotesState(state);
         await invalidateOperationalData();

@@ -4,8 +4,10 @@ import { quoteService } from '../services/quote.service.js';
 import type {
   ApplyQuoteWinnerInput,
   ApplyQuoteImportInput,
+  CreateQuotePurchaseInput,
   GenerateQuotePurchaseOrderInput,
   UpdateQuoteItemInput,
+  UpdateQuotePurchaseItemsInput,
   UpdateQuoteSupplierInput,
 } from '../modules/quote/quote.schemas.js';
 import { AppError } from '../utils/app-error.js';
@@ -17,9 +19,36 @@ class QuoteController {
     response.json(result);
   }
 
+  async createPurchase(request: Request, response: Response) {
+    const result = await quoteService.createQuotePurchase(
+      String(request.params.id),
+      request.body as CreateQuotePurchaseInput,
+    );
+    response.status(201).json(result);
+  }
+
+  async addPurchaseItems(request: Request, response: Response) {
+    const result = await quoteService.addQuotePurchaseItems(
+      String(request.params.id),
+      String(request.params.purchaseId),
+      request.body as UpdateQuotePurchaseItemsInput,
+    );
+    response.json(result);
+  }
+
+  async removePurchaseItem(request: Request, response: Response) {
+    const result = await quoteService.removeQuotePurchaseItem(
+      String(request.params.id),
+      String(request.params.purchaseId),
+      String(request.params.budgetItemId),
+    );
+    response.json(result);
+  }
+
   async updateSupplier(request: Request, response: Response) {
     const result = await quoteService.updateQuoteSupplier(
       String(request.params.id),
+      String(request.params.purchaseId),
       Number(request.params.slotNumber),
       request.body as UpdateQuoteSupplierInput,
     );
@@ -29,6 +58,7 @@ class QuoteController {
   async updateItem(request: Request, response: Response) {
     const result = await quoteService.updateQuoteItem(
       String(request.params.id),
+      String(request.params.purchaseId),
       Number(request.params.slotNumber),
       String(request.params.budgetItemId),
       request.body as UpdateQuoteItemInput,
@@ -36,25 +66,19 @@ class QuoteController {
     response.json(result);
   }
 
-  async selectSlot(request: Request, response: Response) {
-    const result = await quoteService.selectQuoteSlot(
-      String(request.params.id),
-      Number(request.params.slotNumber),
-    );
-    response.json(result);
-  }
-
   async applyWinner(request: Request, response: Response) {
     const result = await quoteService.applyQuoteWinner(
       String(request.params.id),
+      String(request.params.purchaseId),
       request.body as ApplyQuoteWinnerInput,
     );
     response.json(result);
   }
 
-  async generatePurchaseOrder(request: Request, response: Response) {
-    const result = await quoteService.generatePurchaseOrderDocument(
+  async generatePurchaseOrders(request: Request, response: Response) {
+    const result = await quoteService.generatePurchaseOrderDocuments(
       String(request.params.id),
+      String(request.params.purchaseId),
       request.body as GenerateQuotePurchaseOrderInput,
     );
     response.status(201).json(result);
@@ -73,6 +97,7 @@ class QuoteController {
 
     const result = await quoteService.importSupplierQuotePdf(
       String(request.params.id),
+      String(request.params.purchaseId),
       Number(request.params.slotNumber),
       { ...file, originalname: safeName },
     );
@@ -82,6 +107,7 @@ class QuoteController {
   async applyImportedPdf(request: Request, response: Response) {
     const result = await quoteService.applyImportedSupplierQuotePdf(
       String(request.params.id),
+      String(request.params.purchaseId),
       Number(request.params.slotNumber),
       String(request.params.documentId),
       request.body as ApplyQuoteImportInput,

@@ -4,19 +4,33 @@ export const quoteProjectParamsSchema = z.object({
   id: z.string().min(1),
 });
 
-export const quoteSlotParamsSchema = z.object({
+export const quotePurchaseParamsSchema = z.object({
   id: z.string().min(1),
+  purchaseId: z.string().min(1),
+});
+
+export const quotePurchaseSlotParamsSchema = z.object({
+  id: z.string().min(1),
+  purchaseId: z.string().min(1),
   slotNumber: z.coerce.number().int().min(1).max(3),
 });
 
-export const quoteItemParamsSchema = z.object({
+export const quotePurchaseItemParamsSchema = z.object({
   id: z.string().min(1),
+  purchaseId: z.string().min(1),
+  budgetItemId: z.string().min(1),
+});
+
+export const quotePurchaseSlotItemParamsSchema = z.object({
+  id: z.string().min(1),
+  purchaseId: z.string().min(1),
   slotNumber: z.coerce.number().int().min(1).max(3),
   budgetItemId: z.string().min(1),
 });
 
 export const quoteImportDocumentParamsSchema = z.object({
   id: z.string().min(1),
+  purchaseId: z.string().min(1),
   slotNumber: z.coerce.number().int().min(1).max(3),
   documentId: z.string().min(1),
 });
@@ -24,6 +38,15 @@ export const quoteImportDocumentParamsSchema = z.object({
 function optionalTrimmedString() {
   return z.preprocess((value) => (value === null ? undefined : value), z.string().trim().optional());
 }
+
+export const createQuotePurchaseSchema = z.object({
+  title: z.string().trim().min(1),
+  notes: optionalTrimmedString().nullable().optional(),
+});
+
+export const updateQuotePurchaseItemsSchema = z.object({
+  budgetItemIds: z.array(z.string().min(1)).min(1),
+});
 
 export const updateQuoteSupplierSchema = z.object({
   supplierId: z
@@ -70,6 +93,8 @@ export const applyQuoteImportSchema = z.object({
     .min(1),
 });
 
+export type CreateQuotePurchaseInput = z.infer<typeof createQuotePurchaseSchema>;
+export type UpdateQuotePurchaseItemsInput = z.infer<typeof updateQuotePurchaseItemsSchema>;
 export type UpdateQuoteSupplierInput = z.infer<typeof updateQuoteSupplierSchema>;
 export type UpdateQuoteItemInput = z.infer<typeof updateQuoteItemSchema>;
 export type ApplyQuoteWinnerInput = z.infer<typeof applyQuoteWinnerSchema>;

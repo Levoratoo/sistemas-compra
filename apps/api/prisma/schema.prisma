@@ -194,6 +194,7 @@ model Project {
   roles                 ProjectRole[]
   budgetItems           BudgetItem[]
   quotes                ProjectQuote[]
+  quotePurchases        ProjectQuotePurchase[]
   purchaseOrders        PurchaseOrder[]
   implementationTasks   ImplementationTask[]
   missingItemReports    MissingItemReport[]
@@ -395,6 +396,7 @@ model BudgetItem {
   sourceDocument     ProjectDocument?    @relation("BudgetItemSourceDocument", fields: [sourceDocumentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   purchaseOrderItems PurchaseOrderItem[]
   quoteItems         ProjectQuoteItem[]
+  quotePurchaseItems ProjectQuotePurchaseItem[]
   replenishmentRule  ReplenishmentRule?
 
   @@index([projectId])
@@ -472,6 +474,7 @@ model SupplierCndAttachment {
 model ProjectQuote {
   id                     String   @id @default(cuid())
   projectId              String
+  projectQuotePurchaseId String?
   slotNumber             Int
   supplierId             String?
   latestImportedDocumentId String?
@@ -479,14 +482,48 @@ model ProjectQuote {
   updatedAt              DateTime @updatedAt
 
   project              Project          @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  projectQuotePurchase ProjectQuotePurchase? @relation(fields: [projectQuotePurchaseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   supplier             Supplier?        @relation(fields: [supplierId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   latestImportedDocument ProjectDocument? @relation("ProjectQuoteLatestImportedDocument", fields: [latestImportedDocumentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   items                ProjectQuoteItem[]
 
-  @@unique([projectId, slotNumber])
+  @@unique([projectQuotePurchaseId, slotNumber])
   @@index([projectId])
+  @@index([projectQuotePurchaseId])
   @@index([supplierId])
   @@index([latestImportedDocumentId])
+}
+
+model ProjectQuotePurchase {
+  id        String   @id @default(cuid())
+  projectId  String
+  title     String
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project        Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  items          ProjectQuotePurchaseItem[]
+  quotes         ProjectQuote[]
+  purchaseOrders PurchaseOrder[]          @relation("PurchaseOrderSourceQuotePurchase")
+
+  @@index([projectId])
+  @@index([projectId, createdAt])
+}
+
+model ProjectQuotePurchaseItem {
+  id                     String   @id @default(cuid())
+  projectQuotePurchaseId String
+  budgetItemId           String
+  quantity               Decimal?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  projectQuotePurchase ProjectQuotePurchase @relation(fields: [projectQuotePurchaseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  budgetItem           BudgetItem           @relation(fields: [budgetItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([projectQuotePurchaseId, budgetItemId])
+  @@index([budgetItemId])
 }
 
 model ProjectQuoteItem {
@@ -508,6 +545,7 @@ model ProjectQuoteItem {
 model PurchaseOrder {
   id                String         @id @default(cuid())
   projectId         String
+  sourceQuotePurchaseId String?
   supplierId        String?
   purchaseStatus    PurchaseStatus @default(TO_START)
   purchaseDate      DateTime?
@@ -526,13 +564,16 @@ model PurchaseOrder {
   updatedAt         DateTime       @updatedAt
 
   project           Project             @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sourceQuotePurchase ProjectQuotePurchase? @relation("PurchaseOrderSourceQuotePurchase", fields: [sourceQuotePurchaseId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   supplier          Supplier?           @relation(fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   generatedDocument ProjectDocument?    @relation("PurchaseOrderGeneratedDocument", fields: [generatedDocumentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   documents         ProjectDocument[]   @relation("PurchaseOrderDocuments")
   items             PurchaseOrderItem[]
 
-  @@unique([projectId, glpiNumber])
+  @@unique([sourceQuotePurchaseId, supplierId, glpiNumber])
   @@index([projectId])
+  @@index([sourceQuotePurchaseId])
+  @@index([projectId, glpiNumber])
   @@index([supplierId])
   @@index([purchaseStatus])
   @@index([purchaseDate])

@@ -9,8 +9,10 @@ import { supplierRepository } from '../repositories/supplier.repository.js';
 import type {
   ApplyQuoteWinnerInput,
   ApplyQuoteImportInput,
+  CreateQuotePurchaseInput,
   GenerateQuotePurchaseOrderInput,
   UpdateQuoteItemInput,
+  UpdateQuotePurchaseItemsInput,
   UpdateQuoteSupplierInput,
 } from '../modules/quote/quote.schemas.js';
 import { AppError } from '../utils/app-error.js';
@@ -61,12 +63,37 @@ const quoteBudgetItemSelect = {
   createdAt: true,
 } satisfies Prisma.BudgetItemSelect;
 
+const quotePurchaseItemInclude = {
+  budgetItem: {
+    select: quoteBudgetItemSelect,
+  },
+} satisfies Prisma.ProjectQuotePurchaseItemInclude;
+
+const quotePurchaseInclude = {
+  items: {
+    include: quotePurchaseItemInclude,
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  },
+  quotes: {
+    include: quoteInclude,
+    orderBy: { slotNumber: 'asc' },
+  },
+} satisfies Prisma.ProjectQuotePurchaseInclude;
+
 type QuoteRecord = Prisma.ProjectQuoteGetPayload<{
   include: typeof quoteInclude;
 }>;
 
 type QuoteBudgetItem = Prisma.BudgetItemGetPayload<{
   select: typeof quoteBudgetItemSelect;
+}>;
+
+type QuotePurchaseItemRecord = Prisma.ProjectQuotePurchaseItemGetPayload<{
+  include: typeof quotePurchaseItemInclude;
+}>;
+
+type QuotePurchaseRecord = Prisma.ProjectQuotePurchaseGetPayload<{
+  include: typeof quotePurchaseInclude;
 }>;
 
 type QuoteProjectContext = {
@@ -76,7 +103,6 @@ type QuoteProjectContext = {
   organizationName: string;
   city: string | null;
   state: string | null;
-  selectedQuoteSlotNumber: number | null;
 };
 
 type QuoteRowValue = {
@@ -108,6 +134,13 @@ type QuotePurchaseOrderRow = {
   notes: string | null;
 };
 
+type QuotePurchaseOrderGroup = {
+  supplierId: string;
+  supplierName: string;
+  items: QuotePurchaseOrderRow[];
+  totalValue: number;
+};
+
 type QuoteImportConfidence = 'HIGH' | 'REVIEW' | 'UNMATCHED';
 type QuoteImportAction = 'APPLY' | 'IGNORE' | 'CREATE_EXTRA';
 
@@ -124,7 +157,7 @@ type QuoteImportPreviewRow = {
   description: string;
   quantity: number | null;
   unit: string | null;
-  unitPrice: number;
+  unitPrice: number | null;
   totalValue: number | null;
   confidence: QuoteImportConfidence;
   quantityConflict: boolean;
@@ -139,6 +172,8 @@ type QuoteImportPreviewRow = {
 type StoredQuoteImportPreview = {
   kind: 'SUPPLIER_QUOTE_IMPORT';
   projectId: string;
+  purchaseId: string;
+  purchaseTitle: string;
   slotNumber: number;
   supplierId: string;
   supplierName: string;
@@ -425,6 +460,7 @@ function isStoredQuoteImportPreview(value: Prisma.JsonValue | null): value is St
   return (
     record.kind === 'SUPPLIER_QUOTE_IMPORT' &&
     typeof record.projectId === 'string' &&
+    typeof record.purchaseId === 'string' &&
     typeof record.slotNumber === 'number' &&
     typeof record.supplierId === 'string' &&
     Array.isArray(record.rows)
@@ -433,6 +469,8 @@ function isStoredQuoteImportPreview(value: Prisma.JsonValue | null): value is St
 
 function buildStoredQuoteImportPreview(
   projectId: string,
+  purchaseId: string,
+  purchaseTitle: string,
   slotNumber: number,
   supplierId: string,
   supplierName: string,
@@ -445,6 +483,8 @@ function buildStoredQuoteImportPreview(
   return {
     kind: 'SUPPLIER_QUOTE_IMPORT',
     projectId,
+    purchaseId,
+    purchaseTitle,
     slotNumber,
     supplierId,
     supplierName,
@@ -495,46 +535,33 @@ function buildImportedQuoteItemNotes(
   return parts.join(' | ').slice(0, 500);
 }
 
-function buildPurchaseOrderRows(
-  rows: ReturnType<typeof buildQuoteState>['rows'],
-  slotNumber: number,
-): QuotePurchaseOrderRow[] {
-  return rows
-    .map((row) => {
-      const value = row.values.find((entry) => entry.slotNumber === slotNumber) ?? null;
+function findReusableExtraBudgetItem(
+  projectBudgetItems: QuoteBudgetItem[],
+  row: Pick<QuoteImportPreviewRow, 'description'>,
+) {
+  const normalizedRow = normalizeSupplierQuoteMatchText(row.description);
+  if (!normalizedRow) {
+    return null;
+  }
 
-      if (
-        !value ||
-        value.unitPrice === null ||
-        value.totalValue === null ||
-        row.quantity === null ||
-        row.quantity <= 0
-      ) {
-        return null;
-      }
+  const candidates = projectBudgetItems
+    .filter((item) => item.supplierQuoteExtraItem)
+    .map((item) => ({
+      item,
+      score: scoreQuoteImportMatch({ description: row.description, quantity: null }, item).score,
+    }))
+    .sort((left, right) => right.score - left.score);
 
-      return {
-        budgetItemId: row.budgetItemId,
-        description: row.description,
-        quantity: row.quantity,
-        unitPrice: value.unitPrice,
-        totalValue: value.totalValue,
-        notes: value.notes ?? null,
-      };
-    })
-    .filter((row): row is QuotePurchaseOrderRow => row !== null);
+  const best = candidates[0] ?? null;
+  return best && best.score >= 0.92 ? best.item : null;
 }
 
-export function buildQuoteState(
-  projectId: string,
-  budgetItems: QuoteBudgetItem[],
-  quotes: QuoteRecord[],
-  selectedSlotNumber: number | null,
-) {
-  const quoteBySlot = new Map(quotes.map((quote) => [quote.slotNumber, quote]));
+function buildQuotePurchaseState(projectId: string, purchase: QuotePurchaseRecord) {
+  const quoteBySlot = new Map(purchase.quotes.map((quote) => [quote.slotNumber, quote]));
 
-  const rows = budgetItems.map((item) => {
-    const quantity = decimalToNumber(item.plannedQuantity);
+  const rows = purchase.items.map((purchaseItem) => {
+    const item = purchaseItem.budgetItem;
+    const quantity = decimalToNumber(purchaseItem.quantity) ?? decimalToNumber(item.plannedQuantity);
     const values: QuoteRowValue[] = QUOTE_SLOT_NUMBERS.map((slotNumber) => {
       const quote = quoteBySlot.get(slotNumber);
       const quoteItem = quote?.items.find((entry) => entry.budgetItemId === item.id) ?? null;
@@ -588,7 +615,6 @@ export function buildQuoteState(
       filledItemCount,
       totalValue,
       isComplete,
-      isSelected: selectedSlotNumber === slotNumber,
       latestImportedDocument: quote?.latestImportedDocument ? serializeProjectDocument(quote.latestImportedDocument) : null,
       createdAt: toIsoString(quote?.createdAt),
       updatedAt: toIsoString(quote?.updatedAt),
@@ -626,8 +652,12 @@ export function buildQuoteState(
   }
 
   return {
+    id: purchase.id,
     projectId,
-    selectedSlotNumber,
+    title: purchase.title,
+    notes: purchase.notes ?? null,
+    createdAt: toIsoString(purchase.createdAt),
+    updatedAt: toIsoString(purchase.updatedAt),
     slots,
     rows,
     comparison: {
@@ -648,6 +678,59 @@ export function buildQuoteState(
   };
 }
 
+function buildProjectQuotesState(projectId: string, purchases: QuotePurchaseRecord[]) {
+  return {
+    projectId,
+    purchases: purchases.map((purchase) => buildQuotePurchaseState(projectId, purchase)),
+  };
+}
+
+function buildWinningPurchaseOrderGroups(state: ReturnType<typeof buildQuotePurchaseState>): QuotePurchaseOrderGroup[] {
+  const slotMap = new Map<number, (typeof state.slots)[number]>(state.slots.map((slot) => [slot.slotNumber, slot]));
+  const groupMap = new Map<string, QuotePurchaseOrderGroup>();
+
+  for (const row of state.rows) {
+    if (row.winner.status !== 'UNIQUE') {
+      continue;
+    }
+
+    const winnerSlotNumber = row.winner.slotNumbers[0];
+    const slot = winnerSlotNumber ? slotMap.get(winnerSlotNumber) : null;
+    const supplierId = slot?.supplierId ?? null;
+    const supplierName = slot?.supplier?.tradeName || slot?.supplier?.legalName || null;
+    const value = row.values.find((entry) => entry.slotNumber === winnerSlotNumber) ?? null;
+
+    if (!supplierId || !supplierName || !value || value.unitPrice === null || value.totalValue === null || row.quantity === null) {
+      continue;
+    }
+
+    const existingGroup = groupMap.get(supplierId);
+    const orderRow: QuotePurchaseOrderRow = {
+      budgetItemId: row.budgetItemId,
+      description: row.description,
+      quantity: row.quantity,
+      unitPrice: value.unitPrice,
+      totalValue: value.totalValue,
+      notes: value.notes ?? null,
+    };
+
+    if (existingGroup) {
+      existingGroup.items.push(orderRow);
+      existingGroup.totalValue += orderRow.totalValue;
+      continue;
+    }
+
+    groupMap.set(supplierId, {
+      supplierId,
+      supplierName,
+      items: [orderRow],
+      totalValue: orderRow.totalValue,
+    });
+  }
+
+  return [...groupMap.values()];
+}
+
 async function ensureProjectExists(projectId: string) {
   const project = await projectRepository.exists(projectId);
 
@@ -666,7 +749,6 @@ async function findQuoteProjectContext(projectId: string): Promise<QuoteProjectC
       organizationName: true,
       city: true,
       state: true,
-      selectedQuoteSlotNumber: true,
     },
   });
 
@@ -677,17 +759,7 @@ async function findQuoteProjectContext(projectId: string): Promise<QuoteProjectC
   return project;
 }
 
-async function ensureQuoteSlots(projectId: string) {
-  await prisma.projectQuote.createMany({
-    data: QUOTE_SLOT_NUMBERS.map((slotNumber) => ({
-      projectId,
-      slotNumber,
-    })),
-    skipDuplicates: true,
-  });
-}
-
-async function findQuoteBudgetItems(projectId: string) {
+async function findProjectQuoteBudgetItems(projectId: string) {
   return prisma.budgetItem.findMany({
     where: {
       projectId,
@@ -698,55 +770,156 @@ async function findQuoteBudgetItems(projectId: string) {
   });
 }
 
-async function findQuoteRecords(projectId: string) {
-  return prisma.projectQuote.findMany({
-    where: { projectId },
-    include: quoteInclude,
-    orderBy: { slotNumber: 'asc' },
+async function ensureQuoteSlotsForPurchase(projectId: string, purchaseId: string) {
+  await prisma.projectQuote.createMany({
+    data: QUOTE_SLOT_NUMBERS.map((slotNumber) => ({
+      projectId,
+      projectQuotePurchaseId: purchaseId,
+      slotNumber,
+    })),
+    skipDuplicates: true,
   });
 }
 
-async function buildProjectQuoteState(projectId: string) {
-  const project = await findQuoteProjectContext(projectId);
-  await ensureQuoteSlots(projectId);
+async function ensureLegacyQuotePurchases(projectId: string) {
+  const legacyQuotes = await prisma.projectQuote.findMany({
+    where: {
+      projectId,
+      projectQuotePurchaseId: null,
+    },
+    select: { id: true },
+  });
 
-  const [budgetItems, quotes] = await Promise.all([findQuoteBudgetItems(projectId), findQuoteRecords(projectId)]);
+  if (legacyQuotes.length === 0) {
+    return;
+  }
 
-  return buildQuoteState(projectId, budgetItems, quotes, project.selectedQuoteSlotNumber);
+  const purchaseCount = await prisma.projectQuotePurchase.count({
+    where: { projectId },
+  });
+
+  const budgetItems = await prisma.budgetItem.findMany({
+    where: {
+      projectId,
+      contextOnly: false,
+    },
+    select: {
+      id: true,
+      plannedQuantity: true,
+    },
+  });
+
+  await prisma.$transaction(async (tx) => {
+    const createdPurchase = await tx.projectQuotePurchase.create({
+      data: {
+        projectId,
+        title: purchaseCount === 0 ? 'Compra inicial' : `Compra migrada ${purchaseCount + 1}`,
+      },
+    });
+
+    if (budgetItems.length > 0) {
+      await tx.projectQuotePurchaseItem.createMany({
+        data: budgetItems.map((item) => ({
+          projectQuotePurchaseId: createdPurchase.id,
+          budgetItemId: item.id,
+          quantity: item.plannedQuantity ?? null,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    await tx.projectQuote.updateMany({
+      where: {
+        projectId,
+        projectQuotePurchaseId: null,
+      },
+      data: {
+        projectQuotePurchaseId: createdPurchase.id,
+      },
+    });
+  });
 }
 
-async function findQuoteBySlot(projectId: string, slotNumber: number) {
-  await ensureQuoteSlots(projectId);
+async function findQuotePurchases(projectId: string) {
+  return prisma.projectQuotePurchase.findMany({
+    where: { projectId },
+    include: quotePurchaseInclude,
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+  });
+}
+
+async function buildProjectQuotesModuleState(projectId: string) {
+  await ensureLegacyQuotePurchases(projectId);
+
+  const purchases = await prisma.projectQuotePurchase.findMany({
+    where: { projectId },
+    select: { id: true },
+  });
+
+  await Promise.all(purchases.map((purchase) => ensureQuoteSlotsForPurchase(projectId, purchase.id)));
+
+  const hydratedPurchases = await findQuotePurchases(projectId);
+  return buildProjectQuotesState(projectId, hydratedPurchases);
+}
+
+async function findQuotePurchaseSummary(projectId: string, purchaseId: string) {
+  const purchase = await prisma.projectQuotePurchase.findFirst({
+    where: {
+      id: purchaseId,
+      projectId,
+    },
+    select: {
+      id: true,
+      projectId: true,
+      title: true,
+      notes: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+
+  if (!purchase) {
+    throw new AppError('Quote purchase not found', 404);
+  }
+
+  return purchase;
+}
+
+async function findQuoteBySlot(projectId: string, purchaseId: string, slotNumber: number) {
+  await ensureQuoteSlotsForPurchase(projectId, purchaseId);
 
   const quote = await prisma.projectQuote.findUnique({
     where: {
-      projectId_slotNumber: {
-        projectId,
+      projectQuotePurchaseId_slotNumber: {
+        projectQuotePurchaseId: purchaseId,
         slotNumber,
       },
     },
     include: quoteInclude,
   });
 
-  if (!quote) {
+  if (!quote || quote.projectId !== projectId) {
     throw new AppError('Quote slot not found', 404);
   }
 
   return quote;
 }
 
-async function findQuoteBudgetItem(projectId: string, budgetItemId: string) {
-  const item = await prisma.budgetItem.findFirst({
+async function findQuotePurchaseItem(projectId: string, purchaseId: string, budgetItemId: string) {
+  const item = await prisma.projectQuotePurchaseItem.findFirst({
     where: {
-      id: budgetItemId,
-      projectId,
-      contextOnly: false,
+      projectQuotePurchaseId: purchaseId,
+      budgetItemId,
+      budgetItem: {
+        projectId,
+        contextOnly: false,
+      },
     },
-    select: quoteBudgetItemSelect,
+    include: quotePurchaseItemInclude,
   });
 
   if (!item) {
-    throw new AppError('Budget item not found in this project', 404);
+    throw new AppError('Budget item not found in this quote purchase', 404);
   }
 
   return item;
@@ -775,44 +948,135 @@ async function ensurePurchaseOrderFolders(projectId: string, monthFolderName: st
   };
 }
 
-async function ensureSupplierQuoteFolders(projectId: string, supplierName: string) {
+async function ensureSupplierQuoteFolders(projectId: string, purchaseTitle: string, supplierName: string) {
   const rootFolder = await ensureDocumentFolder(projectId, null, 'Orcamentos de fornecedores');
-  const supplierFolder = await ensureDocumentFolder(projectId, rootFolder.id, supplierName);
+  const purchaseFolder = await ensureDocumentFolder(projectId, rootFolder.id, purchaseTitle);
+  const supplierFolder = await ensureDocumentFolder(projectId, purchaseFolder.id, supplierName);
 
   return {
     rootFolder,
+    purchaseFolder,
     supplierFolder,
   };
 }
 
-function findReusableExtraBudgetItem(
-  budgetItems: QuoteBudgetItem[],
-  row: Pick<QuoteImportPreviewRow, 'description'>,
+async function ensureQuotePurchaseItemLink(
+  tx: Prisma.TransactionClient,
+  purchaseId: string,
+  budgetItemId: string,
+  quantity: Prisma.Decimal | null,
 ) {
-  const normalizedRow = normalizeSupplierQuoteMatchText(row.description);
-  if (!normalizedRow) {
-    return null;
-  }
-
-  const candidates = budgetItems
-    .filter((item) => item.supplierQuoteExtraItem)
-    .map((item) => ({
-      item,
-      score: scoreQuoteImportMatch({ description: row.description, quantity: null }, item).score,
-    }))
-    .sort((left, right) => right.score - left.score);
-
-  const best = candidates[0] ?? null;
-  return best && best.score >= 0.92 ? best.item : null;
+  await tx.projectQuotePurchaseItem.upsert({
+    where: {
+      projectQuotePurchaseId_budgetItemId: {
+        projectQuotePurchaseId: purchaseId,
+        budgetItemId,
+      },
+    },
+    update: {},
+    create: {
+      projectQuotePurchaseId: purchaseId,
+      budgetItemId,
+      quantity,
+    },
+  });
 }
 
 class QuoteService {
   async listProjectQuotes(projectId: string) {
-    return buildProjectQuoteState(projectId);
+    await ensureProjectExists(projectId);
+    return buildProjectQuotesModuleState(projectId);
   }
 
-  async updateQuoteSupplier(projectId: string, slotNumber: number, input: UpdateQuoteSupplierInput) {
+  async createQuotePurchase(projectId: string, input: CreateQuotePurchaseInput) {
     await ensureProjectExists(projectId);
+
+    const purchase = await prisma.projectQuotePurchase.create({
+      data: {
+        projectId,
+        title: input.title.trim(),
+        notes: normalizeOptionalText(input.notes),
+      },
+    });
+
+    await ensureQuoteSlotsForPurchase(projectId, purchase.id);
+    return buildProjectQuotesModuleState(projectId);
+  }
+
+  async addQuotePurchaseItems(projectId: string, purchaseId: string, input: UpdateQuotePurchaseItemsInput) {
+    await ensureProjectExists(projectId);
+    await findQuotePurchaseSummary(projectId, purchaseId);
+
+    const budgetItems = await prisma.budgetItem.findMany({
+      where: {
+        id: { in: input.budgetItemIds },
+        projectId,
+        contextOnly: false,
+      },
+      select: {
+        id: true,
+        plannedQuantity: true,
+      },
+    });
+
+    if (budgetItems.length !== new Set(input.budgetItemIds).size) {
+      throw new AppError('Um ou mais itens nao pertencem a este projeto.', 409);
+    }
+
+    await prisma.projectQuotePurchaseItem.createMany({
+      data: budgetItems.map((item) => ({
+        projectQuotePurchaseId: purchaseId,
+        budgetItemId: item.id,
+        quantity: item.plannedQuantity ?? null,
+      })),
+      skipDuplicates: true,
+    });
+
+    return buildProjectQuotesModuleState(projectId);
+  }
+
+  async removeQuotePurchaseItem(projectId: string, purchaseId: string, budgetItemId: string) {
+    await ensureProjectExists(projectId);
+    await findQuotePurchaseItem(projectId, purchaseId, budgetItemId);
+
+    const quoteIds = await prisma.projectQuote.findMany({
+      where: { projectQuotePurchaseId: purchaseId },
+      select: { id: true },
+    });
+
+    await prisma.$transaction(async (tx) => {
+      if (quoteIds.length > 0) {
+        await tx.projectQuoteItem.deleteMany({
+          where: {
+            budgetItemId,
+            projectQuoteId: {
+              in: quoteIds.map((quote) => quote.id),
+            },
+          },
+        });
+      }
+
+      await tx.projectQuotePurchaseItem.delete({
+        where: {
+          projectQuotePurchaseId_budgetItemId: {
+            projectQuotePurchaseId: purchaseId,
+            budgetItemId,
+          },
+        },
+      });
+    });
+
+    return buildProjectQuotesModuleState(projectId);
+  }
+
+  async updateQuoteSupplier(
+    projectId: string,
+    purchaseId: string,
+    slotNumber: number,
+    input: UpdateQuoteSupplierInput,
+  ) {
+    await ensureProjectExists(projectId);
+    await findQuotePurchaseSummary(projectId, purchaseId);
 
     if (input.supplierId) {
       const supplier = await supplierRepository.findById(input.supplierId);
@@ -821,7 +1085,7 @@ class QuoteService {
       }
     }
 
-    const quote = await findQuoteBySlot(projectId, slotNumber);
+    const quote = await findQuoteBySlot(projectId, purchaseId, slotNumber);
     const nextSupplierId = input.supplierId ?? null;
     const isChangingSupplier = quote.supplierId !== nextSupplierId;
     const hasSavedValues = quote.items.some(hasMeaningfulQuoteItemData);
@@ -849,11 +1113,12 @@ class QuoteService {
       });
     });
 
-    return buildProjectQuoteState(projectId);
+    return buildProjectQuotesModuleState(projectId);
   }
 
   async updateQuoteItem(
     projectId: string,
+    purchaseId: string,
     slotNumber: number,
     budgetItemId: string,
     input: UpdateQuoteItemInput,
@@ -861,36 +1126,12 @@ class QuoteService {
     await ensureProjectExists(projectId);
 
     const [quote] = await Promise.all([
-      findQuoteBySlot(projectId, slotNumber),
-      findQuoteBudgetItem(projectId, budgetItemId),
+      findQuoteBySlot(projectId, purchaseId, slotNumber),
+      findQuotePurchaseItem(projectId, purchaseId, budgetItemId),
     ]);
 
     if (!quote.supplierId) {
       throw new AppError('Selecione um fornecedor para este orcamento antes de preencher valores.', 409);
-    }
-
-    const existing = await prisma.projectQuoteItem.findUnique({
-      where: {
-        projectQuoteId_budgetItemId: {
-          projectQuoteId: quote.id,
-          budgetItemId,
-        },
-      },
-    });
-
-    const nextUnitPrice =
-      input.unitPrice !== undefined ? input.unitPrice : decimalToNumber(existing?.unitPrice);
-    const nextNotes =
-      input.notes !== undefined ? normalizeQuoteNotes(input.notes) : (existing?.notes ?? null);
-
-    if (nextUnitPrice === null && !nextNotes) {
-      if (existing) {
-        await prisma.projectQuoteItem.delete({
-          where: { id: existing.id },
-        });
-      }
-
-      return buildProjectQuoteState(projectId);
     }
 
     await prisma.projectQuoteItem.upsert({
@@ -903,90 +1144,71 @@ class QuoteService {
       create: {
         projectQuoteId: quote.id,
         budgetItemId,
-        unitPrice: toDecimal(nextUnitPrice),
-        notes: nextNotes,
+        unitPrice: toDecimal(input.unitPrice) ?? null,
+        notes: normalizeQuoteNotes(input.notes),
       },
       update: {
-        unitPrice: toDecimal(nextUnitPrice),
-        notes: nextNotes,
+        unitPrice: input.unitPrice !== undefined ? toDecimal(input.unitPrice) ?? null : undefined,
+        notes: input.notes !== undefined ? normalizeQuoteNotes(input.notes) : undefined,
       },
     });
 
-    return buildProjectQuoteState(projectId);
+    return buildProjectQuotesModuleState(projectId);
   }
 
-  async selectQuoteSlot(projectId: string, slotNumber: number) {
-    await ensureProjectExists(projectId);
-    await findQuoteBySlot(projectId, slotNumber);
-
-    await prisma.project.update({
-      where: { id: projectId },
-      data: {
-        selectedQuoteSlotNumber: slotNumber,
-      },
-    });
-
-    return buildProjectQuoteState(projectId);
-  }
-
-  async importSupplierQuotePdf(projectId: string, slotNumber: number, file: Express.Multer.File) {
+  async importSupplierQuotePdf(
+    projectId: string,
+    purchaseId: string,
+    slotNumber: number,
+    file: Express.Multer.File,
+  ) {
     await ensureProjectExists(projectId);
 
-    const [quote, budgetItems] = await Promise.all([findQuoteBySlot(projectId, slotNumber), findQuoteBudgetItems(projectId)]);
+    const [purchase, quote, purchaseBudgetItems] = await Promise.all([
+      findQuotePurchaseSummary(projectId, purchaseId),
+      findQuoteBySlot(projectId, purchaseId, slotNumber),
+      prisma.projectQuotePurchaseItem.findMany({
+        where: { projectQuotePurchaseId: purchaseId },
+        include: quotePurchaseItemInclude,
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      }),
+    ]);
 
     if (!quote.supplierId || !quote.supplier) {
       throw new AppError('Selecione um fornecedor antes de importar o PDF deste orcamento.', 409);
     }
 
-    const extracted = await extractSupplierQuotePdfPreview(file.buffer, file.originalname);
-    const parsedRows = extracted.rows.filter((row) => row.description.trim().length > 0 && row.unitPrice !== null);
-
-    if (parsedRows.length === 0) {
-      throw new AppError('Nao foi possivel identificar itens com preco neste PDF.', 422);
-    }
-
-    const previewRows = parsedRows.map((row) =>
-      buildQuoteImportPreviewRow(
-        {
-          rowIndex: row.rowIndex,
-          rawText: row.rawText,
-          description: row.description,
-          quantity: row.quantity,
-          unit: row.unit,
-          unitPrice: row.unitPrice ?? 0,
-          totalValue: row.totalValue,
-        },
-        budgetItems,
-      ),
-    );
-
     const supplierName = supplierDisplayName(quote.supplier) ?? 'Fornecedor';
+    const { supplierFolder } = await ensureSupplierQuoteFolders(projectId, purchase.title, supplierName);
+    const extracted = await extractSupplierQuotePdfPreview(file.buffer, file.originalname);
+    const budgetItems = purchaseBudgetItems.map((purchaseItem) => purchaseItem.budgetItem);
+    const rows = extracted.rows.map((row) => buildQuoteImportPreviewRow(row, budgetItems));
     const hasExistingValues = quote.items.some(hasMeaningfulQuoteItemData);
-    const previewJson = buildStoredQuoteImportPreview(
-      projectId,
-      slotNumber,
-      quote.supplierId,
-      supplierName,
-      extracted.extractionMode,
-      extracted.quoteNumber,
-      extracted.quoteDate,
-      extracted.supplierNameDetected,
-      previewRows,
-    );
 
-    const { supplierFolder } = await ensureSupplierQuoteFolders(projectId, supplierName);
     const document = await documentService.createProjectDocument(projectId, {
       folderId: supplierFolder.id,
       documentType: 'SUPPLIER_QUOTE_PDF',
       originalFileName: file.originalname,
       mimeType: file.mimetype || 'application/pdf',
-      documentDate: extracted.quoteDate ?? undefined,
-      contentText: extracted.fullText.slice(0, 50_000),
-      searchText: extracted.fullText.slice(0, 200_000),
-      previewJson: previewJson as Prisma.InputJsonValue,
+      documentDate: extracted.quoteDate ? toSaoPauloNoonDate(extracted.quoteDate).toISOString() : undefined,
       processingStatus: 'PROCESSED',
-      reviewStatus: 'PENDING_REVIEW',
-      notes: `PDF importado para o orcamento ${slotNumber}.`,
+      reviewStatus: 'REVIEWED',
+      notes: `PDF importado para a compra ${purchase.title}, orcamento ${slotNumber}.`,
+      searchText: extracted.fullText,
+      contentText: extracted.fullText,
+      previewJson: buildStoredQuoteImportPreview(
+        projectId,
+        purchaseId,
+        purchase.title,
+        slotNumber,
+        quote.supplierId,
+        supplierName,
+        extracted.extractionMode,
+        extracted.quoteNumber,
+        extracted.quoteDate,
+        extracted.supplierNameDetected,
+        rows,
+      ),
       originalFileBuffer: file.buffer,
     });
 
@@ -999,6 +1221,7 @@ class QuoteService {
 
     return {
       projectId,
+      purchaseId,
       slotNumber,
       supplierId: quote.supplierId,
       supplierName,
@@ -1007,32 +1230,32 @@ class QuoteService {
       quoteDate: extracted.quoteDate,
       detectedSupplierName: extracted.supplierNameDetected,
       document,
-      rows: previewRows,
-      summary: buildQuoteImportSummary(previewRows, hasExistingValues),
+      rows,
+      summary: buildQuoteImportSummary(rows, hasExistingValues),
     };
   }
 
   async applyImportedSupplierQuotePdf(
     projectId: string,
+    purchaseId: string,
     slotNumber: number,
     documentId: string,
     input: ApplyQuoteImportInput,
   ) {
     await ensureProjectExists(projectId);
 
-    const [quote, budgetItems, document] = await Promise.all([
-      findQuoteBySlot(projectId, slotNumber),
-      findQuoteBudgetItems(projectId),
+    const [quote, document, projectBudgetItems] = await Promise.all([
+      findQuoteBySlot(projectId, purchaseId, slotNumber),
       prisma.projectDocument.findFirst({
         where: {
           id: documentId,
           projectId,
-          documentType: 'SUPPLIER_QUOTE_PDF',
         },
       }),
+      findProjectQuoteBudgetItems(projectId),
     ]);
 
-    if (!quote.supplierId || !quote.supplier) {
+    if (!quote.supplierId) {
       throw new AppError('Selecione um fornecedor antes de aplicar a importacao do PDF.', 409);
     }
 
@@ -1041,110 +1264,124 @@ class QuoteService {
     }
 
     if (!isStoredQuoteImportPreview(document.previewJson)) {
-      throw new AppError('A previa deste PDF nao esta disponivel para aplicacao.', 409);
+      throw new AppError('O documento selecionado nao possui uma importacao valida para aplicar.', 409);
     }
 
     const preview = document.previewJson;
-    if (preview.projectId !== projectId || preview.slotNumber !== slotNumber) {
-      throw new AppError('Este PDF nao pertence ao slot de orcamento informado.', 409);
+    if (preview.projectId !== projectId || preview.purchaseId !== purchaseId || preview.slotNumber !== slotNumber) {
+      throw new AppError('Este PDF nao pertence a compra e ao slot de orcamento informados.', 409);
     }
 
     if (preview.supplierId !== quote.supplierId) {
       throw new AppError('O fornecedor do slot mudou depois da importacao. Reimporte o PDF para continuar.', 409);
     }
 
-    const hasSavedValues = quote.items.some(hasMeaningfulQuoteItemData);
-    if (hasSavedValues && !input.confirmReplace) {
+    const hasExistingValues = quote.items.some(hasMeaningfulQuoteItemData);
+    if (hasExistingValues && !input.confirmReplace) {
       throw new AppError(
         'Aplicar a importacao vai substituir os valores atuais deste orcamento. Confirme a operacao para continuar.',
         409,
       );
     }
 
-    const decisionByRowIndex = new Map(input.rows.map((row) => [row.rowIndex, row]));
+    const decisions = new Map(input.rows.map((row) => [row.rowIndex, row]));
 
     await prisma.$transaction(async (tx) => {
-      const workingBudgetItems = [...budgetItems];
-      const quoteItemsToCreate: Array<{
-        budgetItemId: string;
-        unitPrice: Prisma.Decimal;
-        notes: string | null;
-      }> = [];
-      const usedBudgetItemIds = new Set<string>();
-
-      if (hasSavedValues) {
+      if (hasExistingValues) {
         await tx.projectQuoteItem.deleteMany({
           where: { projectQuoteId: quote.id },
         });
       }
 
-      for (const previewRow of preview.rows) {
-        const decision = decisionByRowIndex.get(previewRow.rowIndex);
-        const action = decision?.action ?? previewRow.suggestedAction;
+      const quoteItemsToCreate: Array<{
+        budgetItemId: string;
+        unitPrice: Prisma.Decimal | null;
+        notes: string | null;
+      }> = [];
 
-        if (action === 'IGNORE') {
+      for (const row of preview.rows) {
+        const decision = decisions.get(row.rowIndex);
+        if (!decision || decision.action === 'IGNORE') {
           continue;
         }
 
-        let targetBudgetItemId: string | null =
-          action === 'APPLY' ? (decision?.matchedBudgetItemId ?? previewRow.matchedBudgetItemId) : null;
+        let budgetItemId = decision.matchedBudgetItemId ?? row.matchedBudgetItemId;
 
-        if (action === 'CREATE_EXTRA') {
-          const reusable = findReusableExtraBudgetItem(workingBudgetItems, previewRow);
+        if (decision.action === 'CREATE_EXTRA') {
+          const reusableExtra = findReusableExtraBudgetItem(projectBudgetItems, row);
 
-          if (reusable) {
-            targetBudgetItemId = reusable.id;
+          if (reusableExtra) {
+            budgetItemId = reusableExtra.id;
+            await ensureQuotePurchaseItemLink(
+              tx,
+              purchaseId,
+              reusableExtra.id,
+              reusableExtra.plannedQuantity ?? null,
+            );
           } else {
-            const created = await tx.budgetItem.create({
+            const createdBudgetItem = await tx.budgetItem.create({
               data: {
                 projectId,
                 itemCategory: 'OTHER',
-                name: previewRow.description,
-                description: previewRow.rawText !== previewRow.description ? previewRow.rawText : null,
-                unit: previewRow.unit ?? null,
-                plannedQuantity: toDecimal(previewRow.quantity && previewRow.quantity > 0 ? previewRow.quantity : 1),
-                hasBidReference: false,
-                contextOnly: false,
+                name: row.description.trim() || 'Item extra do fornecedor',
+                specification: row.rawText.trim() || null,
+                unit: row.unit?.trim() || null,
+                plannedQuantity: toDecimal(row.quantity) ?? null,
                 supplierQuoteExtraItem: true,
-                sourceType: 'DOCUMENT_EXTRACTED',
-                sourceDocumentId: document.id,
-                sourceExcerpt: previewRow.rawText.slice(0, 500),
+                hasBidReference: false,
+                sourceType: 'MANUAL',
+                contextOnly: false,
                 notes: 'Nao encontrada no edital, mas presente no orcamento',
               },
               select: quoteBudgetItemSelect,
             });
 
-            workingBudgetItems.push(created);
-            targetBudgetItemId = created.id;
+            budgetItemId = createdBudgetItem.id;
+            await ensureQuotePurchaseItemLink(
+              tx,
+              purchaseId,
+              createdBudgetItem.id,
+              createdBudgetItem.plannedQuantity ?? null,
+            );
           }
-        }
+        } else if (budgetItemId) {
+          const existingBudgetItem = await tx.budgetItem.findFirst({
+            where: {
+              id: budgetItemId,
+              projectId,
+              contextOnly: false,
+            },
+            select: {
+              id: true,
+              plannedQuantity: true,
+            },
+          });
 
-        if (!targetBudgetItemId) {
-          throw new AppError(`A linha ${previewRow.rowIndex + 1} precisa de um item do projeto para ser aplicada.`, 409);
-        }
+          if (!existingBudgetItem) {
+            throw new AppError('Item do projeto nao encontrado para aplicar a importacao.', 404);
+          }
 
-        const targetBudgetItem = workingBudgetItems.find((item) => item.id === targetBudgetItemId) ?? null;
-        if (!targetBudgetItem) {
-          throw new AppError(`O item selecionado para a linha ${previewRow.rowIndex + 1} nao existe mais no projeto.`, 409);
-        }
-
-        if (usedBudgetItemIds.has(targetBudgetItemId)) {
-          throw new AppError(
-            `Mais de uma linha do PDF foi associada ao item "${targetBudgetItem.name}". Ajuste a revisao antes de aplicar.`,
-            409,
+          await ensureQuotePurchaseItemLink(
+            tx,
+            purchaseId,
+            existingBudgetItem.id,
+            existingBudgetItem.plannedQuantity ?? null,
           );
         }
 
-        usedBudgetItemIds.add(targetBudgetItemId);
+        if (!budgetItemId) {
+          continue;
+        }
+
         quoteItemsToCreate.push({
-          budgetItemId: targetBudgetItemId,
-          unitPrice: toDecimal(previewRow.unitPrice) ?? new Prisma.Decimal(0),
-          notes: buildImportedQuoteItemNotes(document.originalFileName, preview, previewRow),
+          budgetItemId,
+          unitPrice: toDecimal(row.unitPrice) ?? null,
+          notes: buildImportedQuoteItemNotes(document.originalFileName, preview, row),
         });
       }
 
       if (quoteItemsToCreate.length === 0) {
-        throw new AppError('Nenhuma linha do PDF foi marcada para aplicacao.', 409);
+        throw new AppError('Nenhuma linha elegivel foi selecionada para aplicar.', 409);
       }
 
       await tx.projectQuoteItem.createMany({
@@ -1154,43 +1391,33 @@ class QuoteService {
           unitPrice: row.unitPrice,
           notes: row.notes,
         })),
-      });
-
-      await tx.projectQuote.update({
-        where: { id: quote.id },
-        data: {
-          latestImportedDocumentId: document.id,
-        },
-      });
-
-      await tx.projectDocument.update({
-        where: { id: document.id },
-        data: {
-          reviewStatus: 'REVIEWED',
-          previewJson: {
-            ...preview,
-            appliedAt: new Date().toISOString(),
-            decisions: input.rows,
-          } as Prisma.InputJsonValue,
-        },
+        skipDuplicates: true,
       });
     });
 
-    return buildProjectQuoteState(projectId);
+    return buildProjectQuotesModuleState(projectId);
   }
 
-  async applyQuoteWinner(projectId: string, input: ApplyQuoteWinnerInput) {
-    const state = await buildProjectQuoteState(projectId);
-    const slotMap = new Map<number, (typeof state.slots)[number]>(state.slots.map((slot) => [slot.slotNumber, slot]));
+  async applyQuoteWinner(projectId: string, purchaseId: string, input: ApplyQuoteWinnerInput) {
+    const state = await buildProjectQuotesModuleState(projectId);
+    const purchaseState = state.purchases.find((purchase) => purchase.id === purchaseId) ?? null;
+
+    if (!purchaseState) {
+      throw new AppError('Quote purchase not found', 404);
+    }
+
+    const slotMap = new Map<number, (typeof purchaseState.slots)[number]>(
+      purchaseState.slots.map((slot) => [slot.slotNumber, slot]),
+    );
 
     const rowsToApply =
       input.mode === 'OVERALL'
         ? (() => {
-            if (state.comparison.overallWinner.status !== 'UNIQUE') {
+            if (purchaseState.comparison.overallWinner.status !== 'UNIQUE') {
               throw new AppError('Nao existe vencedor geral unico para aplicar.', 409);
             }
 
-            const winnerSlot = state.comparison.overallWinner.slotNumbers[0];
+            const winnerSlot = purchaseState.comparison.overallWinner.slotNumbers[0];
             const slot = winnerSlot ? slotMap.get(winnerSlot) : null;
             if (!slot?.supplier?.legalName) {
               throw new AppError('O orcamento vencedor geral nao possui fornecedor valido.', 409);
@@ -1198,7 +1425,7 @@ class QuoteService {
 
             const approvedSupplierName = slot.supplier.legalName;
 
-            return state.rows
+            return purchaseState.rows
               .map((row) => {
                 const value = row.values.find((entry) => entry.slotNumber === winnerSlot) ?? null;
                 if (!value || value.unitPrice === null || value.totalValue === null) {
@@ -1214,7 +1441,7 @@ class QuoteService {
               })
               .filter((row): row is NonNullable<typeof row> => row !== null);
           })()
-        : state.rows
+        : purchaseState.rows
             .map((row) => {
               if (row.winner.status !== 'UNIQUE') {
                 return null;
@@ -1259,169 +1486,180 @@ class QuoteService {
     return {
       mode: input.mode,
       updatedItems: rowsToApply.length,
-      skippedItems: Math.max(0, state.rows.length - rowsToApply.length),
+      skippedItems: Math.max(0, purchaseState.rows.length - rowsToApply.length),
     };
   }
 
-  async generatePurchaseOrderDocument(projectId: string, input: GenerateQuotePurchaseOrderInput) {
-    const [project, budgetItems, quotes] = await Promise.all([
+  async generatePurchaseOrderDocuments(
+    projectId: string,
+    purchaseId: string,
+    input: GenerateQuotePurchaseOrderInput,
+  ) {
+    const [project, state] = await Promise.all([
       findQuoteProjectContext(projectId),
-      findQuoteBudgetItems(projectId),
-      (async () => {
-        await ensureQuoteSlots(projectId);
-        return findQuoteRecords(projectId);
-      })(),
+      buildProjectQuotesModuleState(projectId),
     ]);
 
-    if (!project.selectedQuoteSlotNumber) {
-      throw new AppError('Selecione um orcamento antes de gerar a ordem de compra.', 409);
+    const purchaseState = state.purchases.find((purchase) => purchase.id === purchaseId) ?? null;
+    if (!purchaseState) {
+      throw new AppError('Quote purchase not found', 404);
     }
 
-    const state = buildQuoteState(
-      projectId,
-      budgetItems,
-      quotes,
-      project.selectedQuoteSlotNumber,
-    );
-    const selectedSlot = state.slots.find((slot) => slot.slotNumber === project.selectedQuoteSlotNumber) ?? null;
-    const selectedQuote =
-      quotes.find((quote) => quote.slotNumber === project.selectedQuoteSlotNumber) ?? null;
-
-    if (!selectedSlot || !selectedQuote || !selectedQuote.supplier) {
-      throw new AppError('O orcamento selecionado precisa ter um fornecedor valido.', 409);
-    }
-
-    const purchaseOrderRows = buildPurchaseOrderRows(state.rows, selectedSlot.slotNumber);
-    if (purchaseOrderRows.length === 0) {
-      throw new AppError('O orcamento selecionado nao possui itens com preco para gerar a ordem.', 409);
+    const groups = buildWinningPurchaseOrderGroups(purchaseState);
+    if (groups.length === 0) {
+      throw new AppError(
+        'Nao existem itens com vencedor unico para gerar pedidos. Resolva os itens pendentes ou empatados.',
+        409,
+      );
     }
 
     const saoPauloNow = getSaoPauloNowParts();
     const issuedAt = toSaoPauloNoonDate(saoPauloNow.isoDate);
     const expectedDeliveryDate = parseDateInputInSaoPaulo(input.expectedDeliveryDate ?? null);
     const { monthFolder } = await ensurePurchaseOrderFolders(projectId, saoPauloNow.monthFolderName);
-
-    const existingOrder = await purchaseRepository.findOrderByProjectAndGlpi(projectId, input.glpiNumber);
-    const order =
-      existingOrder === null
-        ? await purchaseRepository.createOrder({
-            projectId,
-            supplierId: selectedQuote.supplierId,
-            purchaseStatus: 'TO_START',
-            purchaseDate: issuedAt,
-            internalReference: normalizeOptionalText(input.internalReference),
-            glpiNumber: input.glpiNumber,
-            deliveryAddress: normalizeOptionalText(input.deliveryAddress),
-            freightType: normalizeOptionalText(input.freightType),
-            paymentTerms: normalizeOptionalText(input.paymentTerms),
-            responsibleName: normalizeOptionalText(input.responsibleName),
-            responsiblePhone: normalizeOptionalText(input.responsiblePhone),
-            expectedDeliveryDate,
-            notes: normalizeOptionalText(input.notes),
-          })
-        : await purchaseRepository.updateOrder(existingOrder.id, {
-            supplierId: selectedQuote.supplierId,
-            purchaseDate: issuedAt,
-            internalReference: normalizeOptionalText(input.internalReference),
-            glpiNumber: input.glpiNumber,
-            deliveryAddress: normalizeOptionalText(input.deliveryAddress),
-            freightType: normalizeOptionalText(input.freightType),
-            paymentTerms: normalizeOptionalText(input.paymentTerms),
-            responsibleName: normalizeOptionalText(input.responsibleName),
-            responsiblePhone: normalizeOptionalText(input.responsiblePhone),
-            expectedDeliveryDate,
-            notes: normalizeOptionalText(input.notes),
-          });
-
-    await purchaseRepository.replaceOrderItems(
-      order.id,
-      purchaseOrderRows.map((row) => ({
-        purchaseOrderId: order.id,
-        budgetItemId: row.budgetItemId,
-        quantityPurchased: toDecimal(row.quantity) ?? new Prisma.Decimal(0),
-        realUnitValue: toDecimal(row.unitPrice) ?? new Prisma.Decimal(0),
-        expectedDeliveryDate,
-        deliveredAt: null,
-        deliveryStatus: 'NOT_SCHEDULED',
-        notes: row.notes,
-      })),
-    );
-
-    const supplierName =
-      selectedQuote.supplier.tradeName?.trim() ||
-      selectedQuote.supplier.legalName?.trim() ||
-      'Fornecedor';
     const projectFileSegment = sanitizeDocumentSegment(
       (project.code?.trim() || project.name?.trim() || 'PROJETO').toUpperCase(),
     );
+    const purchaseSegment = sanitizeDocumentSegment(purchaseState.title.toUpperCase());
     const glpiSegment = sanitizeDocumentSegment(input.glpiNumber);
-    const fileName = `${projectFileSegment}_${glpiSegment}_${saoPauloNow.isoDate}.pdf`;
 
-    const pdfInput = {
-      issuerName: project.organizationName,
-      issuerCity: project.city,
-      issuerState: project.state,
-      projectCode: project.code,
-      projectName: project.name,
-      supplierName,
-      supplierDocumentNumber: selectedQuote.supplier.documentNumber ?? null,
-      supplierAddress: selectedQuote.supplier.address ?? null,
-      supplierContactName: selectedQuote.supplier.contactName ?? null,
-      supplierPhone: selectedQuote.supplier.phone ?? null,
-      glpiNumber: input.glpiNumber,
-      internalReference: normalizeOptionalText(input.internalReference),
-      issuedAtLabel: saoPauloNow.label,
-      expectedDeliveryDateLabel: formatDateLabel(input.expectedDeliveryDate),
-      deliveryAddress: normalizeOptionalText(input.deliveryAddress),
-      freightType: normalizeOptionalText(input.freightType),
-      paymentTerms: normalizeOptionalText(input.paymentTerms),
-      responsibleName: normalizeOptionalText(input.responsibleName),
-      responsiblePhone: normalizeOptionalText(input.responsiblePhone),
-      notes: normalizeOptionalText(input.notes),
-      items: purchaseOrderRows.map((row) => ({
-        description: row.description,
-        quantity: row.quantity,
-        unitPrice: row.unitPrice,
-        totalPrice: row.totalValue,
-        notes: row.notes,
-      })),
-    } satisfies Parameters<typeof buildPurchaseOrderPdf>[0];
+    const generatedOrders = [];
 
-    const pdfBytes = await buildPurchaseOrderPdf(pdfInput);
-    const searchText = buildPurchaseOrderSearchText(pdfInput);
-    const documentPayload = {
-      folderId: monthFolder.id,
-      purchaseOrderId: order.id,
-      documentType: 'PURCHASE_ORDER_PDF' as const,
-      originalFileName: fileName,
-      mimeType: 'application/pdf',
-      documentDate: issuedAt.toISOString(),
-      contentText: searchText,
-      searchText,
-      notes: normalizeOptionalText(input.notes) ?? undefined,
-      processingStatus: 'PROCESSED' as const,
-      reviewStatus: 'REVIEWED' as const,
-      originalFileBuffer: Buffer.from(pdfBytes),
-    };
+    for (const group of groups) {
+      const existingOrder = await purchaseRepository.findOrderBySourceQuotePurchaseAndSupplier(
+        purchaseId,
+        group.supplierId,
+        input.glpiNumber,
+      );
 
-    const document =
-      order.generatedDocumentId && order.generatedDocument
-        ? await documentService.replaceProjectDocument(projectId, order.generatedDocumentId, documentPayload)
-        : await documentService.createProjectDocument(projectId, documentPayload);
+      const order =
+        existingOrder === null
+          ? await purchaseRepository.createOrder({
+              projectId,
+              sourceQuotePurchaseId: purchaseId,
+              supplierId: group.supplierId,
+              purchaseStatus: 'TO_START',
+              purchaseDate: issuedAt,
+              internalReference: normalizeOptionalText(input.internalReference),
+              glpiNumber: input.glpiNumber,
+              deliveryAddress: normalizeOptionalText(input.deliveryAddress),
+              freightType: normalizeOptionalText(input.freightType),
+              paymentTerms: normalizeOptionalText(input.paymentTerms),
+              responsibleName: normalizeOptionalText(input.responsibleName),
+              responsiblePhone: normalizeOptionalText(input.responsiblePhone),
+              expectedDeliveryDate,
+              notes: normalizeOptionalText(input.notes),
+            })
+          : await purchaseRepository.updateOrder(existingOrder.id, {
+              sourceQuotePurchaseId: purchaseId,
+              supplierId: group.supplierId,
+              purchaseDate: issuedAt,
+              internalReference: normalizeOptionalText(input.internalReference),
+              glpiNumber: input.glpiNumber,
+              deliveryAddress: normalizeOptionalText(input.deliveryAddress),
+              freightType: normalizeOptionalText(input.freightType),
+              paymentTerms: normalizeOptionalText(input.paymentTerms),
+              responsibleName: normalizeOptionalText(input.responsibleName),
+              responsiblePhone: normalizeOptionalText(input.responsiblePhone),
+              expectedDeliveryDate,
+              notes: normalizeOptionalText(input.notes),
+            });
 
-    const updatedOrder =
-      order.generatedDocumentId === document.id
-        ? order
-        : await purchaseRepository.updateOrder(order.id, {
-            generatedDocumentId: document.id,
-          });
+      await purchaseRepository.replaceOrderItems(
+        order.id,
+        group.items.map((row) => ({
+          purchaseOrderId: order.id,
+          budgetItemId: row.budgetItemId,
+          quantityPurchased: toDecimal(row.quantity) ?? new Prisma.Decimal(0),
+          realUnitValue: toDecimal(row.unitPrice) ?? new Prisma.Decimal(0),
+          expectedDeliveryDate,
+          deliveredAt: null,
+          deliveryStatus: 'NOT_SCHEDULED',
+          notes: row.notes,
+        })),
+      );
+
+      const supplierSegment = sanitizeDocumentSegment(group.supplierName);
+      const fileName = `${projectFileSegment}_${purchaseSegment}_${supplierSegment}_${glpiSegment}_${saoPauloNow.isoDate}.pdf`;
+
+      const pdfInput = {
+        issuerName: project.organizationName,
+        issuerCity: project.city,
+        issuerState: project.state,
+        projectCode: project.code,
+        projectName: project.name,
+        supplierName: group.supplierName,
+        supplierDocumentNumber: order.supplier?.documentNumber ?? null,
+        supplierAddress: order.supplier?.address ?? null,
+        supplierContactName: order.supplier?.contactName ?? null,
+        supplierPhone: order.supplier?.phone ?? null,
+        glpiNumber: input.glpiNumber,
+        internalReference: normalizeOptionalText(input.internalReference),
+        issuedAtLabel: saoPauloNow.label,
+        expectedDeliveryDateLabel: formatDateLabel(input.expectedDeliveryDate),
+        deliveryAddress: normalizeOptionalText(input.deliveryAddress),
+        freightType: normalizeOptionalText(input.freightType),
+        paymentTerms: normalizeOptionalText(input.paymentTerms),
+        responsibleName: normalizeOptionalText(input.responsibleName),
+        responsiblePhone: normalizeOptionalText(input.responsiblePhone),
+        notes: normalizeOptionalText(input.notes),
+        items: group.items.map((row) => ({
+          description: row.description,
+          quantity: row.quantity,
+          unitPrice: row.unitPrice,
+          totalPrice: row.totalValue,
+          notes: row.notes,
+        })),
+      } satisfies Parameters<typeof buildPurchaseOrderPdf>[0];
+
+      const pdfBytes = await buildPurchaseOrderPdf(pdfInput);
+      const searchText = buildPurchaseOrderSearchText(pdfInput);
+      const documentPayload = {
+        folderId: monthFolder.id,
+        purchaseOrderId: order.id,
+        documentType: 'PURCHASE_ORDER_PDF' as const,
+        originalFileName: fileName,
+        mimeType: 'application/pdf',
+        documentDate: issuedAt.toISOString(),
+        contentText: searchText,
+        searchText,
+        notes: normalizeOptionalText(input.notes) ?? undefined,
+        processingStatus: 'PROCESSED' as const,
+        reviewStatus: 'REVIEWED' as const,
+        originalFileBuffer: Buffer.from(pdfBytes),
+      };
+
+      const document =
+        order.generatedDocumentId && order.generatedDocument
+          ? await documentService.replaceProjectDocument(projectId, order.generatedDocumentId, documentPayload)
+          : await documentService.createProjectDocument(projectId, documentPayload);
+
+      const updatedOrder =
+        order.generatedDocumentId === document.id
+          ? order
+          : await purchaseRepository.updateOrder(order.id, {
+              generatedDocumentId: document.id,
+            });
+
+      generatedOrders.push({
+        supplierId: group.supplierId,
+        supplierName: group.supplierName,
+        itemCount: group.items.length,
+        totalValue: Number(group.totalValue.toFixed(2)),
+        purchaseOrderId: updatedOrder.id,
+        documentId: document.id,
+        documentFileName: document.originalFileName,
+        folderPathLabel: document.folderPathLabel ?? null,
+      });
+    }
+
+    const generatedItemCount = generatedOrders.reduce((total, order) => total + order.itemCount, 0);
 
     return {
-      slotNumber: selectedSlot.slotNumber,
-      purchaseOrderId: updatedOrder.id,
-      documentId: document.id,
-      documentFileName: document.originalFileName,
-      folderPathLabel: document.folderPathLabel ?? null,
+      purchaseId,
+      purchaseTitle: purchaseState.title,
+      generatedOrders,
+      skippedItems: Math.max(0, purchaseState.rows.length - generatedItemCount),
     };
   }
 }

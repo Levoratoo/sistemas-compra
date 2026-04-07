@@ -3,10 +3,19 @@ import type {
   ProjectQuoteImportApplyPayload,
   ProjectQuoteImportPreview,
   ProjectQuotePurchaseOrderResult,
-  ProjectQuoteState,
+  ProjectQuotesState,
 } from '@/types/api';
 
 export type QuoteApplyMode = 'OVERALL' | 'PER_ITEM';
+
+export type CreateQuotePurchasePayload = {
+  title: string;
+  notes?: string | null;
+};
+
+export type AddQuotePurchaseItemsPayload = {
+  budgetItemIds: string[];
+};
 
 export type UpdateQuoteSupplierPayload = {
   supplierId: string | null;
@@ -31,15 +40,40 @@ export type GenerateQuotePurchaseOrderPayload = {
 };
 
 export function listProjectQuotes(projectId: string) {
-  return apiRequest<ProjectQuoteState>(`projects/${projectId}/quotes`);
+  return apiRequest<ProjectQuotesState>(`projects/${projectId}/quotes`);
+}
+
+export function createProjectQuotePurchase(projectId: string, payload: CreateQuotePurchasePayload) {
+  return apiRequest<ProjectQuotesState>(`projects/${projectId}/quotes/purchases`, {
+    method: 'POST',
+    body: payload,
+  });
+}
+
+export function addProjectQuotePurchaseItems(
+  projectId: string,
+  purchaseId: string,
+  payload: AddQuotePurchaseItemsPayload,
+) {
+  return apiRequest<ProjectQuotesState>(`projects/${projectId}/quotes/purchases/${purchaseId}/items`, {
+    method: 'POST',
+    body: payload,
+  });
+}
+
+export function removeProjectQuotePurchaseItem(projectId: string, purchaseId: string, budgetItemId: string) {
+  return apiRequest<ProjectQuotesState>(`projects/${projectId}/quotes/purchases/${purchaseId}/items/${budgetItemId}`, {
+    method: 'DELETE',
+  });
 }
 
 export function updateProjectQuoteSupplier(
   projectId: string,
+  purchaseId: string,
   slotNumber: number,
   payload: UpdateQuoteSupplierPayload,
 ) {
-  return apiRequest<ProjectQuoteState>(`projects/${projectId}/quotes/${slotNumber}/supplier`, {
+  return apiRequest<ProjectQuotesState>(`projects/${projectId}/quotes/purchases/${purchaseId}/slots/${slotNumber}/supplier`, {
     method: 'PUT',
     body: payload,
   });
@@ -47,25 +81,23 @@ export function updateProjectQuoteSupplier(
 
 export function updateProjectQuoteItem(
   projectId: string,
+  purchaseId: string,
   slotNumber: number,
   budgetItemId: string,
   payload: UpdateQuoteItemPayload,
 ) {
-  return apiRequest<ProjectQuoteState>(`projects/${projectId}/quotes/${slotNumber}/items/${budgetItemId}`, {
-    method: 'PUT',
-    body: payload,
-  });
+  return apiRequest<ProjectQuotesState>(
+    `projects/${projectId}/quotes/purchases/${purchaseId}/slots/${slotNumber}/items/${budgetItemId}`,
+    {
+      method: 'PUT',
+      body: payload,
+    },
+  );
 }
 
-export function selectProjectQuoteSlot(projectId: string, slotNumber: number) {
-  return apiRequest<ProjectQuoteState>(`projects/${projectId}/quotes/${slotNumber}/select`, {
-    method: 'PUT',
-  });
-}
-
-export function applyProjectQuoteWinner(projectId: string, mode: QuoteApplyMode) {
+export function applyProjectQuoteWinner(projectId: string, purchaseId: string, mode: QuoteApplyMode) {
   return apiRequest<{ mode: QuoteApplyMode; updatedItems: number; skippedItems: number }>(
-    `projects/${projectId}/quotes/apply-winner`,
+    `projects/${projectId}/quotes/purchases/${purchaseId}/apply-winner`,
     {
       method: 'POST',
       body: { mode },
@@ -73,30 +105,41 @@ export function applyProjectQuoteWinner(projectId: string, mode: QuoteApplyMode)
   );
 }
 
-export function generateProjectQuotePurchaseOrder(
+export function generateProjectQuotePurchaseOrders(
   projectId: string,
+  purchaseId: string,
   payload: GenerateQuotePurchaseOrderPayload,
 ) {
-  return apiRequest<ProjectQuotePurchaseOrderResult>(`projects/${projectId}/quotes/generate-purchase-order`, {
-    method: 'POST',
-    body: payload,
-  });
+  return apiRequest<ProjectQuotePurchaseOrderResult>(
+    `projects/${projectId}/quotes/purchases/${purchaseId}/generate-purchase-orders`,
+    {
+      method: 'POST',
+      body: payload,
+    },
+  );
 }
 
-export function uploadProjectQuotePdfImport(projectId: string, slotNumber: number, file: File) {
+export function uploadProjectQuotePdfImport(projectId: string, purchaseId: string, slotNumber: number, file: File) {
   const formData = new FormData();
   formData.append('file', file);
-  return apiUploadJson<ProjectQuoteImportPreview>(`projects/${projectId}/quotes/${slotNumber}/import-pdf`, formData);
+  return apiUploadJson<ProjectQuoteImportPreview>(
+    `projects/${projectId}/quotes/purchases/${purchaseId}/slots/${slotNumber}/import-pdf`,
+    formData,
+  );
 }
 
 export function applyProjectQuotePdfImport(
   projectId: string,
+  purchaseId: string,
   slotNumber: number,
   documentId: string,
   payload: ProjectQuoteImportApplyPayload,
 ) {
-  return apiRequest<ProjectQuoteState>(`projects/${projectId}/quotes/${slotNumber}/import-pdf/${documentId}/apply`, {
-    method: 'POST',
-    body: payload,
-  });
+  return apiRequest<ProjectQuotesState>(
+    `projects/${projectId}/quotes/purchases/${purchaseId}/slots/${slotNumber}/import-pdf/${documentId}/apply`,
+    {
+      method: 'POST',
+      body: payload,
+    },
+  );
 }
