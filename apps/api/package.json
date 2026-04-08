@@ -17,7 +17,7 @@
     "db:seed:suppliers": "tsx prisma/seed-suppliers-demo.ts",
     "db:backfill-supplier-cnd": "tsx src/scripts/backfill-supplier-cnd.ts",
     "db:backfill-supplier-cnd-metadata": "tsx src/scripts/backfill-supplier-cnd-metadata.ts",
-    "test": "node --import tsx/esm --test src/utils/*.test.ts"
+    "test": "node --import tsx/esm --test src/**/*.test.ts"
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.80",

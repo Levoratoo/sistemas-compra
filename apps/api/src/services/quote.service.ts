@@ -87,6 +87,27 @@ const QUOTE_IMPORT_MATCH_STOP_TOKENS = new Set([
   'unidade',
   'unidades',
 ]);
+const QUOTE_IMPORT_DISTINCTIVE_ITEM_TOKENS = new Set([
+  'camiseta',
+  'gandol',
+  'calca',
+  'bota',
+  'cinto',
+  'meia',
+  'bone',
+  'oculos',
+  'mascara',
+  'luva',
+  'joelheira',
+  'cotoveleira',
+  'protetor',
+  'auditivo',
+  'capacete',
+  'prancha',
+  'lanterna',
+  'bateria',
+  'apito',
+]);
 
 const quoteInclude = {
   supplier: true,
@@ -435,6 +456,7 @@ function normalizeQuoteImportToken(token: string) {
   if (normalized.startsWith('joelhe')) return 'joelheira';
   if (normalized.startsWith('cotovel')) return 'cotoveleira';
   if (normalized.startsWith('protet')) return 'protetor';
+  if (normalized.startsWith('auricul')) return 'auditivo';
   if (normalized.startsWith('audit')) return 'auditivo';
   if (normalized.startsWith('lantern')) return 'lanterna';
   if (normalized.startsWith('bateri')) return 'bateria';
@@ -471,6 +493,12 @@ function calculateTokenCoverage(left: string[], right: string[]) {
   };
 }
 
+function countDistinctiveSharedTokens(left: string[], right: string[]) {
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+  return [...leftSet].filter((token) => rightSet.has(token) && QUOTE_IMPORT_DISTINCTIVE_ITEM_TOKENS.has(token)).length;
+}
+
 function calculateTokenOverlapScore(left: string[], right: string[]) {
   if (left.length === 0 || right.length === 0) {
     return 0;
@@ -503,6 +531,7 @@ function scoreQuoteImportMatch(
   const itemMatchText = buildBudgetItemMatchText(item);
   const itemNormalized = normalizeSupplierQuoteMatchText(itemMatchText);
   const rowTokens = tokenizeSupplierQuoteMatchText(row.description);
+  const rowCoreTokens = tokenizeQuoteImportCoreText(row.description);
   const itemTokens = tokenizeSupplierQuoteMatchText(itemMatchText);
   const overlapScore = calculateTokenOverlapScore(rowTokens, itemTokens);
   const quantityConflict = quantityConflictWithBudgetItem(row.quantity, decimalToNumber(item.plannedQuantity));
@@ -522,6 +551,10 @@ function scoreQuoteImportMatch(
   const bestCoreSharedCount = Math.max(...aliasSignals.map((signal) => signal.coreCoverage.sharedCount), 0);
   const bestCoreLeftCoverage = Math.max(...aliasSignals.map((signal) => signal.coreCoverage.leftCoverage), 0);
   const bestCoreRightCoverage = Math.max(...aliasSignals.map((signal) => signal.coreCoverage.rightCoverage), 0);
+  const bestDistinctiveSharedTokenCount = Math.max(
+    ...buildBudgetItemMatchAliases(item).map((alias) => countDistinctiveSharedTokens(rowCoreTokens, tokenizeQuoteImportCoreText(alias))),
+    0,
+  );
 
   let score = Math.max(overlapScore, bestAliasOverlap);
 
@@ -562,6 +595,10 @@ function scoreQuoteImportMatch(
     score = Math.max(score, 0.58);
   } else if (bestCoreLeftCoverage >= 0.5) {
     score = Math.max(score, 0.52);
+  }
+
+  if (bestDistinctiveSharedTokenCount >= 1 && bestCoreLeftCoverage >= 0.2) {
+    score = Math.max(score, 0.5);
   }
 
   if (quantityConflict && score >= 0.8) {
@@ -2089,3 +2126,8 @@ class QuoteService {
 }
 
 export const quoteService = new QuoteService();
+export const quoteImportMatchingForTests = {
+  normalizeQuoteImportToken,
+  tokenizeQuoteImportCoreText,
+  scoreQuoteImportMatch,
+};

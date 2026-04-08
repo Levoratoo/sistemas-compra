@@ -39,7 +39,17 @@ const MAX_PDF_TEXT_EDITAL = Math.min(
   Math.max(120_000, Number(process.env.EDITAL_PDF_MAX_CHARS ?? 420_000)),
   500_000,
 );
+const MAX_PDF_OCR_EDITAL_PAGES = Math.min(
+  Math.max(24, Number(process.env.EDITAL_PDF_OCR_MAX_PAGES ?? 60)),
+  80,
+);
 const MAX_SHEET_ROWS = 12_000;
+
+function hasLateAnnexOrTableHints(text: string) {
+  return /ANEXO\s+I[\s-]*[BC]|DETALHAMENTO\s+DOS\s+UNIFORMES|DETALHAMENTO\s+DO\s+EQUIPAMENTOS?\s+DE\s+PROTE\w+|TIPO\s*\/\s*QTD|ITEM\s+QTDE?\.?|POSTO\s+DE\s+TRABALHO\s+EPI/i.test(
+    text,
+  );
+}
 
 function shouldRunPdfOcrForEdital(
   text: string,
@@ -157,10 +167,12 @@ async function extractPlainText(
           let editalMateriais = parseEditalMateriaisDisponibilizados(text);
           let ocrUsed = false;
 
-          if (shouldRunPdfOcrForEdital(text, editalMateriais)) {
+          if (shouldRunPdfOcrForEdital(text, editalMateriais) || hasLateAnnexOrTableHints(text)) {
             try {
               const { extractPdfTextViaOcr } = await import('../utils/pdf-ocr.js');
-              const ocrText = await extractPdfTextViaOcr(file.buffer, { maxPages: 24 });
+              const ocrText = await extractPdfTextViaOcr(file.buffer, {
+                maxPages: hasLateAnnexOrTableHints(text) ? MAX_PDF_OCR_EDITAL_PAGES : 24,
+              });
               if (ocrText.trim().length > 40) {
                 const combinedText = `${text}\n\n--- Texto reconhecido por OCR (trechos em imagem no PDF) ---\n\n${ocrText}`.slice(
                   0,
