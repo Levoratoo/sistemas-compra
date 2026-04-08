@@ -75,6 +75,44 @@ type QuoteImportDecisionMap = Record<
   }
 >;
 
+function normalizeImportLookupText(value: string | null | undefined) {
+  return (value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function findProjectBudgetItemForImportRow(items: BudgetItem[], row: ProjectQuoteImportRow) {
+  const normalizedDescription = normalizeImportLookupText(row.description);
+  const normalizedUnit = normalizeImportLookupText(row.unit);
+
+  if (!normalizedDescription) {
+    return null;
+  }
+
+  const exactWithUnit =
+    items.find((item) => {
+      if (item.contextOnly) {
+        return false;
+      }
+
+      const sameDescription = normalizeImportLookupText(item.name) === normalizedDescription;
+      const itemUnit = normalizeImportLookupText(item.unit);
+      return sameDescription && normalizedUnit.length > 0 && itemUnit === normalizedUnit;
+    }) ?? null;
+
+  if (exactWithUnit) {
+    return exactWithUnit;
+  }
+
+  return (
+    items.find((item) => !item.contextOnly && normalizeImportLookupText(item.name) === normalizedDescription) ?? null
+  );
+}
+
 function buildInitialQuoteImportDecisions(preview: ProjectQuoteImportPreview | null): QuoteImportDecisionMap {
   if (!preview) {
     return {};
@@ -905,8 +943,10 @@ function quoteImportRowPriceIntegrity(row: ProjectQuoteImportRow): ProjectQuoteI
 function SupplierQuoteImportDialog({
   open,
   onOpenChange,
+  projectId,
+  purchaseId,
   slot,
-  budgetRows,
+  projectBudgetItems,
   preview,
   uploadPending,
   applyPending,
@@ -915,16 +955,23 @@ function SupplierQuoteImportDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  projectId: string;
+  purchaseId: string | null;
   slot: ProjectQuoteSlot | null;
-  budgetRows: ProjectQuoteRow[];
+  projectBudgetItems: BudgetItem[];
   preview: ProjectQuoteImportPreview | null;
   uploadPending: boolean;
   applyPending: boolean;
   onUpload: (file: File) => Promise<void>;
   onApply: (payload: ProjectQuoteImportApplyPayload) => Promise<void>;
 }) {
+  const budgetItemMutations = useBudgetItemsMutations(projectId);
+  const quoteMutations = useProjectQuotesMutations(projectId);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [decisions, setDecisions] = useState<QuoteImportDecisionMap>({});
+  const [runtimeBudgetItems, setRuntimeBudgetItems] = useState<BudgetItem[]>([]);
+  const [creatingRowIndexes, setCreatingRowIndexes] = useState<number[]>([]);
+  const [creatingPendingItems, setCreatingPendingItems] = useState(false);
   const [priceIntegrityFilter, setPriceIntegrityFilter] = useState<'all' | ProjectQuoteImportPriceIntegrity>('all');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -932,12 +979,27 @@ function SupplierQuoteImportDialog({
     if (!open) {
       setSelectedFile(null);
       setDecisions({});
+      setRuntimeBudgetItems([]);
+      setCreatingRowIndexes([]);
+      setCreatingPendingItems(false);
       return;
     }
 
     setDecisions(buildInitialQuoteImportDecisions(preview));
     setPriceIntegrityFilter('all');
   }, [open, preview]);
+
+  const availableProjectBudgetItems = useMemo(() => {
+    const merged = [...projectBudgetItems];
+
+    for (const item of runtimeBudgetItems) {
+      if (!merged.some((entry) => entry.id === item.id)) {
+        merged.push(item);
+      }
+    }
+
+    return merged.filter((item) => !item.contextOnly);
+  }, [projectBudgetItems, runtimeBudgetItems]);
 
   const filteredImportRows = useMemo(() => {
     if (!preview) {
@@ -951,12 +1013,112 @@ function SupplierQuoteImportDialog({
 
   const budgetItemOptions = useMemo(
     () =>
-      budgetRows.map((row) => ({
-        id: row.budgetItemId,
-        label: row.specification ? `${row.description} | ${row.specification}` : row.description,
+      availableProjectBudgetItems.map((item) => ({
+        id: item.id,
+        label: item.specification ? `${item.name} | ${item.specification}` : item.name,
       })),
-    [budgetRows],
+    [availableProjectBudgetItems],
   );
+
+  const createExtraRows = useMemo(
+    () =>
+      preview?.rows.filter(
+        (row) => (decisions[row.rowIndex]?.action ?? row.suggestedAction) === 'CREATE_EXTRA',
+      ) ?? [],
+    [decisions, preview],
+  );
+
+  function updateDecisionToApply(rowIndex: number, budgetItemId: string) {
+    setDecisions((current) => ({
+      ...current,
+      [rowIndex]: {
+        action: 'APPLY',
+        matchedBudgetItemId: budgetItemId,
+      },
+    }));
+  }
+
+  async function ensureBudgetItemForRow(
+    row: ProjectQuoteImportRow,
+    knownItems: BudgetItem[] = availableProjectBudgetItems,
+  ) {
+    if (!purchaseId) {
+      throw new Error('Selecione uma compra antes de criar itens a partir do importador.');
+    }
+
+    const existing = findProjectBudgetItemForImportRow(knownItems, row);
+    const budgetItem =
+      existing ??
+      (await budgetItemMutations.createItem.mutateAsync({
+        itemCategory: 'OTHER',
+        name: row.description.trim() || 'Item extra do fornecedor',
+        specification: row.rawText.trim() || null,
+        unit: row.unit?.trim() || null,
+        plannedQuantity: row.quantity && row.quantity > 0 ? row.quantity : null,
+        supplierQuoteExtraItem: true,
+        hasBidReference: false,
+        sourceType: 'MANUAL',
+        contextOnly: false,
+        notes: 'Criado a partir do importador de orçamento para a compra ativa.',
+      }));
+
+    await quoteMutations.addPurchaseItems.mutateAsync({
+      purchaseId,
+      payload: { budgetItemIds: [budgetItem.id] },
+    });
+
+    if (!existing) {
+      setRuntimeBudgetItems((current) => [...current, budgetItem]);
+    }
+
+    updateDecisionToApply(row.rowIndex, budgetItem.id);
+
+    return existing ?? budgetItem;
+  }
+
+  async function handleCreateRowItem(row: ProjectQuoteImportRow) {
+    setCreatingRowIndexes((current) => [...current, row.rowIndex]);
+
+    try {
+      const budgetItem = await ensureBudgetItemForRow(row);
+      toast.success(`Item "${budgetItem.name}" criado e vinculado a compra.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel criar o item a partir da linha.');
+    } finally {
+      setCreatingRowIndexes((current) => current.filter((entry) => entry !== row.rowIndex));
+    }
+  }
+
+  async function handleCreatePendingItems() {
+    if (createExtraRows.length === 0) {
+      return;
+    }
+
+    setCreatingPendingItems(true);
+
+    try {
+      const knownItems = [...availableProjectBudgetItems];
+      let createdCount = 0;
+
+      for (const row of createExtraRows) {
+        const budgetItem = await ensureBudgetItemForRow(row, knownItems);
+        if (!knownItems.some((item) => item.id === budgetItem.id)) {
+          knownItems.push(budgetItem);
+        }
+        createdCount += 1;
+      }
+
+      toast.success(
+        createdCount === 1
+          ? '1 item pendente foi criado e vinculado a compra.'
+          : `${createdCount} itens pendentes foram criados e vinculados a compra.`,
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel criar os itens pendentes.');
+    } finally {
+      setCreatingPendingItems(false);
+    }
+  }
 
   async function handleUpload() {
     if (!selectedFile) {
@@ -1065,6 +1227,19 @@ function SupplierQuoteImportDialog({
                     Mostrando {filteredImportRows.length} de {preview.rows.length}. A aplicacao continua usando todos os itens.
                   </p>
                 ) : null}
+                <div className="ml-auto flex flex-wrap gap-2">
+                  <Button
+                    disabled={creatingPendingItems || createExtraRows.length === 0 || !purchaseId}
+                    type="button"
+                    variant="secondary"
+                    onClick={() => void handleCreatePendingItems()}
+                  >
+                    <FilePlus2 className="size-4" aria-hidden />
+                    {creatingPendingItems
+                      ? 'Criando itens...'
+                      : `Criar ${createExtraRows.length} item(ns) pendente(s)`}
+                  </Button>
+                </div>
               </div>
 
               <div className="grid gap-3">
@@ -1073,6 +1248,7 @@ function SupplierQuoteImportDialog({
                     action: row.suggestedAction,
                     matchedBudgetItemId: row.matchedBudgetItemId,
                   };
+                  const creatingThisRow = creatingRowIndexes.includes(row.rowIndex);
 
                   return (
                     <div key={row.rowIndex} className="rounded-2xl border border-border/70 p-4">
@@ -1145,6 +1321,28 @@ function SupplierQuoteImportDialog({
                               ))}
                             </Select>
                           </div>
+                        </div>
+                        <div className="flex flex-wrap justify-end gap-2 pt-2">
+                          {row.candidateMatches[0]?.budgetItemId && decision.action === 'APPLY' ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              onClick={() => updateDecisionToApply(row.rowIndex, row.candidateMatches[0]!.budgetItemId)}
+                            >
+                              Usar melhor sugestao
+                            </Button>
+                          ) : null}
+                          {decision.action === 'CREATE_EXTRA' ? (
+                            <Button
+                              disabled={creatingThisRow || creatingPendingItems || !purchaseId}
+                              type="button"
+                              variant="secondary"
+                              onClick={() => void handleCreateRowItem(row)}
+                            >
+                              <FilePlus2 className="size-4" aria-hidden />
+                              {creatingThisRow ? 'Criando item...' : 'Criar item na compra'}
+                            </Button>
+                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -2145,7 +2343,9 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
       <SupplierQuoteImportDialog
         open={importDialogOpen}
         applyPending={quoteMutations.applyImportPdf.isPending}
-        budgetRows={rows}
+        projectId={projectId}
+        projectBudgetItems={availableBudgetItems}
+        purchaseId={activePurchase?.id ?? null}
         preview={importPreview}
         slot={activeSlot}
         uploadPending={quoteMutations.uploadImportPdf.isPending}
