@@ -2237,6 +2237,86 @@ function scoreExtraction(rows: SupplierQuoteParsedRow[], header: ReturnType<type
     (header.quoteDate ? 6 : 0);
 }
 
+const ARITHMETIC_TOLERANCE_REL = 0.06;
+
+function rowArithmeticIsConsistent(row: SupplierQuoteParsedRow): boolean | null {
+  const q = row.quantity;
+  const u = row.unitPrice;
+  const t = row.totalValue;
+  if (q === null || u === null || t === null || q <= 0) {
+    return null;
+  }
+  const expected = q * u;
+  if (Math.abs(expected - t) <= Math.max(0.01, Math.abs(t) * ARITHMETIC_TOLERANCE_REL)) {
+    return true;
+  }
+  return false;
+}
+
+export type SupplierQuoteRowPriceIntegrity = 'consistent' | 'inconsistent' | 'insufficient_data';
+
+/** Alinhado a {@link buildSupplierQuoteExtractionDiagnostics} — para exibir filtro “conferir total” na importação. */
+export function classifySupplierQuoteRowPriceIntegrity(row: SupplierQuoteParsedRow): SupplierQuoteRowPriceIntegrity {
+  const ar = rowArithmeticIsConsistent(row);
+  if (ar === null) {
+    return 'insufficient_data';
+  }
+  return ar ? 'consistent' : 'inconsistent';
+}
+
+/** Metadados para filtros e revisão (não altera o parse). */
+export type SupplierQuoteExtractionDiagnostics = {
+  fullTextCharCount: number;
+  nonEmptyLineCount: number;
+  linesWithLetterAndDigitCount: number;
+  parsedRowCount: number;
+  /** Contagem por unidade informada (ex.: UN, CX). */
+  unitBreakdown: Record<string, number>;
+  rowsWithConsistentArithmetic: number;
+  rowsWithInconsistentArithmetic: number;
+  rowsWithInsufficientDataForArithmetic: number;
+};
+
+/**
+ * Agrega estatísticas sobre o texto bruto e as linhas já parseadas — útil para filtros na UI e para perceber PDFs “vazios” no texto direto.
+ */
+export function buildSupplierQuoteExtractionDiagnostics(
+  fullText: string,
+  rows: SupplierQuoteParsedRow[],
+): SupplierQuoteExtractionDiagnostics {
+  const lines = fullText.split(/\r?\n/).map((line) => normalizeLine(line)).filter(Boolean);
+  const linesWithLetterAndDigitCount = lines.filter((line) => /[a-z]/i.test(line) && /\d/.test(line)).length;
+
+  let consistent = 0;
+  let inconsistent = 0;
+  let insufficient = 0;
+  const unitBreakdown: Record<string, number> = {};
+
+  for (const row of rows) {
+    const unitKey = row.unit?.trim() ? row.unit.trim().toUpperCase() : '(sem unidade)';
+    unitBreakdown[unitKey] = (unitBreakdown[unitKey] ?? 0) + 1;
+    const ar = rowArithmeticIsConsistent(row);
+    if (ar === null) {
+      insufficient += 1;
+    } else if (ar) {
+      consistent += 1;
+    } else {
+      inconsistent += 1;
+    }
+  }
+
+  return {
+    fullTextCharCount: fullText.length,
+    nonEmptyLineCount: lines.length,
+    linesWithLetterAndDigitCount,
+    parsedRowCount: rows.length,
+    unitBreakdown,
+    rowsWithConsistentArithmetic: consistent,
+    rowsWithInconsistentArithmetic: inconsistent,
+    rowsWithInsufficientDataForArithmetic: insufficient,
+  };
+}
+
 async function extractDirectText(buffer: Buffer) {
   const parser = new PDFParse({ data: buffer });
   try {

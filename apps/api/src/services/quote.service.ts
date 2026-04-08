@@ -23,10 +23,14 @@ import { buildQuoteComparisonReportPdf, buildQuoteComparisonReportSearchText } f
 import { serializeProjectDocument, serializeSupplier } from '../utils/serializers.js';
 import { buildPurchaseOrderPdf, buildPurchaseOrderSearchText } from '../utils/purchase-order-pdf.js';
 import {
+  buildSupplierQuoteExtractionDiagnostics,
+  classifySupplierQuoteRowPriceIntegrity,
   extractSupplierQuotePdfPreview,
   normalizeSupplierQuoteMatchText,
   tokenizeSupplierQuoteMatchText,
+  type SupplierQuoteExtractionDiagnostics,
   type SupplierQuoteExtractionMode,
+  type SupplierQuoteParsedRow,
 } from '../utils/supplier-quote-pdf.js';
 import { documentService } from './document.service.js';
 
@@ -231,6 +235,7 @@ type QuoteComparisonAnalysis = {
 
 type QuoteImportConfidence = 'HIGH' | 'REVIEW' | 'UNMATCHED';
 type QuoteImportAction = 'APPLY' | 'IGNORE' | 'CREATE_EXTRA';
+type QuoteImportPriceIntegrity = 'consistent' | 'inconsistent' | 'insufficient_data';
 
 type QuoteImportCandidateMatch = {
   budgetItemId: string;
@@ -247,6 +252,8 @@ type QuoteImportPreviewRow = {
   unit: string | null;
   unitPrice: number | null;
   totalValue: number | null;
+  /** qtd × unit. ≈ total do PDF (tolerância 6%); ajuda a filtrar linhas para revisão. */
+  priceIntegrity?: QuoteImportPriceIntegrity;
   confidence: QuoteImportConfidence;
   quantityConflict: boolean;
   matchedBudgetItemId: string | null;
@@ -271,6 +278,7 @@ type StoredQuoteImportPreview = {
   detectedSupplierName: string | null;
   importedAt: string;
   rows: QuoteImportPreviewRow[];
+  extractionDiagnostics?: SupplierQuoteExtractionDiagnostics;
 };
 
 function supplierDisplayName(supplier: QuoteRecord['supplier'] | null) {
@@ -623,20 +631,7 @@ function rankQuoteImportMatches(
     .sort((left, right) => right.score - left.score);
 }
 
-function buildQuoteImportPreviewRow(
-  row: Omit<
-    QuoteImportPreviewRow,
-    | 'confidence'
-    | 'quantityConflict'
-    | 'matchedBudgetItemId'
-    | 'matchedBudgetItemName'
-    | 'matchScore'
-    | 'suggestedAction'
-    | 'requiresNameValidation'
-    | 'candidateMatches'
-  >,
-  budgetItems: QuoteBudgetItem[],
-): QuoteImportPreviewRow {
+function buildQuoteImportPreviewRow(row: SupplierQuoteParsedRow, budgetItems: QuoteBudgetItem[]): QuoteImportPreviewRow {
   const ranked = rankQuoteImportMatches(row, budgetItems);
 
   const best = ranked[0] ?? null;
@@ -667,6 +662,7 @@ function buildQuoteImportPreviewRow(
 
   return {
     ...row,
+    priceIntegrity: classifySupplierQuoteRowPriceIntegrity(row),
     confidence,
     quantityConflict: best?.quantityConflict ?? false,
     matchedBudgetItemId: confidence === 'UNMATCHED' ? null : (best?.item.id ?? null),
@@ -706,6 +702,7 @@ function buildStoredQuoteImportPreview(
   quoteDate: string | null,
   detectedSupplierName: string | null,
   rows: QuoteImportPreviewRow[],
+  extractionDiagnostics?: SupplierQuoteExtractionDiagnostics,
 ): StoredQuoteImportPreview {
   return {
     kind: 'SUPPLIER_QUOTE_IMPORT',
@@ -721,6 +718,7 @@ function buildStoredQuoteImportPreview(
     detectedSupplierName,
     importedAt: new Date().toISOString(),
     rows,
+    ...(extractionDiagnostics ? { extractionDiagnostics } : {}),
   };
 }
 
@@ -1559,6 +1557,7 @@ class QuoteService {
     const supplierName = supplierDisplayName(quote.supplier) ?? 'Fornecedor';
     const { supplierFolder } = await ensureSupplierQuoteFolders(projectId, purchase.title, supplierName);
     const extracted = await extractSupplierQuotePdfPreview(file.buffer, file.originalname);
+    const extractionDiagnostics = buildSupplierQuoteExtractionDiagnostics(extracted.fullText, extracted.rows);
     const budgetItems = purchaseBudgetItems.map((purchaseItem) => purchaseItem.budgetItem);
     const rows = extracted.rows.map((row) => buildQuoteImportPreviewRow(row, budgetItems));
     const hasExistingValues = quote.items.some(hasMeaningfulQuoteItemData);
@@ -1586,6 +1585,7 @@ class QuoteService {
         extracted.quoteDate,
         extracted.supplierNameDetected,
         rows,
+        extractionDiagnostics,
       ),
       originalFileBuffer: file.buffer,
     });
@@ -1610,6 +1610,7 @@ class QuoteService {
       document,
       rows,
       summary: buildQuoteImportSummary(rows, hasExistingValues),
+      extractionDiagnostics,
     };
   }
 

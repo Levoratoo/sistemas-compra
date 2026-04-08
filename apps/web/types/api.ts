@@ -353,6 +353,20 @@ export type ProjectQuoteImportMatchConfidence = 'HIGH' | 'REVIEW' | 'UNMATCHED';
 export type ProjectQuoteImportAction = 'APPLY' | 'IGNORE' | 'CREATE_EXTRA';
 export type ProjectQuoteImportExtractionMode = 'DIRECT_TEXT' | 'OCR';
 
+/** Coerência entre quantidade × unitário e total extraído (para filtro na revisão). */
+export type ProjectQuoteImportPriceIntegrity = 'consistent' | 'inconsistent' | 'insufficient_data';
+
+export interface ProjectQuoteImportExtractionDiagnostics {
+  fullTextCharCount: number;
+  nonEmptyLineCount: number;
+  linesWithLetterAndDigitCount: number;
+  parsedRowCount: number;
+  unitBreakdown: Record<string, number>;
+  rowsWithConsistentArithmetic: number;
+  rowsWithInconsistentArithmetic: number;
+  rowsWithInsufficientDataForArithmetic: number;
+}
+
 export interface ProjectQuoteImportCandidateMatch {
   budgetItemId: string;
   name: string;
@@ -368,6 +382,7 @@ export interface ProjectQuoteImportRow {
   unit: string | null;
   unitPrice: number | null;
   totalValue: number | null;
+  priceIntegrity?: ProjectQuoteImportPriceIntegrity;
   confidence: ProjectQuoteImportMatchConfidence;
   quantityConflict: boolean;
   matchedBudgetItemId: string | null;
@@ -398,6 +413,7 @@ export interface ProjectQuoteImportPreview {
     extraCandidateCount: number;
     hasExistingValues: boolean;
   };
+  extractionDiagnostics?: ProjectQuoteImportExtractionDiagnostics;
 }
 
 export interface ProjectQuoteImportApplyRow {

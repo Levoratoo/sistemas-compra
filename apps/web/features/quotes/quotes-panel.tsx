@@ -51,6 +51,7 @@ import type {
   ProjectQuoteImportAction,
   ProjectQuoteImportApplyPayload,
   ProjectQuoteImportPreview,
+  ProjectQuoteImportPriceIntegrity,
   ProjectQuoteImportRow,
   ProjectQuoteRow,
   ProjectQuoteState,
@@ -897,6 +898,10 @@ function GeneratePurchaseOrderDialog({
   );
 }
 
+function quoteImportRowPriceIntegrity(row: ProjectQuoteImportRow): ProjectQuoteImportPriceIntegrity {
+  return row.priceIntegrity ?? 'insufficient_data';
+}
+
 function SupplierQuoteImportDialog({
   open,
   onOpenChange,
@@ -920,6 +925,7 @@ function SupplierQuoteImportDialog({
 }) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [decisions, setDecisions] = useState<QuoteImportDecisionMap>({});
+  const [priceIntegrityFilter, setPriceIntegrityFilter] = useState<'all' | ProjectQuoteImportPriceIntegrity>('all');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -930,7 +936,18 @@ function SupplierQuoteImportDialog({
     }
 
     setDecisions(buildInitialQuoteImportDecisions(preview));
+    setPriceIntegrityFilter('all');
   }, [open, preview]);
+
+  const filteredImportRows = useMemo(() => {
+    if (!preview) {
+      return [];
+    }
+    if (priceIntegrityFilter === 'all') {
+      return preview.rows;
+    }
+    return preview.rows.filter((row) => quoteImportRowPriceIntegrity(row) === priceIntegrityFilter);
+  }, [preview, priceIntegrityFilter]);
 
   const budgetItemOptions = useMemo(
     () =>
@@ -1002,8 +1019,56 @@ function SupplierQuoteImportDialog({
                 <Badge variant="warning">{preview.summary.reviewCount} revisar</Badge>
                 <Badge variant="neutral">{preview.summary.unmatchedCount} sem match</Badge>
               </div>
+
+              {preview.extractionDiagnostics ? (
+                <div className="rounded-xl border border-border/60 bg-muted/15 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+                  <p>
+                    Leitura do PDF: {preview.extractionDiagnostics.fullTextCharCount.toLocaleString('pt-BR')} caracteres de texto ·{' '}
+                    {preview.extractionDiagnostics.parsedRowCount} itens lidos ·{' '}
+                    {preview.extractionDiagnostics.linesWithLetterAndDigitCount} linhas com letras e numeros (PDF com pouco texto
+                    costuma precisar de OCR).
+                  </p>
+                  {preview.extractionDiagnostics.rowsWithInconsistentArithmetic > 0 ? (
+                    <p className="mt-1 font-medium text-amber-800 dark:text-amber-200">
+                      {preview.extractionDiagnostics.rowsWithInconsistentArithmetic} linha(s) em que qtd x unit. nao bate com o
+                      total — use o filtro abaixo para revisar.
+                    </p>
+                  ) : null}
+                  {Object.keys(preview.extractionDiagnostics.unitBreakdown).length > 0 ? (
+                    <p className="mt-1">
+                      Unidades:{' '}
+                      {Object.entries(preview.extractionDiagnostics.unitBreakdown)
+                        .map(([unit, count]) => `${unit}: ${count}`)
+                        .join(' · ')}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Filtrar por coerencia do total</Label>
+                  <Select
+                    value={priceIntegrityFilter}
+                    onChange={(event) =>
+                      setPriceIntegrityFilter(event.target.value as 'all' | ProjectQuoteImportPriceIntegrity)
+                    }
+                  >
+                    <option value="all">Todas as linhas ({preview.rows.length})</option>
+                    <option value="consistent">Total coerente (qtd x unit.)</option>
+                    <option value="inconsistent">Conferir total (divergente)</option>
+                    <option value="insufficient_data">Sem dados para conferir</option>
+                  </Select>
+                </div>
+                {priceIntegrityFilter !== 'all' ? (
+                  <p className="pb-2 text-xs text-muted-foreground">
+                    Mostrando {filteredImportRows.length} de {preview.rows.length}. A aplicacao continua usando todos os itens.
+                  </p>
+                ) : null}
+              </div>
+
               <div className="grid gap-3">
-                {preview.rows.map((row) => {
+                {filteredImportRows.map((row) => {
                   const decision = decisions[row.rowIndex] ?? {
                     action: row.suggestedAction,
                     matchedBudgetItemId: row.matchedBudgetItemId,
@@ -1017,9 +1082,25 @@ function SupplierQuoteImportDialog({
                           <Badge variant={row.confidence === 'HIGH' ? 'success' : row.confidence === 'REVIEW' ? 'warning' : 'neutral'}>
                             {row.confidence}
                           </Badge>
+                          <Badge
+                            variant={
+                              quoteImportRowPriceIntegrity(row) === 'consistent'
+                                ? 'success'
+                                : quoteImportRowPriceIntegrity(row) === 'inconsistent'
+                                  ? 'warning'
+                                  : 'neutral'
+                            }
+                          >
+                            {quoteImportRowPriceIntegrity(row) === 'consistent'
+                              ? 'Total ok'
+                              : quoteImportRowPriceIntegrity(row) === 'inconsistent'
+                                ? 'Conferir total'
+                                : 'Total N/D'}
+                          </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Qtd. fornecedor: {formatNumber(row.quantity)} | Total: {currencyOrDash(row.totalValue)}
+                          Qtd. fornecedor: {formatNumber(row.quantity)} | Unit.: {currencyOrDash(row.unitPrice)} | Total:{' '}
+                          {currencyOrDash(row.totalValue)}
                         </p>
                         <div className="grid gap-3 md:grid-cols-2">
                           <div className="space-y-2">
