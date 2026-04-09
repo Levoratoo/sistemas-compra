@@ -15,7 +15,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getDefaultPathForRole } from '@/lib/role-access';
-import { getApiBaseUrl } from '@/services/api-client';
 
 const schema = z.object({
   email: z.string().trim().email('Informe um e-mail válido.'),
@@ -47,38 +46,6 @@ const demoCredentials = [
   },
 ] as const;
 
-function isLocalDemoCredentialsTarget(apiBaseUrl: string) {
-  try {
-    const { hostname } = new URL(apiBaseUrl);
-
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
-      return true;
-    }
-
-    if (hostname.endsWith('.local')) {
-      return true;
-    }
-
-    if (/^10\.\d+\.\d+\.\d+$/.test(hostname)) {
-      return true;
-    }
-
-    if (/^192\.168\.\d+\.\d+$/.test(hostname)) {
-      return true;
-    }
-
-    const private172 = /^172\.(\d+)\.\d+\.\d+$/.exec(hostname);
-    if (private172) {
-      const secondOctet = Number(private172[1]);
-      return secondOctet >= 16 && secondOctet <= 31;
-    }
-
-    return false;
-  } catch {
-    return false;
-  }
-}
-
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -92,8 +59,6 @@ export function LoginForm() {
 
   const nextPath = searchParams.get('next');
   const redirectPath = nextPath?.startsWith('/') ? nextPath : getDefaultPathForRole(user?.role);
-  const showDemoCredentials = isLocalDemoCredentialsTarget(getApiBaseUrl());
-
   useEffect(() => {
     if (user) {
       router.replace(redirectPath);
@@ -151,57 +116,50 @@ export function LoginForm() {
             {submitting ? 'Entrando...' : 'Entrar'}
           </Button>
         </form>
-        {showDemoCredentials ? (
-          <div className="rounded-2xl border border-border/70 bg-muted/30 p-4">
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-foreground">Credenciais de acesso</p>
-              <p className="text-xs text-muted-foreground">
-                Perfis demo disponiveis para entrar rapidamente neste ambiente local.
-              </p>
-            </div>
-            <div className="mt-3 space-y-3">
-              {demoCredentials.map((credential) => (
-                <div
-                  key={credential.email}
-                  className="flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-background/90 p-3"
-                >
-                  <div className="space-y-1 text-sm">
-                    <p className="font-medium text-foreground">{credential.label}</p>
-                    <p className="text-xs text-muted-foreground">
-                      E-mail:{' '}
-                      <span className="font-mono text-foreground">{credential.email}</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Senha:{' '}
-                      <span className="font-mono text-foreground">{credential.password}</span>
-                    </p>
-                  </div>
-                  <Button
-                    className="shrink-0"
-                    onClick={() => {
-                      form.setValue('email', credential.email, { shouldDirty: true, shouldValidate: true });
-                      form.setValue('password', credential.password, {
-                        shouldDirty: true,
-                        shouldValidate: true,
-                      });
-                      form.clearErrors();
-                    }}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    Usar
-                  </Button>
+        <div className="rounded-2xl border border-border/70 bg-muted/30 p-4">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-foreground">Credenciais de acesso</p>
+            <p className="text-xs text-muted-foreground">
+              Perfis demo disponiveis para entrar rapidamente neste ambiente.
+            </p>
+          </div>
+          <div className="mt-3 space-y-3">
+            {demoCredentials.map((credential) => (
+              <div
+                key={credential.email}
+                className="flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-background/90 p-3"
+              >
+                <div className="space-y-1 text-sm">
+                  <p className="font-medium text-foreground">{credential.label}</p>
+                  <p className="text-xs text-muted-foreground">
+                    E-mail:{' '}
+                    <span className="font-mono text-foreground">{credential.email}</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Senha:{' '}
+                    <span className="font-mono text-foreground">{credential.password}</span>
+                  </p>
                 </div>
-              ))}
-            </div>
+                <Button
+                  className="shrink-0"
+                  onClick={() => {
+                    form.setValue('email', credential.email, { shouldDirty: true, shouldValidate: true });
+                    form.setValue('password', credential.password, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                    form.clearErrors();
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Usar
+                </Button>
+              </div>
+            ))}
           </div>
-        ) : (
-          <div className="rounded-2xl border border-border/70 bg-muted/30 p-4 text-xs text-muted-foreground">
-            Este ambiente usa usuarios reais cadastrados pelo administrador. As credenciais demo aparecem apenas
-            quando a tela esta ligada a uma API local de desenvolvimento.
-          </div>
-        )}
+        </div>
       </CardContent>
     </Card>
   );

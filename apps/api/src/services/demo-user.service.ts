@@ -29,7 +29,7 @@ function shouldAutoEnsureDemoUsers() {
     return true;
   }
 
-  return process.env.NODE_ENV !== 'production';
+  return true;
 }
 
 export async function ensureDemoUsers() {
