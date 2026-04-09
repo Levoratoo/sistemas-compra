@@ -47,8 +47,14 @@ const MAX_PDF_OCR_EDITAL_PAGES = Math.min(
   Math.max(24, Number(process.env.EDITAL_PDF_OCR_MAX_PAGES ?? 60)),
   80,
 );
+/**
+ * Timeout do OCR para editais. No Render free tier (0.1 CPU compartilhado) cada página
+ * pode demorar 2-4 s; 18 s garante que a requisição total termine bem antes do timeout
+ * de 100 s do servidor, evitando conexão fechada sem resposta (que o browser reporta
+ * como erro de CORS / "Failed to fetch").
+ */
 const MAX_PDF_OCR_EDITAL_DURATION_MS = Math.min(
-  Math.max(10_000, Number(process.env.EDITAL_PDF_OCR_MAX_DURATION_MS ?? 35_000)),
+  Math.max(10_000, Number(process.env.EDITAL_PDF_OCR_MAX_DURATION_MS ?? 18_000)),
   120_000,
 );
 const MAX_SHEET_ROWS = 12_000;

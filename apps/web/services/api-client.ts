@@ -56,7 +56,7 @@ type RequestOptions = {
 };
 
 const NETWORK_HINT =
-  'Não foi possível contactar a API (rede, CORS no Render ou serviço indisponível).';
+  'Não foi possível contactar o servidor. Verifique sua conexão ou aguarde o serviço inicializar e tente novamente.';
 
 function rethrowIfNetworkFailure(cause: unknown): never {
   if (cause instanceof ApiError) {
@@ -67,7 +67,8 @@ function rethrowIfNetworkFailure(cause: unknown): never {
     msg === 'Failed to fetch' ||
     msg.includes('NetworkError') ||
     msg.includes('Failed to load') ||
-    msg.includes('Load failed')
+    msg.includes('Load failed') ||
+    msg.includes('fetch')
   ) {
     throw new ApiError(NETWORK_HINT, 0, cause);
   }
@@ -185,30 +186,55 @@ export async function apiGetBlob(path: string): Promise<{ blob: Blob; filename?:
   return { blob, filename };
 }
 
+/**
+ * Upload multipart com retry automático em caso de falha de rede (status 0).
+ * O Render free tier pode levar até 60 s para acordar do cold-start; a segunda
+ * tentativa costuma resolver se o serviço estava apenas inicializando.
+ */
 export async function apiUploadJson<T>(path: string, formData: FormData, method: 'POST' | 'PUT' = 'POST') {
-  let response: Response;
-  try {
-    response = await fetch(buildUrl(path), {
-      method,
-      headers: authHeaders(),
-      body: formData,
-      cache: 'no-store',
-    });
-  } catch (e) {
-    rethrowIfNetworkFailure(e);
+  const MAX_ATTEMPTS = 2;
+
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    let response: Response;
+    try {
+      response = await fetch(buildUrl(path), {
+        method,
+        headers: authHeaders(),
+        body: formData,
+        cache: 'no-store',
+      });
+    } catch (e) {
+      lastError = e;
+      // Só faz retry em erros de rede (status 0 / Failed to fetch)
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        continue;
+      }
+      rethrowIfNetworkFailure(e);
+    }
+
+    const text = await response.text();
+    const payload = text ? (JSON.parse(text) as T | ApiErrorPayload) : null;
+
+    if (!response.ok) {
+      const errorPayload = payload as ApiErrorPayload | null;
+      // Retry em 503 (timeout do servidor) somente na primeira tentativa
+      if (response.status === 503 && attempt < MAX_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        continue;
+      }
+      throw new ApiError(
+        errorPayload?.message ?? 'Falha ao se comunicar com a API.',
+        response.status,
+        errorPayload?.details,
+      );
+    }
+
+    return payload as T;
   }
 
-  const text = await response.text();
-  const payload = text ? (JSON.parse(text) as T | ApiErrorPayload) : null;
-
-  if (!response.ok) {
-    const errorPayload = payload as ApiErrorPayload | null;
-    throw new ApiError(
-      errorPayload?.message ?? 'Falha ao se comunicar com a API.',
-      response.status,
-      errorPayload?.details,
-    );
-  }
-
-  return payload as T;
+  // Nunca deve chegar aqui, mas garante o tipo
+  rethrowIfNetworkFailure(lastError);
 }

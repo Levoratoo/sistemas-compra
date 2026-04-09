@@ -60,10 +60,43 @@ function publicHealthMiddleware(request: Request, response: Response, next: Next
   sendHealthJson(response);
 }
 
+/**
+ * Timeout de resposta por requisição.
+ * Garante que o servidor sempre envia uma resposta (com headers CORS já setados)
+ * antes de fechar a conexão — evita que o browser reporte "Failed to fetch" / erro de CORS.
+ */
+function responseTimeoutMiddleware(timeoutMs: number) {
+  return (_request: Request, response: Response, next: NextFunction) => {
+    const timer = setTimeout(() => {
+      if (!response.headersSent) {
+        response.status(503).json({
+          message:
+            'O servidor demorou demais para processar a requisição. Tente novamente com um arquivo menor ou aguarde o serviço reiniciar.',
+        });
+      }
+    }, timeoutMs);
+
+    response.on('finish', () => clearTimeout(timer));
+    response.on('close', () => clearTimeout(timer));
+    next();
+  };
+}
+
 export function createApp() {
   const app = express();
 
+  /**
+   * CORS deve ser o PRIMEIRO middleware — garante que os headers de CORS estejam
+   * presentes inclusive em respostas de erro, timeout e exceções não tratadas.
+   */
   app.use(cors(createCorsOptions()));
+
+  /**
+   * Timeout global de 100 s (abaixo do timeout HTTP do servidor de 120 s).
+   * Protege contra OCR pesado ou cold-start do banco que deixariam a conexão aberta.
+   */
+  app.use(responseTimeoutMiddleware(100_000));
+
   app.use(publicHealthMiddleware);
   app.use(morgan('dev'));
   app.use(express.json());
