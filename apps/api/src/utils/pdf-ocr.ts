@@ -19,6 +19,7 @@ type ExtractPdfTextViaOcrOptions = {
   pageSegMode?: string | number;
   regions?: PdfOcrRegion[];
   rotationDegrees?: number;
+  maxDurationMs?: number;
 };
 
 function envInt(name: string, fallback: number, min: number, max: number): number {
@@ -102,6 +103,8 @@ function cropCanvas(sourceCanvas: any, region: PdfOcrRegion, width: number, heig
  */
 export async function extractPdfTextViaOcr(buffer: Buffer, options?: ExtractPdfTextViaOcrOptions): Promise<string> {
   const { maxPages, scale, pageSegMode, rotationDegrees } = getOcrDefaults(options);
+  const startedAt = Date.now();
+  const maxDurationMs = options?.maxDurationMs;
 
   const data = new Uint8Array(buffer.byteLength);
   data.set(buffer);
@@ -120,10 +123,19 @@ export async function extractPdfTextViaOcr(buffer: Buffer, options?: ExtractPdfT
   }
 
   const parts: string[] = [];
+  let durationBudgetExceeded = false;
+
+  const reachedDurationBudget = () =>
+    typeof maxDurationMs === 'number' && maxDurationMs > 0 && Date.now() - startedAt >= maxDurationMs;
 
   try {
     if (options?.regions?.length) {
       for (const [index, region] of options.regions.entries()) {
+        if (reachedDurationBudget()) {
+          durationBudgetExceeded = true;
+          break;
+        }
+
         const pageNumber = region.pageNumber ?? 1;
         if (pageNumber < 1 || pageNumber > numPages) {
           continue;
@@ -150,6 +162,11 @@ export async function extractPdfTextViaOcr(buffer: Buffer, options?: ExtractPdfT
     }
 
     for (let p = 1; p <= numPages; p += 1) {
+      if (reachedDurationBudget()) {
+        durationBudgetExceeded = true;
+        break;
+      }
+
       const page = await pdf.getPage(p);
       try {
         const rendered = await renderPdfPage(page, scale, rotationDegrees);
@@ -168,6 +185,12 @@ export async function extractPdfTextViaOcr(buffer: Buffer, options?: ExtractPdfT
   } finally {
     await worker.terminate();
     await pdf.destroy();
+  }
+
+  if (durationBudgetExceeded) {
+    logger.warn(
+      `PDF OCR: interrupcao por limite de tempo apos ${Date.now() - startedAt} ms (maxDurationMs=${maxDurationMs}).`,
+    );
   }
 
   return parts.join('\n\n');

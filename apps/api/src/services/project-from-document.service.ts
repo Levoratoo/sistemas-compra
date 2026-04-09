@@ -39,9 +39,17 @@ const MAX_PDF_TEXT_EDITAL = Math.min(
   Math.max(120_000, Number(process.env.EDITAL_PDF_MAX_CHARS ?? 420_000)),
   500_000,
 );
+const MAX_PDF_OCR_SOURCE_TEXT_CHARS = Math.min(
+  Math.max(60_000, Number(process.env.EDITAL_PDF_OCR_MAX_SOURCE_CHARS ?? 120_000)),
+  250_000,
+);
 const MAX_PDF_OCR_EDITAL_PAGES = Math.min(
   Math.max(24, Number(process.env.EDITAL_PDF_OCR_MAX_PAGES ?? 60)),
   80,
+);
+const MAX_PDF_OCR_EDITAL_DURATION_MS = Math.min(
+  Math.max(10_000, Number(process.env.EDITAL_PDF_OCR_MAX_DURATION_MS ?? 35_000)),
+  120_000,
 );
 const MAX_SHEET_ROWS = 12_000;
 
@@ -51,14 +59,17 @@ function hasLateAnnexOrTableHints(text: string) {
   );
 }
 
-function shouldRunPdfOcrForEdital(
-  text: string,
-  parsed: ReturnType<typeof parseEditalMateriaisDisponibilizados>,
-) {
+type EditalOcrDecisionInput = {
+  anchorFound: boolean;
+  budgetLineCount: number;
+};
+
+export function shouldRunPdfOcrForEdital(text: string, parsed: EditalOcrDecisionInput) {
   if (process.env.PDF_OCR_ENABLED === 'false') return false;
   if (process.env.PDF_OCR_FORCE === 'true') return true;
-  if (parsed.budgetLines.length >= 8) return false;
-  if (parsed.anchorFound && parsed.budgetLines.length >= 3) return false;
+  if (parsed.budgetLineCount >= 8) return false;
+  if (parsed.anchorFound && parsed.budgetLineCount >= 3) return false;
+  if (text.length >= MAX_PDF_OCR_SOURCE_TEXT_CHARS) return false;
   if (text.length < 1200) return true;
   if (/ANEXO\s+I[\s-]*[BC]|DETALHAMENTO\s+DOS\s+UNIFORMES|DETALHAMENTO\s+DO\s+EQUIPAMENTOS?\s+DE\s+PROTE[CÇ][AÃ]O|TIPO\s*\/\s*QTD|ITEM\s+QTDE?\.?|POSTO\s+DE\s+TRABALHO\s+EPI/i.test(text)) {
     return true;
@@ -166,12 +177,22 @@ async function extractPlainText(
         if (documentType === DocumentType.NOTICE || documentType === DocumentType.TERMS_OF_REFERENCE) {
           let editalMateriais = parseEditalMateriaisDisponibilizados(text);
           let ocrUsed = false;
+          const shouldRunOcr = shouldRunPdfOcrForEdital(text, {
+            anchorFound: editalMateriais.anchorFound,
+            budgetLineCount: editalMateriais.budgetLines.length,
+          });
+          const shouldUseExtendedOcr =
+            shouldRunOcr &&
+            hasLateAnnexOrTableHints(text) &&
+            text.length < MAX_PDF_OCR_SOURCE_TEXT_CHARS / 2 &&
+            editalMateriais.budgetLines.length < 3;
 
-          if (shouldRunPdfOcrForEdital(text, editalMateriais) || hasLateAnnexOrTableHints(text)) {
+          if (shouldRunOcr) {
             try {
               const { extractPdfTextViaOcr } = await import('../utils/pdf-ocr.js');
               const ocrText = await extractPdfTextViaOcr(file.buffer, {
-                maxPages: hasLateAnnexOrTableHints(text) ? MAX_PDF_OCR_EDITAL_PAGES : 24,
+                maxPages: shouldUseExtendedOcr ? MAX_PDF_OCR_EDITAL_PAGES : 24,
+                maxDurationMs: MAX_PDF_OCR_EDITAL_DURATION_MS,
               });
               if (ocrText.trim().length > 40) {
                 const combinedText = `${text}\n\n--- Texto reconhecido por OCR (trechos em imagem no PDF) ---\n\n${ocrText}`.slice(
@@ -188,6 +209,10 @@ async function extractPlainText(
             } catch (error) {
               logger.warn('PDF OCR (edital / TR) falhou; mantendo somente o texto extraído do PDF.', error);
             }
+          } else if (hasLateAnnexOrTableHints(text) && text.length >= MAX_PDF_OCR_SOURCE_TEXT_CHARS) {
+            logger.info(
+              `PDF OCR (edital / TR) ignorado para evitar timeout em documento rico em texto (${text.length} chars).`,
+            );
           }
 
           return {
