@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 
 import { projectController } from '../../controllers/project.controller.js';
-import { OPERATIONAL_USER_ROLES, requireRole } from '../../middlewares/auth.js';
+import { OPERATIONAL_USER_ROLES, PROJECT_VIEWER_ROLES, requireRole } from '../../middlewares/auth.js';
 import { validateRequest } from '../../middlewares/validate.js';
 import { asyncHandler } from '../../utils/async-handler.js';
 import {
@@ -46,12 +46,14 @@ projectRouter.post(
 
 projectRouter.get(
   '/projects',
+  requireRole(...PROJECT_VIEWER_ROLES),
   validateRequest({ query: listProjectsQuerySchema }),
   asyncHandler((request, response) => projectController.list(request, response)),
 );
 
 projectRouter.get(
   '/projects/:id/summary',
+  requireRole(...PROJECT_VIEWER_ROLES),
   validateRequest({ params: projectIdParamsSchema }),
   asyncHandler((request, response) => projectController.getSummaryById(request, response)),
 );

@@ -83,7 +83,7 @@ class ProjectController {
   }
 
   async list(request: Request, response: Response) {
-    const result = await projectService.listProjects(request.query as ListProjectsQuery);
+    const result = await projectService.listProjects(request.query as ListProjectsQuery, request.auth?.role);
     response.json(result);
   }
 
@@ -93,7 +93,7 @@ class ProjectController {
   }
 
   async getSummaryById(request: Request, response: Response) {
-    const result = await projectService.getProjectSummaryById(String(request.params.id));
+    const result = await projectService.getProjectSummaryById(String(request.params.id), request.auth?.role);
     response.json(result);
   }
 

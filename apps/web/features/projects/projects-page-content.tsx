@@ -22,6 +22,8 @@ import type { ProjectListItem, ProjectStatus } from '@/types/api';
 import { NewProjectFlowDialog } from './new-project-flow-dialog';
 import { ProjectFormDialog } from './project-form-dialog';
 
+const supervisorOpenStatuses: ProjectStatus[] = ['DRAFT', 'PLANNED', 'ACTIVE', 'ON_HOLD'];
+
 export function ProjectsPageContent() {
   const { user } = useAuth();
   const isSupervisor = user?.role === 'SUPERVISOR';
@@ -37,7 +39,23 @@ export function ProjectsPageContent() {
   });
   const { deleteProject } = useProjectMutations();
 
-  const projects = useMemo(() => data ?? [], [data]);
+  const statusOptions = useMemo(
+    () =>
+      isSupervisor
+        ? projectStatusOptions.filter((option) => supervisorOpenStatuses.includes(option.value))
+        : projectStatusOptions,
+    [isSupervisor],
+  );
+
+  const projects = useMemo(() => {
+    const projectList = data ?? [];
+
+    if (!isSupervisor) {
+      return projectList;
+    }
+
+    return projectList.filter((project) => supervisorOpenStatuses.includes(project.projectStatus));
+  }, [data, isSupervisor]);
 
   async function handleDelete(projectId: string) {
     const confirmed = window.confirm('Deseja excluir este projeto?');
@@ -90,8 +108,8 @@ export function ProjectsPageContent() {
             />
           </div>
           <Select onChange={(event) => setStatus(event.target.value as ProjectStatus | '')} value={status}>
-            <option value="">Todos os status</option>
-            {projectStatusOptions.map((option) => (
+            <option value="">{isSupervisor ? 'Todos os projetos abertos' : 'Todos os status'}</option>
+            {statusOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -116,7 +134,11 @@ export function ProjectsPageContent() {
       ) : projects.length === 0 ? (
         <EmptyState
           actionLabel={isSupervisor ? undefined : 'Criar primeiro projeto'}
-          description="Comece cadastrando um contrato para acompanhar compras, orçamento e reposições em um só lugar."
+          description={
+            isSupervisor
+              ? 'Nenhum projeto aberto encontrado com os filtros atuais.'
+              : 'Comece cadastrando um contrato para acompanhar compras, orçamento e reposições em um só lugar.'
+          }
           onAction={
             isSupervisor
               ? undefined
@@ -125,7 +147,7 @@ export function ProjectsPageContent() {
                   setFlowOpen(true);
                 }
           }
-          title="Nenhum projeto encontrado"
+          title={isSupervisor ? 'Nenhum projeto aberto encontrado' : 'Nenhum projeto encontrado'}
         />
       ) : (
         <Card>

@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, type UserRole } from '@prisma/client';
 
 import {
   projectRepository,
@@ -83,6 +83,13 @@ export function mapProjectAggregate(project: ProjectAggregate) {
     },
   };
 }
+
+const supervisorVisibleStatuses: Array<ProjectListItemRecord['projectStatus']> = [
+  'DRAFT',
+  'PLANNED',
+  'ACTIVE',
+  'ON_HOLD',
+];
 
 function mapProjectListItem(project: ProjectListItemRecord) {
   return {
@@ -179,7 +186,7 @@ class ProjectService {
     return mapProjectAggregate(created);
   }
 
-  async listProjects(query: ListProjectsQuery) {
+  async listProjects(query: ListProjectsQuery, viewerRole?: UserRole) {
     const where: Prisma.ProjectWhereInput = {
       AND: [
         query.search
@@ -193,6 +200,7 @@ class ProjectService {
             }
           : {},
         query.projectStatus ? { projectStatus: query.projectStatus } : {},
+        viewerRole === 'SUPERVISOR' ? { projectStatus: { in: supervisorVisibleStatuses } } : {},
         query.organizationName ? { organizationName: query.organizationName } : {},
       ],
     };
@@ -212,10 +220,14 @@ class ProjectService {
     return mapProjectAggregate(project);
   }
 
-  async getProjectSummaryById(id: string) {
+  async getProjectSummaryById(id: string, viewerRole?: UserRole) {
     const project = await projectRepository.findSummaryByProjectId(id);
 
     if (!project) {
+      throw new AppError('Project not found', 404);
+    }
+
+    if (viewerRole === 'SUPERVISOR' && !supervisorVisibleStatuses.includes(project.projectStatus)) {
       throw new AppError('Project not found', 404);
     }
 
