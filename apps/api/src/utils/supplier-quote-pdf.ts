@@ -403,7 +403,16 @@ function shouldSkipLine(line: string) {
   if (normalized.length < 4) {
     return true;
   }
-  if (!/[a-z]/i.test(normalized) || !/\d/.test(normalized)) {
+  const hasDigit = /\d/.test(normalized);
+  if (!hasDigit) {
+    return true;
+  }
+  const hasLetter = /[a-z]/i.test(normalized);
+  if (!hasLetter) {
+    /** Linhas só com quantidade + valores (ex.: `03 R$ 1.670,00 R$ 5.010,00`) — antes eram ignoradas. */
+    if (countMoneyTokens(line) >= 2 && /^\d+/.test(normalized.trim())) {
+      return false;
+    }
     return true;
   }
   if (HEADER_SKIP_PATTERNS.some((pattern) => normalized.includes(pattern))) {
@@ -412,7 +421,16 @@ function shouldSkipLine(line: string) {
   if (/\b(?:qtd|atd|ata)\s*[:.]?\s*\d/i.test(stripAccents(line))) {
     return true;
   }
-  if (/\bvalor\s*[:.]/i.test(stripAccents(line)) || /\btotal\s*[:.]/i.test(stripAccents(line))) {
+  /** Só ignora cabeçalhos "Valor:" / "Total:" sem valores monetários na linha (evita esconder resumos com R$). */
+  if (
+    (/\bvalor\s*[:.]/i.test(stripAccents(line)) || /\btotal\s*[:.]/i.test(stripAccents(line))) &&
+    countMoneyTokens(line) === 0
+  ) {
+    return true;
+  }
+  /** Linha só com subtotal "Total: 20,00" (CamScanner) — não é item; resumos longos com "Valor unitário" seguem parseando. */
+  const trimmedForTotal = normalizeLine(line).trim();
+  if (/^Total\s*:\s*R?\$?\s*[\d.,]+\s*$/i.test(trimmedForTotal) || /^Total\s*:\s*[\d.,]+\s*$/i.test(trimmedForTotal)) {
     return true;
   }
   if (/^\d+\s+of\s+\d+$/i.test(normalized)) {
@@ -1151,6 +1169,159 @@ function buildLineCandidates(lines: string[], index: number) {
   return candidates;
 }
 
+/**
+ * Orçamentos em prosa (ex.: Cirúrgica Medpar): bloco "Valor unitário" + "Quantidade cotada … Valor total"
+ * espalhado no texto, sem uma única linha tabular.
+ */
+function parseProseCommercialQuoteSummaryRows(text: string): SupplierQuoteParsedRow[] {
+  const normalizedText = text.replace(/\r/g, '\n');
+  const results: SupplierQuoteParsedRow[] = [];
+  const seen = new Set<string>();
+
+  const blockRe =
+    /Valor\s+unit[aá]rio\s*:\s*R\$\s*([\d.]+,\d{2})[\s\S]{0,2000}?Quantidade\s+cotada,?\s*(\d+)\s*unidade\s*-\s*Valor\s+total\s*:\s*R\$\s*([\d.]+,\d{2})/gi;
+
+  let match: RegExpExecArray | null;
+  for (;;) {
+    match = blockRe.exec(normalizedText);
+    if (!match) {
+      break;
+    }
+
+    const unitPrice = parseMoneyToken(match[1]);
+    const quantity = Number.parseInt(match[2] ?? '', 10);
+    const totalValue = parseMoneyToken(match[3]);
+    if (unitPrice === null || totalValue === null || !Number.isFinite(quantity) || quantity <= 0) {
+      continue;
+    }
+
+    const before = normalizedText.slice(Math.max(0, match.index - 1200), match.index);
+    const lines = before
+      .split('\n')
+      .map((line) => normalizeLine(line))
+      .filter((line) => line.length > 12 && !shouldSkipLine(line));
+    const description =
+      lines
+        .slice(-4)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 480) || 'Itens cotados (resumo do fornecedor)';
+
+    const key = `${normalizeSupplierQuoteMatchText(description)}|${unitPrice}|${totalValue}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+
+    results.push({
+      rowIndex: results.length,
+      rawText: match[0].slice(0, 800),
+      description,
+      quantity,
+      unit: 'UN',
+      unitPrice,
+      totalValue,
+    });
+  }
+
+  return results;
+}
+
+/** Linha só com quantidade + R$ unitário + R$ total (ex.: Ideas/Carrinho), sem descrição na mesma linha — junta linhas anteriores como descrição. */
+const BARE_QTY_TWO_MONEY_LINE_RE =
+  /^(\d+(?:[.,]\d+)?)\s+R\$\s*([\d.]+,\d{2})\s+R\$\s*([\d.]+,\d{2})\s*$/i;
+
+function collectLinesForBareQtyTwoMoney(sourceLines: string[], bareIndex: number): string[] {
+  const parts: string[] = [];
+  const maxLookback = 32;
+
+  for (let j = bareIndex - 1; j >= 0 && j >= bareIndex - maxLookback; j -= 1) {
+    const pl = sourceLines[j] ?? '';
+    const trimmed = normalizeLine(pl).trim();
+    if (!trimmed) {
+      continue;
+    }
+    if (BARE_QTY_TWO_MONEY_LINE_RE.test(trimmed)) {
+      break;
+    }
+
+    const normalized = normalizeSupplierQuoteMatchText(pl);
+    if (!normalized || normalized.length < 2) {
+      continue;
+    }
+    if (HEADER_SKIP_PATTERNS.some((pattern) => normalized.includes(pattern))) {
+      continue;
+    }
+    if (/^Total\s*:\s*R?\$?\s*[\d.,]+\s*$/i.test(trimmed) || /^Total\s*:\s*[\d.,]+\s*$/i.test(trimmed)) {
+      continue;
+    }
+    if (/^\d+\s+of\s+\d+$/i.test(normalized) || normalized.startsWith('pagina ') || normalized.startsWith('pag ')) {
+      continue;
+    }
+
+    const hasLetter = /[a-z]/i.test(pl);
+    const isSpecBullet = /^::/.test(trimmed);
+    if (!hasLetter && !isSpecBullet) {
+      continue;
+    }
+
+    parts.unshift(pl);
+  }
+
+  return parts;
+}
+
+function parseBareQtyTwoMoneyRows(text: string): SupplierQuoteParsedRow[] {
+  const sourceLines = text
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((line) => normalizeLine(line))
+    .filter(Boolean);
+
+  const results: SupplierQuoteParsedRow[] = [];
+  const seen = new Set<string>();
+
+  for (let index = 0; index < sourceLines.length; index += 1) {
+    const line = sourceLines[index] ?? '';
+    const trimmed = line.trim();
+    const match = trimmed.match(BARE_QTY_TWO_MONEY_LINE_RE);
+    if (!match) {
+      continue;
+    }
+
+    const unitPrice = parseMoneyToken(match[2]);
+    const totalValue = parseMoneyToken(match[3]);
+    const quantity = parseQuantityValue(match[1], unitPrice, totalValue);
+    if (unitPrice === null || totalValue === null || quantity === null) {
+      continue;
+    }
+
+    const descParts = collectLinesForBareQtyTwoMoney(sourceLines, index);
+    const description =
+      cleanupQuoteDescription(descParts) || 'Item (orcamento com valores em linha isolada)';
+
+    const rawText = [...descParts, trimmed].join(' ').slice(0, 1200);
+    const key = `${normalizeSupplierQuoteMatchText(description)}|${unitPrice}|${totalValue}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+
+    results.push({
+      rowIndex: results.length,
+      rawText,
+      description,
+      quantity,
+      unit: null,
+      unitPrice,
+      totalValue,
+    });
+  }
+
+  return results;
+}
+
 export function parseSupplierQuoteRows(text: string) {
   const sourceLines = text
     .replace(/\r/g, '\n')
@@ -1221,10 +1392,16 @@ export function parseSupplierQuoteRows(text: string) {
 
   return mergeParsedRows(
     mergeParsedRows(
-      mergeParsedRows(mergeParsedRows(results, parseProductLabeledRows(text)), parseQtdValorBlockRows(text)),
-      parseNumberedBlockRows(text),
+      mergeParsedRows(
+        mergeParsedRows(
+          mergeParsedRows(mergeParsedRows(results, parseProductLabeledRows(text)), parseQtdValorBlockRows(text)),
+          parseNumberedBlockRows(text),
+        ),
+        parseUnnumberedBlockRows(text),
+      ),
+      parseProseCommercialQuoteSummaryRows(text),
     ),
-    parseUnnumberedBlockRows(text),
+    parseBareQtyTwoMoneyRows(text),
   );
 }
 
@@ -2935,6 +3112,27 @@ export async function extractSupplierQuotePdfPreview(buffer: Buffer, originalFil
 
   if (bestPreview) {
     return bestPreview;
+  }
+
+  /** Última tentativa: OCR em alta resolução (scan fraco, texto embutido inútil, ou primeira OCR sem linhas). */
+  try {
+    const hiResText = repairUtf8MisinterpretedAsLatin1(
+      (await extractPdfTextViaOcr(buffer, { maxPages: 6, renderScale: 420, pageSegMode: 6 })).trim(),
+    );
+    const hiResRows = parseSupplierQuoteRows(hiResText);
+    if (hiResRows.length > 0) {
+      const hiHeader = extractHeaderInfo(hiResText);
+      return {
+        extractionMode: 'OCR',
+        fullText: hiResText,
+        supplierNameDetected: hiHeader.supplierNameDetected ?? inferSupplierNameFromFileName(originalFileName),
+        quoteNumber: hiHeader.quoteNumber,
+        quoteDate: hiHeader.quoteDate,
+        rows: hiResRows,
+      };
+    }
+  } catch {
+    /* ignorar — mantém erro abaixo */
   }
 
   throw new Error(`Nao foi possivel identificar linhas de orcamento no PDF ${originalFileName}.`);

@@ -128,6 +128,21 @@ R$70,00 8 R$ 560,00
     assert.equal(rows[3]?.description, 'LUVA PROTETORA C.A 8820');
   });
 
+  it('parseia linha só com quantidade e dois R$ un/total (Carrinho Ideas) juntando descrição acima', () => {
+    const rows = parseSupplierQuoteRows(`
+Carrinho abastecedor
+Especificações Técnicas:
+:: Altura total: 1000mm
+03 R$ 1.670,00 R$ 5.010,00
+`);
+
+    assert.equal(rows.length, 1);
+    assert.match(rows[0]?.description ?? '', /Carrinho abastecedor/i);
+    assert.equal(rows[0]?.quantity, 3);
+    assert.equal(rows[0]?.unitPrice, 1670);
+    assert.equal(rows[0]?.totalValue, 5010);
+  });
+
   it('parseia layout sem numeracao de item com descricao em bloco e preco abaixo', () => {
     const rows = parseSupplierQuoteRows(`
 CALÇA ATLAS -
