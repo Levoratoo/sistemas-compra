@@ -6,6 +6,7 @@ import type { Express } from 'express';
 
 import { prisma } from '../config/prisma.js';
 import { env } from '../config/env.js';
+import { logger } from '../config/logger.js';
 import { documentService } from './document.service.js';
 import { ensureCndSupplierFolder } from './supplier-cnd-folders.service.js';
 import { ensureRelativeStoragePath, sanitizeFileName, toRelativeProjectPath } from '../utils/file.js';
@@ -72,6 +73,15 @@ async function readMasterBuffer(masterStoragePath: string): Promise<Buffer> {
   const relative = ensureRelativeStoragePath(masterStoragePath);
   const absolute = path.resolve(env.APP_ROOT, relative);
   return readFile(absolute);
+}
+
+function isMissingFileError(error: unknown): error is NodeJS.ErrnoException {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as NodeJS.ErrnoException).code === 'ENOENT'
+  );
 }
 
 export async function replicateSupplierCndAttachmentToProject(
@@ -146,7 +156,22 @@ export async function syncAllSupplierCndAttachmentsToProject(projectId: string) 
   });
 
   for (const att of attachments) {
-    const buffer = await readMasterBuffer(att.masterStoragePath);
-    await replicateSupplierCndAttachmentToProject(projectId, att.supplier.legalName, att, buffer);
+    try {
+      const buffer = await readMasterBuffer(att.masterStoragePath);
+      await replicateSupplierCndAttachmentToProject(projectId, att.supplier.legalName, att, buffer);
+    } catch (error) {
+      if (isMissingFileError(error)) {
+        logger.warn('Ignorando CND mestre ausente durante sincronizacao do projeto.', {
+          projectId,
+          supplierId: att.supplierId,
+          supplierName: att.supplier.legalName,
+          supplierCndAttachmentId: att.id,
+          masterStoragePath: att.masterStoragePath,
+        });
+        continue;
+      }
+
+      throw error;
+    }
   }
 }
