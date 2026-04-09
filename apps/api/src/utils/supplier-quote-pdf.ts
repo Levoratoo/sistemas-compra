@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import { PDFParse } from 'pdf-parse';
 
 import { repairUtf8MisinterpretedAsLatin1 } from './encoding.js';
@@ -94,6 +96,7 @@ const HEADER_SKIP_PATTERNS = [
   'vencimentos',
   'tipo de frete',
   'prazo de entrega',
+  'entrega',
   'cobranca',
   'atenciosamente',
   'consulte nosso catalogo',
@@ -113,6 +116,7 @@ const HEADER_SUPPLIER_SKIP_PATTERNS = [
   'telefone',
   'contato',
   'dados da venda',
+  'entrega',
   'validade',
   'prazo',
   'condicao',
@@ -127,6 +131,22 @@ const HEADER_SUPPLIER_SKIP_PATTERNS = [
   'hora',
   'page of',
   'pagina',
+  'qtd',
+  'quantidade',
+  'valor',
+  'total',
+  'combinar',
+  'definir',
+  'informar',
+  'consumidor',
+  'mercadorias',
+  'romaneio',
+  'situacao',
+  'aberto',
+  'frete',
+  'cif',
+  'pagto',
+  'pagamento',
 ];
 
 const DIRECT_TEXT_MIN_LENGTH = 40;
@@ -351,8 +371,28 @@ function cleanupDescriptionTokens(tokens: string[]) {
     filtered.pop();
   }
 
+  while (
+    filtered.length > 2 &&
+    isLeadingCodeToken(filtered[0]) &&
+    parseNumericToken(filtered[1]) !== null &&
+    isUnitToken(filtered[2])
+  ) {
+    filtered.shift();
+    filtered.shift();
+    filtered.shift();
+  }
+
+  while (
+    filtered.length > 1 &&
+    isUnitToken(filtered[filtered.length - 1]) &&
+    parseNumericToken(filtered[filtered.length - 2]) === null &&
+    !['UNIDADE', 'CAIXA', 'PACOTE', 'PARES'].includes(stripAccents(filtered[filtered.length - 1] ?? '').toUpperCase())
+  ) {
+    filtered.pop();
+  }
+
   const compact = filtered.filter((token) => !isInlineProductCodeToken(token));
-  return normalizeWhitespace(compact.join(' '));
+  return normalizeWhitespace(compact.join(' ')).replace(/[.,:;-]+$/g, '').trim();
 }
 
 function shouldSkipLine(line: string) {
@@ -367,6 +407,12 @@ function shouldSkipLine(line: string) {
     return true;
   }
   if (HEADER_SKIP_PATTERNS.some((pattern) => normalized.includes(pattern))) {
+    return true;
+  }
+  if (/\b(?:qtd|atd|ata)\s*[:.]?\s*\d/i.test(stripAccents(line))) {
+    return true;
+  }
+  if (/\bvalor\s*[:.]/i.test(stripAccents(line)) || /\btotal\s*[:.]/i.test(stripAccents(line))) {
     return true;
   }
   if (/^\d+\s+of\s+\d+$/i.test(normalized)) {
@@ -475,6 +521,187 @@ function buildCandidateScore(candidate: ParsedCandidate, rawText: string, linesU
     integerQuantityBonus +
     numericConsistencyScore
   );
+}
+
+function resolveUnitPriceAndTotalFromMoneyValues(quantityRaw: string | null | undefined, values: number[]) {
+  const candidates = uniqueNumbers(values.filter((value) => Number.isFinite(value) && value > 0));
+  if (candidates.length < 2) {
+    return null;
+  }
+
+  const quantity = parseNumericToken(quantityRaw);
+  const combinations: Array<{ unitPrice: number; totalValue: number; delta: number }> = [];
+
+  for (let unitIndex = 0; unitIndex < candidates.length; unitIndex += 1) {
+    for (let totalIndex = 0; totalIndex < candidates.length; totalIndex += 1) {
+      if (unitIndex === totalIndex) {
+        continue;
+      }
+
+      const unitPrice = candidates[unitIndex] ?? null;
+      const totalValue = candidates[totalIndex] ?? null;
+      if (unitPrice === null || totalValue === null || unitPrice <= 0 || totalValue <= 0) {
+        continue;
+      }
+
+      const stabilizedQuantity =
+        quantity === null ? inferQuantityFromPrices(unitPrice, totalValue) : stabilizeQuantity(quantity, unitPrice, totalValue);
+      const expectedTotal =
+        stabilizedQuantity !== null && stabilizedQuantity > 0 ? stabilizedQuantity * unitPrice : unitPrice;
+      const delta = Math.abs(expectedTotal - totalValue) / Math.max(totalValue, 1);
+
+      combinations.push({
+        unitPrice,
+        totalValue,
+        delta: delta + (totalValue + 0.001 < unitPrice ? 0.5 : 0),
+      });
+    }
+  }
+
+  return combinations.sort((left, right) => left.delta - right.delta || left.unitPrice - right.unitPrice)[0] ?? null;
+}
+
+function tryParseQuantityFirstCatalogPattern(line: string): ParsedCandidate | null {
+  const normalized = normalizeBrokenPriceText(line);
+  const match = normalized.match(
+    /^(?<qty>\d{1,4}(?:[.,]\d{1,3})?)\s+(?<unit>[A-Z]{1,6})\s+(?<description>.+?)\s+(?<money1>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4})\s+(?<money2>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4})(?:\s+(?<money3>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4}))?(?:\s+\d{1,8})?\s*$/i,
+  );
+
+  if (!match?.groups || !isUnitToken(match.groups.unit)) {
+    return null;
+  }
+
+  const description = cleanupDescriptionTokens(match.groups.description.split(/\s+/));
+  const pricing = resolveUnitPriceAndTotalFromMoneyValues(match.groups.qty, [
+    parseMoneyToken(match.groups.money1) ?? NaN,
+    parseMoneyToken(match.groups.money2) ?? NaN,
+    parseMoneyToken(match.groups.money3) ?? NaN,
+  ]);
+
+  if (!description || !pricing) {
+    return null;
+  }
+
+  return {
+    rawText: line,
+    description,
+    quantity: parseQuantityValue(match.groups.qty, pricing.unitPrice, pricing.totalValue),
+    unit: stripAccents(match.groups.unit).toUpperCase(),
+    unitPrice: pricing.unitPrice,
+    totalValue: pricing.totalValue,
+  };
+}
+
+function tryParseCodeFirstCatalogPattern(line: string): ParsedCandidate | null {
+  const normalized = normalizeBrokenPriceText(line);
+  const match = normalized.match(
+    /^(?<code>[A-Z0-9/-]{1,16})\s+(?<description>.+?)\s+(?<unit>[A-Z]{1,6})\s+(?<qty>\d{1,4}(?:[.,]\d{1,3})?)\s+(?<money1>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4})\s+(?<money2>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4})(?:\s+(?<money3>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4}))?\s*$/i,
+  );
+
+  if (!match?.groups || !isUnitToken(match.groups.unit)) {
+    return null;
+  }
+
+  const description = cleanupDescriptionTokens(match.groups.description.split(/\s+/));
+  const pricing = resolveUnitPriceAndTotalFromMoneyValues(match.groups.qty, [
+    parseMoneyToken(match.groups.money1) ?? NaN,
+    parseMoneyToken(match.groups.money2) ?? NaN,
+    parseMoneyToken(match.groups.money3) ?? NaN,
+  ]);
+
+  if (!description || !pricing) {
+    return null;
+  }
+
+  return {
+    rawText: line,
+    description,
+    quantity: parseQuantityValue(match.groups.qty, pricing.unitPrice, pricing.totalValue),
+    unit: stripAccents(match.groups.unit).toUpperCase(),
+    unitPrice: pricing.unitPrice,
+    totalValue: pricing.totalValue,
+  };
+}
+
+function tryParseItemCodeQuantityUnitPattern(line: string): ParsedCandidate | null {
+  const normalized = normalizeBrokenPriceText(line);
+  const match = normalized.match(
+    /^(?:(?<itemNo>\d{1,3})\s+)?(?<code>[A-Z0-9/-]{3,})\s+['’]?\s*(?<qty>\d{1,4}(?:[.,]\d{1,3})?)\s+(?<unit>[A-Z]{1,6})\s+(?<description>.+?)\s+(?:[|"'`Oo\s]{0,16})?(?<unitPrice>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4})\s*[—-]?\s*(?<total>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4})\s*$/i,
+  );
+
+  if (!match?.groups || !isUnitToken(match.groups.unit)) {
+    return null;
+  }
+
+  const description = cleanupDescriptionTokens(match.groups.description.split(/\s+/));
+  const unitPrice = parseMoneyToken(match.groups.unitPrice);
+  const totalValue = parseMoneyToken(match.groups.total);
+  if (!description || unitPrice === null || totalValue === null) {
+    return null;
+  }
+
+  return {
+    rawText: line,
+    description,
+    quantity: parseQuantityValue(match.groups.qty, unitPrice, totalValue),
+    unit: stripAccents(match.groups.unit).toUpperCase(),
+    unitPrice,
+    totalValue,
+  };
+}
+
+function tryParseLeadingQuantityProposalPattern(line: string): ParsedCandidate | null {
+  const normalized = normalizeBrokenPriceText(line);
+  const match = normalized.match(
+    /^(?<qty>\d{1,4}(?:[.,]\d{1,3})?)\s+(?:C[OÓ]D:\s*[A-Z0-9/-]+\s*-\s*)?(?<description>.+?)\s+(?:R\$?\s*)?(?<unitPrice>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4})\s+(?:R\$?\s*)?(?<total>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4})(?:\s+R\$?)?\s*$/i,
+  );
+
+  if (!match?.groups) {
+    return null;
+  }
+
+  const description = cleanupDescriptionTokens(match.groups.description.split(/\s+/));
+  const unitPrice = parseMoneyToken(match.groups.unitPrice);
+  const totalValue = parseMoneyToken(match.groups.total);
+  if (!description || unitPrice === null || totalValue === null) {
+    return null;
+  }
+
+  return {
+    rawText: line,
+    description,
+    quantity: parseQuantityValue(match.groups.qty, unitPrice, totalValue),
+    unit: null,
+    unitPrice,
+    totalValue,
+  };
+}
+
+function tryParseDescriptionQuantityProposalPattern(line: string): ParsedCandidate | null {
+  const normalized = normalizeBrokenPriceText(line);
+  const match = normalized.match(
+    /^(?<description>[A-ZÀ-ÿ0-9].+?)\s+(?<qty>\d{1,4}(?:[.,]\d{1,3})?)\s+(?:R\$?\s*)?(?<unitPrice>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4})\s+(?:R\$?\s*)?(?<total>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4})(?:\s+R\$?)?\s*$/i,
+  );
+
+  if (!match?.groups) {
+    return null;
+  }
+
+  const description = cleanupDescriptionTokens(match.groups.description.split(/\s+/));
+  const unitPrice = parseMoneyToken(match.groups.unitPrice);
+  const totalValue = parseMoneyToken(match.groups.total);
+  if (!description || unitPrice === null || totalValue === null) {
+    return null;
+  }
+
+  return {
+    rawText: line,
+    description,
+    quantity: parseQuantityValue(match.groups.qty, unitPrice, totalValue),
+    unit: null,
+    unitPrice,
+    totalValue,
+  };
 }
 
 function tryParseTrailingQuantityPattern(line: string): ParsedCandidate | null {
@@ -838,6 +1065,40 @@ function parseCandidateText(text: string, linesUsed: number): ParsedCandidateWit
     };
   }
 
+  const prioritizedStructuredCandidate =
+    tryParseItemCodeQuantityUnitPattern(normalizedText) ??
+    tryParseQuantityFirstCatalogPattern(normalizedText) ??
+    tryParseCodeFirstCatalogPattern(normalizedText) ??
+    tryParseLeadingQuantityProposalPattern(normalizedText) ??
+    tryParseDescriptionQuantityProposalPattern(normalizedText);
+
+  if (prioritizedStructuredCandidate) {
+    return {
+      candidate: prioritizedStructuredCandidate,
+      score: buildCandidateScore(prioritizedStructuredCandidate, normalizedText, linesUsed) + 80,
+    };
+  }
+
+  const structuredCandidates = [
+    tryParseQuantityFirstCatalogPattern(normalizedText),
+    tryParseCodeFirstCatalogPattern(normalizedText),
+    tryParseLeadingQuantityProposalPattern(normalizedText),
+    tryParseDescriptionQuantityProposalPattern(normalizedText),
+  ].filter((candidate): candidate is ParsedCandidate => candidate !== null && Boolean(candidate.description) && candidate.unitPrice !== null);
+
+  if (structuredCandidates.length > 0) {
+    const scoredStructured = structuredCandidates.map((candidate) => ({
+      candidate,
+      score: buildCandidateScore(candidate, normalizedText, linesUsed) + 60,
+    }));
+
+    return (
+      scoredStructured.sort(
+        (left, right) => right.score - left.score || right.candidate.description.length - left.candidate.description.length,
+      )[0] ?? null
+    );
+  }
+
   const candidates = [
     tryParseTrailingQuantityPattern(normalizedText),
     tryParseGenericTailPattern(normalizedText),
@@ -960,7 +1221,7 @@ export function parseSupplierQuoteRows(text: string) {
 
   return mergeParsedRows(
     mergeParsedRows(
-      mergeParsedRows(results, parseProductLabeledRows(text)),
+      mergeParsedRows(mergeParsedRows(results, parseProductLabeledRows(text)), parseQtdValorBlockRows(text)),
       parseNumberedBlockRows(text),
     ),
     parseUnnumberedBlockRows(text),
@@ -1428,6 +1689,105 @@ function parseProductDescriptionOnlyRows(text: string) {
   return results;
 }
 
+function parseQdtLineQuantity(line: string, unitPrice: number | null, totalValue: number | null) {
+  const match = stripAccents(line).match(/\b(?:QTD|ATD|ATA)\s*[:.]?\s*(\d{1,4}(?:[.,]\d{1,3})?)/i);
+  if (!match?.[1]) {
+    return null;
+  }
+  return parseQuantityValue(match[1], unitPrice, totalValue);
+}
+
+function parseValueLine(line: string) {
+  const normalized = normalizeBrokenPriceText(line);
+  const match = normalized.match(/^(?<description>.+?)\s+Valor\s*[:.]?\s*(?<unitPrice>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4})/i);
+  if (!match?.groups) {
+    return null;
+  }
+
+  const description = cleanupDescriptionTokens(match.groups.description.split(/\s+/));
+  const unitPrice = parseMoneyToken(match.groups.unitPrice);
+  if (!description || unitPrice === null) {
+    return null;
+  }
+
+  return {
+    description,
+    unitPrice,
+  };
+}
+
+function parseTotalLine(line: string) {
+  const match = normalizeBrokenPriceText(line).match(/Total\s*[:.]?\s*(?<total>\d{1,4}(?:[.,]\d{3})*[.,]\d{2,4})/i);
+  return parseMoneyToken(match?.groups?.total);
+}
+
+function parseQtdValorBlockRows(text: string) {
+  const lines = text
+    .replace(/\r/g, '\n')
+    .split('\n')
+    .map((line) => normalizeLine(line))
+    .filter(Boolean)
+    .filter((line) => !/^---\s*pagina\b/i.test(line));
+
+  const results: SupplierQuoteParsedRow[] = [];
+  const seen = new Set<string>();
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const valueLine = lines[index] ?? '';
+    const valueLineParsed = parseValueLine(valueLine);
+    if (!valueLineParsed) {
+      continue;
+    }
+
+    let totalLineIndex = -1;
+    let totalValue: number | null = null;
+    for (let offset = 1; offset <= 2 && index + offset < lines.length; offset += 1) {
+      totalValue = parseTotalLine(lines[index + offset] ?? '');
+      if (totalValue !== null) {
+        totalLineIndex = index + offset;
+        break;
+      }
+    }
+
+    if (totalValue === null) {
+      continue;
+    }
+
+    const quantityLine =
+      index > 0 && /\b(?:qtd|atd|ata)\s*[:.]?\s*\d/i.test(stripAccents(lines[index - 1] ?? '')) ? lines[index - 1] ?? '' : '';
+    const quantity =
+      parseQdtLineQuantity(quantityLine, valueLineParsed.unitPrice, totalValue) ??
+      inferQuantityFromPrices(valueLineParsed.unitPrice, totalValue);
+    const key = `${normalizeSupplierQuoteMatchText(valueLineParsed.description)}|${valueLineParsed.unitPrice}|${totalValue}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+
+    const trailingUnitLine =
+      totalLineIndex >= 0
+        ? lines
+            .slice(totalLineIndex + 1, Math.min(lines.length, totalLineIndex + 4))
+            .find((line) => /\bUN\s*:\s*[A-Z]{1,6}\b/i.test(stripAccents(line))) ?? null
+        : null;
+    const unitMatch = trailingUnitLine ? stripAccents(trailingUnitLine).match(/\bUN\s*:\s*([A-Z]{1,6})\b/i) : null;
+
+    results.push({
+      rowIndex: results.length,
+      rawText: [quantityLine, valueLine, totalLineIndex >= 0 ? lines[totalLineIndex] ?? '' : ''].join(' ').trim(),
+      description: valueLineParsed.description,
+      quantity,
+      unit: unitMatch?.[1]?.toUpperCase() ?? null,
+      unitPrice: valueLineParsed.unitPrice,
+      totalValue,
+    });
+
+    index = totalLineIndex >= 0 ? totalLineIndex : index;
+  }
+
+  return results;
+}
+
 function buildParsedRowMergeKey(row: Pick<SupplierQuoteParsedRow, 'description' | 'quantity' | 'unitPrice' | 'totalValue'>) {
   return [
     normalizeSupplierQuoteMatchText(row.description),
@@ -1467,10 +1827,11 @@ function mergeParsedRows(primary: SupplierQuoteParsedRow[], secondary: SupplierQ
 
   const scoreRow = (row: SupplierQuoteParsedRow) =>
     row.description.trim().length +
-    (row.unit ? 12 : 0) +
+    (row.unit ? 28 : 0) +
     (row.totalValue && row.totalValue > 0 ? 20 : 0) +
-    (row.quantity && row.quantity >= 1 ? 12 : 0) +
-    (Number.isInteger(row.quantity ?? Number.NaN) ? 6 : 0);
+    (row.quantity && row.quantity >= 1 ? 18 : 0) +
+    (Number.isInteger(row.quantity ?? Number.NaN) ? 10 : 0) -
+    (/^[A-Z0-9/-]{3,}\s+\d+(?:[.,]\d+)?\s+[A-Z]{1,6}\b/.test(row.description) ? 40 : 0);
 
   const dedupedByRawText = new Map<string, SupplierQuoteParsedRow>();
   for (const row of merged.values()) {
@@ -1779,6 +2140,7 @@ function parseDateToIso(value: string) {
 function parseHeaderQuoteNumber(lines: string[]) {
   const normalizedLines = lines.map((line) => stripAccents(line).replace(/\s+/g, ' ').trim());
   const patterns = [
+    /proposta\s*n(?:ro|o)?\.?\s*[:.]?\s*([a-z0-9./-]+)/i,
     /orcamento\s+nr\.?\s*[:.]?\s*([0-9./-]+)/i,
     /orcamento\s+n(?:ro|o)?\.?\s*[:.]?\s*([0-9./-]+)/i,
     /orcamento[^0-9]{0,12}([0-9][0-9./-]{2,})/i,
@@ -1805,6 +2167,25 @@ function parseHeaderQuoteNumber(lines: string[]) {
   return null;
 }
 
+function parseHeaderQuoteDate(lines: string[]) {
+  const normalizedLines = lines.map((line) => stripAccents(line).replace(/\s+/g, ' ').trim());
+  const labeledPatterns = [
+    /\b(?:data|emissao|lancamento|impresso em)\s*[:.]?\s*(\d{2}\/\d{2}\/\d{2,4})\b/i,
+  ];
+
+  for (const line of normalizedLines) {
+    for (const pattern of labeledPatterns) {
+      const match = line.match(pattern);
+      if (match?.[1]) {
+        return parseDateToIso(match[1]);
+      }
+    }
+  }
+
+  const fallbackMatch = normalizedLines.join(' ').match(/\b\d{2}\/\d{2}\/\d{2,4}\b/);
+  return fallbackMatch ? parseDateToIso(fallbackMatch[0]) : null;
+}
+
 function sanitizeSupplierHeaderLine(line: string) {
   const sanitized = normalizeWhitespace(
     line
@@ -1814,30 +2195,84 @@ function sanitizeSupplierHeaderLine(line: string) {
       .replace(/\bCPF\/CNPJ:.*$/i, ''),
   );
 
-  const emailAliasMatch = sanitized.match(/([A-Z0-9._%+-]{3,})(?:@|Q)(?:GMAIL|HOTMAIL|OUTLOOK|YAHOO)\.COM/i);
+  const asciiSanitized = stripAccents(sanitized);
+
+  const emailAliasMatch = asciiSanitized.match(/([A-Z0-9._%+-]{3,})(?:@|Q)(?:GMAIL|HOTMAIL|OUTLOOK|YAHOO)\.COM/i);
   if (emailAliasMatch?.[1]) {
     return normalizeWhitespace(emailAliasMatch[1]).toUpperCase();
   }
 
-  const legalEntityMatch = sanitized.match(/([A-Z][A-Z0-9.&'/-]*(?:\s+[A-Z0-9.&'/-]+){1,10}\s+(?:LTDA|ME|EPP|S\/A))/i);
+  const legalEntityMatch = asciiSanitized.match(/([A-Z][A-Z0-9.&'/-]*(?:\s+[A-Z0-9.&'/-]+){1,10}\s+(?:LTDA|ME|EPP|S\/A)\b)/i);
   if (legalEntityMatch?.[1]) {
-    return normalizeWhitespace(legalEntityMatch[1]);
+    return normalizeWhitespace(legalEntityMatch[1]).toUpperCase();
   }
 
   return sanitized;
 }
 
+function looksLikeCompactSupplierName(value: string, options?: { allowSingleToken?: boolean }) {
+  const sanitized = normalizeWhitespace(value);
+  if (!sanitized || /\d/.test(sanitized)) {
+    return false;
+  }
+
+  const tokens = sanitized.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0 || tokens.length > 5) {
+    return false;
+  }
+
+  const normalized = normalizeSupplierQuoteMatchText(sanitized);
+  if (!normalized || HEADER_SUPPLIER_SKIP_PATTERNS.some((pattern) => normalized.includes(pattern))) {
+    return false;
+  }
+
+  if (tokens.some((token) => token.length === 1)) {
+    return false;
+  }
+
+  if (tokens.length === 1) {
+    return Boolean(options?.allowSingleToken) && tokens[0]!.length >= 3;
+  }
+
+  if (!tokens.some((token) => token.length >= 4)) {
+    if (options?.allowSingleToken && tokens.length <= 2 && tokens.every((token) => token.length >= 2)) {
+      return tokens.every((token) => /^[A-Z][A-Z0-9&.'/-]*$/i.test(token));
+    }
+    return false;
+  }
+
+  return tokens.every((token) => /^[A-Z][A-Z0-9&.'/-]*$/i.test(token));
+}
+
 function scoreSupplierLine(line: string) {
+  const emailAliasMatch = stripAccents(line).match(/\b([A-Z0-9._%+-]{3,})(?:@|Q)(?:GMAIL|HOTMAIL|OUTLOOK|YAHOO)\.COM\b/i);
+  if (emailAliasMatch?.[1]) {
+    return 45 + emailAliasMatch[1].length;
+  }
+
   const sanitized = sanitizeSupplierHeaderLine(line);
   const normalized = normalizeSupplierQuoteMatchText(sanitized);
   if (!normalized || HEADER_SUPPLIER_SKIP_PATTERNS.some((pattern) => normalized.includes(pattern))) {
     return Number.NEGATIVE_INFINITY;
   }
 
+  const compactSupplierName = looksLikeCompactSupplierName(sanitized);
+  if (countMoneyTokens(line) >= 2) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  if (parseCandidateText(line, 1)?.candidate?.unitPrice !== null && !compactSupplierName) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
   let score = 0;
 
+  if (compactSupplierName) {
+    score += 14;
+  }
+
   if (/(?:ltda|me|epp|s\/a|comercio|ferragens|suprimentos|hospitalares|produtos|medicos|distribuidora)/i.test(sanitized)) {
-    score += 10;
+    score += 18;
   }
 
   if (!/\d{4,}/.test(sanitized)) {
@@ -1864,6 +2299,10 @@ function scoreSupplierLine(line: string) {
     score -= 8;
   }
 
+  if (/rua|avenida|rodovia|hospital|retaguarda/i.test(sanitized)) {
+    score -= 12;
+  }
+
   if (/instituto|desenvolvimento|ensino|assistencia|saude/i.test(sanitized)) {
     score -= 12;
   }
@@ -1875,34 +2314,79 @@ function scoreSupplierLine(line: string) {
   return score;
 }
 
+function inferSupplierNameFromFileName(originalFileName: string) {
+  const baseName = normalizeWhitespace(stripAccents(path.parse(originalFileName).name).replace(/[´`]/g, "'"));
+  const normalizedBaseName = normalizeSupplierQuoteMatchText(baseName);
+  if (!/^(?:orc|orcamento|or camento|orcamento|cot|cotacao|proposta)\b/.test(normalizedBaseName)) {
+    return null;
+  }
+
+  let candidate = normalizeWhitespace(baseName.replace(/\(\d+\)/g, ' '));
+  candidate = candidate.replace(/\b(?:orc(?:amento)?|cot(?:acao)?|proposta)\b[:\s-]*/gi, ' ').trim();
+
+  if (candidate.includes(' - ')) {
+    candidate = candidate.split(' - ')[0]!.trim();
+  }
+
+  candidate = normalizeWhitespace(
+    candidate
+      .replace(/\b(?:assinado|assinada|assinatura|scan(?:ner)?|camscanner)\b/gi, ' ')
+      .replace(/\b\d{1,2}[./-]\d{1,2}[./-]\d{2,4}\b/gi, ' ')
+      .replace(/\b\d{1,2}[a-z]{3}\d{2,4}\b/gi, ' ')
+      .replace(/[_-]+/g, ' '),
+  );
+
+  const compactDateIndex = candidate.search(/\b\d{1,2}[a-z]{3}\d{2,4}\b/i);
+  if (compactDateIndex >= 0) {
+    candidate = candidate.slice(0, compactDateIndex).trim();
+  }
+
+  candidate = normalizeWhitespace(candidate.replace(/\b\d{4,}\b/g, ' ').replace(/\s{2,}/g, ' '));
+  if (!looksLikeCompactSupplierName(candidate, { allowSingleToken: true })) {
+    return null;
+  }
+
+  return candidate.toUpperCase();
+}
+
 export function extractHeaderInfo(text: string) {
   const lines = text
     .replace(/\r/g, '\n')
     .split('\n')
     .map((line) => normalizeLine(line))
     .filter(Boolean)
-    .slice(0, 60);
+    .slice(0, 80);
 
   const quoteNumber = parseHeaderQuoteNumber(lines);
-  const dateMatch = lines.join(' ').match(/\b\d{2}\/\d{2}\/\d{2,4}\b/);
-  const supplierLines = lines.slice(0, 8);
+  const quoteDate = parseHeaderQuoteDate(lines);
+  const supplierLines = lines
+    .slice(0, 28)
+    .filter((line) => {
+      const normalized = normalizeSupplierQuoteMatchText(line);
+      return (
+        Boolean(normalized) &&
+        !/^---\s*pagina\b/i.test(line) &&
+        !/^--\s*\d+\s+of\s+\d+\s*--/i.test(line) &&
+        !/^\d{2}\/\d{2}\/\d{2,4}$/.test(normalized)
+      );
+    });
 
   let supplierNameDetected: string | null = null;
   const topSupplierLine =
     [...supplierLines]
       .sort((left, right) => scoreSupplierLine(right) - scoreSupplierLine(left))
-      .find((line) => scoreSupplierLine(line) > 0) ?? null;
+      .find((line) => scoreSupplierLine(line) > 0) ??
+    supplierLines.find((line) => looksLikeCompactSupplierName(sanitizeSupplierHeaderLine(line))) ??
+    null;
 
   if (topSupplierLine) {
     supplierNameDetected = sanitizeSupplierHeaderLine(topSupplierLine);
-  } else {
-    supplierNameDetected = sanitizeSupplierHeaderLine(lines[0] ?? '');
   }
 
   return {
     supplierNameDetected: supplierNameDetected ? normalizeWhitespace(supplierNameDetected) : null,
     quoteNumber,
-    quoteDate: dateMatch ? parseDateToIso(dateMatch[0]) : null,
+    quoteDate,
   };
 }
 
@@ -2178,6 +2662,31 @@ async function extractSparseTableRowsViaOcr(buffer: Buffer) {
   };
 }
 
+async function extractRotatedRowsViaOcr(buffer: Buffer, rotationDegrees: number) {
+  const rotatedText = repairUtf8MisinterpretedAsLatin1(
+    (
+      await extractPdfTextViaOcr(buffer, {
+        maxPages: 2,
+        rotationDegrees,
+      })
+    ).trim(),
+  );
+
+  if (!rotatedText) {
+    return {
+      text: '',
+      header: extractHeaderInfo(''),
+      rows: [] as SupplierQuoteParsedRow[],
+    };
+  }
+
+  return {
+    text: rotatedText,
+    header: extractHeaderInfo(rotatedText),
+    rows: mergeDescriptionOnlyRows(parseSupplierQuoteRows(rotatedText), parseProductDescriptionOnlyRows(rotatedText)),
+  };
+}
+
 function countMeaningfulLines(text: string) {
   return text
     .split(/\r?\n/)
@@ -2337,7 +2846,7 @@ export async function extractSupplierQuotePdfPreview(buffer: Buffer, originalFil
       ? {
           extractionMode: 'DIRECT_TEXT',
           fullText: directText,
-          supplierNameDetected: directHeader.supplierNameDetected,
+          supplierNameDetected: directHeader.supplierNameDetected ?? inferSupplierNameFromFileName(originalFileName),
           quoteNumber: directHeader.quoteNumber,
           quoteDate: directHeader.quoteDate,
           rows: directRows,
@@ -2368,7 +2877,8 @@ export async function extractSupplierQuotePdfPreview(buffer: Buffer, originalFil
       const ocrPreview: SupplierQuotePdfPreview = {
         extractionMode: 'OCR',
         fullText: [ocrText, targetedProductOcr.text].filter(Boolean).join('\n\n'),
-        supplierNameDetected: mergeQuoteHeaderInfos(ocrHeader, directHeader).supplierNameDetected,
+        supplierNameDetected:
+          mergeQuoteHeaderInfos(ocrHeader, directHeader).supplierNameDetected ?? inferSupplierNameFromFileName(originalFileName),
         quoteNumber: mergeQuoteHeaderInfos(ocrHeader, directHeader).quoteNumber,
         quoteDate: mergeQuoteHeaderInfos(ocrHeader, directHeader).quoteDate,
         rows: mergedOcrRows,
@@ -2391,10 +2901,34 @@ export async function extractSupplierQuotePdfPreview(buffer: Buffer, originalFil
       return {
         extractionMode: 'OCR',
         fullText: [lastOcrText, sparseFallback.text].filter(Boolean).join('\n\n'),
-        supplierNameDetected: header.supplierNameDetected,
+        supplierNameDetected: header.supplierNameDetected ?? inferSupplierNameFromFileName(originalFileName),
         quoteNumber: header.quoteNumber,
         quoteDate: header.quoteDate,
         rows: sparseFallback.rows,
+      };
+    }
+  }
+
+  if (!bestPreview) {
+    const rotatedCandidates = await Promise.all([extractRotatedRowsViaOcr(buffer, 90), extractRotatedRowsViaOcr(buffer, 270)]);
+    const bestRotated =
+      rotatedCandidates
+        .filter((candidate) => candidate.rows.length > 0)
+        .sort(
+          (left, right) =>
+            scoreExtraction(right.rows, right.header) - scoreExtraction(left.rows, left.header) ||
+            right.rows.length - left.rows.length,
+        )[0] ?? null;
+
+    if (bestRotated) {
+      const header = mergeQuoteHeaderInfos(bestRotated.header, mergeQuoteHeaderInfos(lastOcrHeader ?? directHeader, directHeader));
+      return {
+        extractionMode: 'OCR',
+        fullText: [lastOcrText, bestRotated.text].filter(Boolean).join('\n\n'),
+        supplierNameDetected: header.supplierNameDetected ?? inferSupplierNameFromFileName(originalFileName),
+        quoteNumber: header.quoteNumber,
+        quoteDate: header.quoteDate,
+        rows: bestRotated.rows,
       };
     }
   }

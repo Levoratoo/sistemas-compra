@@ -18,6 +18,7 @@ type ExtractPdfTextViaOcrOptions = {
   renderScale?: number;
   pageSegMode?: string | number;
   regions?: PdfOcrRegion[];
+  rotationDegrees?: number;
 };
 
 function envInt(name: string, fallback: number, min: number, max: number): number {
@@ -37,14 +38,15 @@ function clampRatio(value: number) {
 
 function getOcrDefaults(options?: ExtractPdfTextViaOcrOptions) {
   return {
-    maxPages: options?.maxPages ?? envInt('PDF_OCR_MAX_PAGES', 18, 1, 40),
+    maxPages: options?.maxPages ?? envInt('PDF_OCR_MAX_PAGES', 18, 1, 80),
     scale: (options?.renderScale ?? envInt('PDF_OCR_RENDER_SCALE', 250, 100, 400)) / 100,
     pageSegMode: options?.pageSegMode,
+    rotationDegrees: options?.rotationDegrees ?? 0,
   };
 }
 
-async function renderPdfPage(page: any, scale: number) {
-  const viewport = page.getViewport({ scale });
+async function renderPdfPage(page: any, scale: number, rotationDegrees = 0) {
+  const viewport = page.getViewport({ scale, rotation: rotationDegrees });
   const w = Math.ceil(viewport.width);
   const h = Math.ceil(viewport.height);
 
@@ -99,7 +101,7 @@ function cropCanvas(sourceCanvas: any, region: PdfOcrRegion, width: number, heig
  * Usado quando o texto embutido do PDF nao traz tabelas que estao so como imagem.
  */
 export async function extractPdfTextViaOcr(buffer: Buffer, options?: ExtractPdfTextViaOcrOptions): Promise<string> {
-  const { maxPages, scale, pageSegMode } = getOcrDefaults(options);
+  const { maxPages, scale, pageSegMode, rotationDegrees } = getOcrDefaults(options);
 
   const data = new Uint8Array(buffer.byteLength);
   data.set(buffer);
@@ -129,7 +131,7 @@ export async function extractPdfTextViaOcr(buffer: Buffer, options?: ExtractPdfT
 
         const page = await pdf.getPage(pageNumber);
         try {
-          const rendered = await renderPdfPage(page, scale);
+          const rendered = await renderPdfPage(page, scale, rotationDegrees);
           const crop = cropCanvas(rendered.canvas, region, rendered.width, rendered.height);
           const {
             data: { text },
@@ -150,7 +152,7 @@ export async function extractPdfTextViaOcr(buffer: Buffer, options?: ExtractPdfT
     for (let p = 1; p <= numPages; p += 1) {
       const page = await pdf.getPage(p);
       try {
-        const rendered = await renderPdfPage(page, scale);
+        const rendered = await renderPdfPage(page, scale, rotationDegrees);
         const png = rendered.canvas.toBuffer('image/png');
         const {
           data: { text },

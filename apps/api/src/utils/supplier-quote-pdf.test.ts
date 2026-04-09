@@ -172,4 +172,118 @@ R$24,00 30 R$ 720,00
     assert.equal(rows[0]?.unitPrice, 24);
     assert.equal(rows[0]?.totalValue, 720);
   });
+
+  it('parseia layout com quantidade no inicio como no RC Papeis', () => {
+    const rows = parseSupplierQuoteRows(
+      '2,000 UN PAPEL A4 BRANCO C/500 DG FOX 75G 59,00 29,50 59,00 7244',
+    );
+
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.description, 'PAPEL A4 BRANCO C/500 DG FOX 75G');
+    assert.equal(rows[0]?.quantity, 2);
+    assert.equal(rows[0]?.unit, 'UN');
+    assert.equal(rows[0]?.unitPrice, 29.5);
+    assert.equal(rows[0]?.totalValue, 59);
+  });
+
+  it('parseia layout com codigo na frente e quantidade apos unidade como no OCR do RC Papeis', () => {
+    const rows = parseSupplierQuoteRows(
+      '7244 PAPEL A4 BRANCO C/500 DG FOX 75G UN 2,000 29,50 59,00 59,00',
+    );
+
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.description, 'PAPEL A4 BRANCO C/500 DG FOX 75G');
+    assert.equal(rows[0]?.quantity, 2);
+    assert.equal(rows[0]?.unit, 'UN');
+    assert.equal(rows[0]?.unitPrice, 29.5);
+    assert.equal(rows[0]?.totalValue, 59);
+  });
+
+  it('parseia bloco OCR com qtd valor e total como no CamScanner', () => {
+    const rows = parseSupplierQuoteRows(`
+9745 Qtd: 2,00
+ALCOOL LIQUIDO 70% 1 LT SEVENGEL Valor: 10,00
+Total: 20,00
+668 Qtd: 16,00
+CAFE CABOCLO 500G TRADICIONAL Valor: 33,90
+Total: 542,40
+    `);
+
+    assert.equal(rows.length, 2);
+    assert.equal(rows[0]?.description, 'ALCOOL LIQUIDO 70% 1 LT SEVENGEL');
+    assert.equal(rows[0]?.quantity, 2);
+    assert.equal(rows[0]?.unitPrice, 10);
+    assert.equal(rows[0]?.totalValue, 20);
+    assert.equal(rows[1]?.description, 'CAFE CABOCLO 500G TRADICIONAL');
+    assert.equal(rows[1]?.quantity, 16);
+    assert.equal(rows[1]?.unitPrice, 33.9);
+    assert.equal(rows[1]?.totalValue, 542.4);
+  });
+
+  it('parseia proposta com quantidade na frente como no HG MAX', () => {
+    const rows = parseSupplierQuoteRows(
+      '10 CÓD: 348 - QUADRO DE ANDAIME TUBULAR 100X100 - NAC 193,50 R$ 1.935,00 R$',
+    );
+
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.description, 'QUADRO DE ANDAIME TUBULAR 100X100 NAC');
+    assert.equal(rows[0]?.quantity, 10);
+    assert.equal(rows[0]?.unitPrice, 193.5);
+    assert.equal(rows[0]?.totalValue, 1935);
+  });
+
+  it('parseia proposta com descricao antes da quantidade como na ZOX', () => {
+    const rows = parseSupplierQuoteRows(
+      'Painel de andaime 1,0m X 1,0m. 10 162,00 R$ 1.620,00 R$',
+    );
+
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.description, 'Painel de andaime 1,0m X 1,0m');
+    assert.equal(rows[0]?.quantity, 10);
+    assert.equal(rows[0]?.unitPrice, 162);
+    assert.equal(rows[0]?.totalValue, 1620);
+  });
+
+  it('parseia linha OCR rotacionada como na LBN', () => {
+    const rows = parseSupplierQuoteRows(
+      '1 G6190-002 10,00 UN ANDAIME TUBULAR PAINEL DE 1000 - LARANJA 195,00 1.950,00',
+    );
+
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.description, 'ANDAIME TUBULAR PAINEL DE 1000 LARANJA');
+    assert.equal(rows[0]?.quantity, 10);
+    assert.equal(rows[0]?.unit, 'UN');
+    assert.equal(rows[0]?.unitPrice, 195);
+    assert.equal(rows[0]?.totalValue, 1950);
+  });
+
+  it('prefere o nome do fornecedor e nao uma linha de item no cabecalho', () => {
+    const header = extractHeaderInfo(`
+RC PAPEIS
+Cliente: DESAFIO JOVEM MONTE DAS OLIVEIRAS
+31918 Papel Chamex 210X297 75G Branco A4 Pc C/500 Fls CMX075CA4 PC 20 23,99 479,80
+08/04/2026
+    `);
+
+    assert.equal(header.supplierNameDetected, 'RC PAPEIS');
+  });
+
+  it('ignora frases genericas de condicao comercial quando nao ha fornecedor no cabecalho', () => {
+    const header = extractHeaderInfo(`
+Orçamento :
+Cliente:
+Prazo de Entrega :
+Cnd. Pagamento :
+Validade :
+Cobrança :
+02.309.984/0001-12 - DESAFIO JOVEM MONTE DAS OLIVEIRAS
+CASSIO
+A INFORMAR (47) 33320871
+22/04/2026
+A DEFINIR
+A COMBINAR
+    `);
+
+    assert.equal(header.supplierNameDetected, null);
+  });
 });
