@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getDefaultPathForRole } from '@/lib/role-access';
 
 const schema = z.object({
   email: z.string().trim().email('Informe um e-mail válido.'),
@@ -33,20 +34,21 @@ export function LoginForm() {
     defaultValues: { email: '', password: '' },
   });
 
-  const nextPath = searchParams.get('next') ?? '/';
+  const nextPath = searchParams.get('next');
+  const redirectPath = nextPath?.startsWith('/') ? nextPath : getDefaultPathForRole(user?.role);
 
   useEffect(() => {
     if (user) {
-      router.replace(nextPath.startsWith('/') ? nextPath : '/');
+      router.replace(redirectPath);
     }
-  }, [user, router, nextPath]);
+  }, [user, router, redirectPath]);
 
   async function onSubmit(values: FormValues) {
     setSubmitting(true);
     try {
-      await login(values.email, values.password);
+      const authenticatedUser = await login(values.email, values.password);
       toast.success('Login realizado.');
-      router.replace(nextPath.startsWith('/') ? nextPath : '/');
+      router.replace(nextPath?.startsWith('/') ? nextPath : getDefaultPathForRole(authenticatedUser.role));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Não foi possível entrar.');
     } finally {

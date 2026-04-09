@@ -3,11 +3,14 @@ import { Router } from 'express';
 import multer from 'multer';
 
 import { supplierController } from '../../controllers/supplier.controller.js';
+import { OPERATIONAL_USER_ROLES, requireRole } from '../../middlewares/auth.js';
 import { validateRequest } from '../../middlewares/validate.js';
 import { asyncHandler } from '../../utils/async-handler.js';
 import { supplierIdParamsSchema } from './supplier.schemas.js';
 
 export const supplierRouter = Router();
+
+supplierRouter.use(requireRole(...OPERATIONAL_USER_ROLES));
 
 const uploadCnd = multer({
   storage: multer.memoryStorage(),

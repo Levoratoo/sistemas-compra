@@ -1,10 +1,14 @@
 import { Prisma } from '@prisma/client';
 
-import { projectRepository, type ProjectAggregate } from '../repositories/project.repository.js';
+import {
+  projectRepository,
+  type ProjectAggregate,
+  type ProjectListItemRecord,
+} from '../repositories/project.repository.js';
 import { ensureCndRootFolder } from './supplier-cnd-folders.service.js';
 import { syncAllSupplierCndAttachmentsToProject } from './supplier-cnd-sync.service.js';
 import { AppError } from '../utils/app-error.js';
-import { parseOptionalDate } from '../utils/date.js';
+import { parseOptionalDate, toIsoString } from '../utils/date.js';
 import { toDecimal } from '../utils/decimal.js';
 import {
   serializeBudgetItem,
@@ -76,6 +80,39 @@ export function mapProjectAggregate(project: ProjectAggregate) {
       budgetItems: project.budgetItems.length,
       purchaseOrders: project.purchaseOrders.length,
       implementationTasks: project.implementationTasks.length,
+    },
+  };
+}
+
+function mapProjectListItem(project: ProjectListItemRecord) {
+  return {
+    id: project.id,
+    code: project.code,
+    name: project.name,
+    organizationName: project.organizationName,
+    procurementProcessNumber: project.procurementProcessNumber,
+    bidNumber: project.bidNumber,
+    contractNumber: project.contractNumber,
+    city: project.city,
+    state: project.state,
+    objectSummary: project.objectSummary,
+    projectStatus: project.projectStatus,
+    implementationStatus: project.implementationStatus,
+    plannedSignatureDate: toIsoString(project.plannedSignatureDate),
+    plannedStartDate: toIsoString(project.plannedStartDate),
+    actualStartDate: toIsoString(project.actualStartDate),
+    contractDurationMonths: project.contractDurationMonths,
+    monthlyContractValue: project.monthlyContractValue === null ? null : Number(project.monthlyContractValue),
+    selectedQuoteSlotNumber: project.selectedQuoteSlotNumber,
+    notes: project.notes,
+    createdAt: toIsoString(project.createdAt),
+    updatedAt: toIsoString(project.updatedAt),
+    counts: {
+      documents: project._count.documents,
+      roles: project._count.roles,
+      budgetItems: project._count.budgetItems,
+      purchaseOrders: project._count.purchaseOrders,
+      implementationTasks: project._count.implementationTasks,
     },
   };
 }
@@ -160,18 +197,9 @@ class ProjectService {
       ],
     };
 
-    const projects = await projectRepository.findMany(where);
+    const projects = await projectRepository.findManySummaries(where);
 
-    return projects.map((project) => ({
-      ...serializeProject(project),
-      counts: {
-        documents: project.documents.length,
-        roles: project.roles.length,
-        budgetItems: project.budgetItems.length,
-        purchaseOrders: project.purchaseOrders.length,
-        implementationTasks: project.implementationTasks.length,
-      },
-    }));
+    return projects.map(mapProjectListItem);
   }
 
   async getProjectById(id: string) {
@@ -182,6 +210,16 @@ class ProjectService {
     }
 
     return mapProjectAggregate(project);
+  }
+
+  async getProjectSummaryById(id: string) {
+    const project = await projectRepository.findSummaryByProjectId(id);
+
+    if (!project) {
+      throw new AppError('Project not found', 404);
+    }
+
+    return mapProjectListItem(project);
   }
 
   async updateProject(id: string, input: UpdateProjectInput) {

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 
 import { budgetItemController } from '../../controllers/budget-item.controller.js';
+import { OPERATIONAL_USER_ROLES, requireRole } from '../../middlewares/auth.js';
 import { validateRequest } from '../../middlewares/validate.js';
 import { asyncHandler } from '../../utils/async-handler.js';
 import {
@@ -11,6 +12,8 @@ import {
 } from './budget-item.schemas.js';
 
 export const budgetItemRouter = Router();
+
+budgetItemRouter.use(requireRole(...OPERATIONAL_USER_ROLES));
 
 budgetItemRouter.post(
   '/projects/:id/budget-items',

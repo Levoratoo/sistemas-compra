@@ -175,6 +175,7 @@ export const userRoleOptions: Array<{ value: UserRole; label: string }> = [
   { value: 'ADMIN', label: 'Administrador' },
   { value: 'USER', label: 'Usuário' },
   { value: 'APPROVER', label: 'Aprovador' },
+  { value: 'SUPERVISOR', label: 'Supervisora' },
 ];
 
 export function getUserRoleLabel(role: UserRole) {

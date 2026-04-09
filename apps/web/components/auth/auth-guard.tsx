@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 
 import { Skeleton } from '@/components/ui/skeleton';
+import { getRestrictedPathRedirect } from '@/lib/role-access';
 
 import { useAuth } from './auth-context';
 
@@ -12,6 +13,7 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const restrictedRedirect = user ? getRestrictedPathRedirect(user.role, pathname) : null;
 
   useEffect(() => {
     if (isLoading) return;
@@ -19,8 +21,13 @@ export function AuthGuard({ children }: { children: ReactNode }) {
     if (!user) {
       const next = pathname ? `?next=${encodeURIComponent(pathname)}` : '';
       router.replace(`/login${next}`);
+      return;
     }
-  }, [user, isLoading, router, pathname]);
+
+    if (restrictedRedirect) {
+      router.replace(restrictedRedirect);
+    }
+  }, [user, isLoading, router, pathname, restrictedRedirect]);
 
   if (isLoading) {
     return (
@@ -32,6 +39,10 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   }
 
   if (!user) {
+    return null;
+  }
+
+  if (restrictedRedirect) {
     return null;
   }
 

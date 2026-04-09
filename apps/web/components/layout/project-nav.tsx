@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 
+import { useAuth } from '@/components/auth/auth-context';
+import { canAccessProjectTab } from '@/lib/role-access';
 import { cn } from '@/lib/utils';
 import { prefetchProjectModuleQueries } from '@/lib/prefetch-project-module-queries';
 
@@ -20,12 +22,14 @@ const tabs = [
 export function ProjectNav({ projectId }: { projectId: string }) {
   const pathname = usePathname();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const visibleTabs = tabs.filter((tab) => canAccessProjectTab(user?.role, tab.href));
 
   return (
     <div className="-mx-1 border-t border-border/80 pt-6">
       <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Módulos do contrato</p>
       <div className="scrollbar-none flex gap-1 overflow-x-auto pb-1">
-        {tabs.map((tab) => {
+        {visibleTabs.map((tab) => {
           const href = `/projects/${projectId}${tab.href}`;
           const active = pathname === href;
 

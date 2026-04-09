@@ -38,6 +38,10 @@ export function getProject(projectId: string) {
   return apiRequest<ProjectDetail>(`projects/${projectId}`);
 }
 
+export function getProjectSummary(projectId: string) {
+  return apiRequest<ProjectListItem>(`projects/${projectId}/summary`);
+}
+
 export function createProject(payload: ProjectPayload) {
   return apiRequest<ProjectDetail>('projects', {
     method: 'POST',

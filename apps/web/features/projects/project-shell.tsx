@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Banknote, ClipboardList, Download, FileText, Landmark, Pencil, ScanText, ShoppingCart } from 'lucide-react';
 
+import { useAuth } from '@/components/auth/auth-context';
 import { PageHeader } from '@/components/common/page-header';
 import { StatCard } from '@/components/common/stat-card';
 import { ImplementationStatusBadge, ProjectStatusBadge } from '@/components/common/status-badge';
@@ -26,7 +27,7 @@ import {
   pickPrimaryEditalDocument,
   projectDocumentPublicFileUrl,
 } from '@/lib/project-document-url';
-import { useProjectQuery } from '@/hooks/use-projects';
+import { useProjectQuery, useProjectSummaryQuery } from '@/hooks/use-projects';
 
 import { ImageOcrDialog } from './image-ocr-dialog';
 import { ProjectFormDialog } from './project-form-dialog';
@@ -39,8 +40,15 @@ export function ProjectShell({
   projectId: string;
 }) {
   const pathname = usePathname();
+  const { isSupervisor } = useAuth();
   const isExtractionReview = /\/documents\/[^/]+\/review\/?$/.test(pathname);
-  const { data: project, isPending, isError } = useProjectQuery(projectId);
+  const projectDetailQuery = useProjectQuery(projectId, !isSupervisor);
+  const projectSummaryQuery = useProjectSummaryQuery(projectId, isSupervisor);
+  const projectDetail = projectDetailQuery.data;
+  const projectSummary = projectSummaryQuery.data;
+  const project = isSupervisor ? projectSummary : projectDetail;
+  const isPending = isSupervisor ? projectSummaryQuery.isPending : projectDetailQuery.isPending;
+  const isError = isSupervisor ? projectSummaryQuery.isError : projectDetailQuery.isError;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [objectSummaryOpen, setObjectSummaryOpen] = useState(false);
   const [imageOcrOpen, setImageOcrOpen] = useState(false);
@@ -97,7 +105,7 @@ export function ProjectShell({
           }
           breadcrumbs={[
             { label: 'Projetos', href: '/projects' },
-            { label: project.code, href: `/projects/${projectId}` },
+            { label: projectDetail?.code ?? projectId, href: `/projects/${projectId}` },
             { label: 'Revisão de extração' },
           ]}
           description="Confira e ajuste os valores sugeridos a partir do documento enviado."
@@ -105,15 +113,55 @@ export function ProjectShell({
         />
         {children}
         <ImageOcrDialog onOpenChange={setImageOcrOpen} open={imageOcrOpen} />
-        <ProjectFormDialog onOpenChange={setDialogOpen} open={dialogOpen} project={project} />
+        {projectDetail ? <ProjectFormDialog onOpenChange={setDialogOpen} open={dialogOpen} project={projectDetail} /> : null}
       </div>
     );
   }
 
   const hasObjectSummary = Boolean(project.objectSummary?.trim());
   const displayName = (project.organizationName || project.name).trim() || project.code;
-  const pipeline = computePurchasePipelineMetrics(project.budgetItems);
-  const editalDoc = pickPrimaryEditalDocument(project.documents);
+
+  if (isSupervisor) {
+    return (
+      <div className="page-sections">
+        <PageHeader
+          breadcrumbs={[
+            { label: 'Projetos', href: '/projects' },
+            { label: displayName },
+            { label: 'Relatório de Itens Faltantes' },
+          ]}
+          description="Acompanhe apenas as solicitações adicionais e aprovações deste projeto."
+          title={displayName}
+        />
+
+        <Card className="overflow-hidden">
+          <CardContent className="space-y-8 p-6 md:p-8">
+            <div className="flex flex-wrap items-center gap-3">
+              <ProjectStatusBadge value={project.projectStatus} />
+              <ImplementationStatusBadge value={project.implementationStatus} />
+            </div>
+
+            <ProjectNav projectId={projectId} />
+          </CardContent>
+        </Card>
+
+        {children}
+      </div>
+    );
+  }
+
+  if (!projectDetail) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center text-sm font-medium text-muted-foreground">
+          Não foi possível carregar o projeto selecionado.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const pipeline = computePurchasePipelineMetrics(projectDetail.budgetItems);
+  const editalDoc = pickPrimaryEditalDocument(projectDetail.documents);
   const editalDownloadHref = editalDoc ? projectDocumentPublicFileUrl(editalDoc.storagePath) : null;
   const editalDownloadLabel = editalDoc && isLikelyPdfDocument(editalDoc) ? 'Baixar edital' : 'Baixar documento';
 
@@ -170,7 +218,7 @@ export function ProjectShell({
           </DialogHeader>
           <div className="max-h-[min(70vh,720px)] overflow-y-auto px-6 pb-6">
             <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-foreground">
-              {project.objectSummary?.trim() || '—'}
+              {projectDetail.objectSummary?.trim() || '—'}
             </pre>
           </div>
         </DialogContent>
@@ -179,16 +227,16 @@ export function ProjectShell({
       <Card className="overflow-hidden">
         <CardContent className="space-y-8 p-6 md:p-8">
           <div className="flex flex-wrap items-center gap-3">
-            <ProjectStatusBadge value={project.projectStatus} />
-            <ImplementationStatusBadge value={project.implementationStatus} />
+            <ProjectStatusBadge value={projectDetail.projectStatus} />
+            <ImplementationStatusBadge value={projectDetail.implementationStatus} />
           </div>
 
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             <StatCard
-              helper={project.bidNumber || 'Sem pregão informado'}
+              helper={projectDetail.bidNumber || 'Sem pregão informado'}
               icon={Landmark}
               title="Órgão contratante"
-              value={project.organizationName}
+              value={projectDetail.organizationName}
             />
             <StatCard
               helper="Sem compra registrada no checklist"
@@ -217,7 +265,7 @@ export function ProjectShell({
       {children}
 
       <ImageOcrDialog onOpenChange={setImageOcrOpen} open={imageOcrOpen} />
-      <ProjectFormDialog onOpenChange={setDialogOpen} open={dialogOpen} project={project} />
+      <ProjectFormDialog onOpenChange={setDialogOpen} open={dialogOpen} project={projectDetail} />
     </div>
   );
 }

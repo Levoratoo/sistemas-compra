@@ -59,6 +59,13 @@ function derivePageCopy(pathname: string) {
     return { title: 'Reposições', description: 'Regras recorrentes, próximos eventos e histórico.' };
   }
 
+  if (pathname.startsWith('/projects/') && pathname.includes('/missing-items')) {
+    return {
+      title: 'Relatório de itens faltantes',
+      description: 'Solicitações adicionais do projeto, anexos e andamento da aprovação.',
+    };
+  }
+
   if (pathname.startsWith('/projects/')) {
     return { title: 'Projeto', description: 'Visão geral do contrato e seus módulos operacionais.' };
   }
@@ -66,7 +73,7 @@ function derivePageCopy(pathname: string) {
   if (pathname.startsWith('/admin/users')) {
     return {
       title: 'Usuários',
-      description: 'Gerencie contas, perfis (admin, usuário, aprovador) e acessos ao sistema.',
+      description: 'Gerencie contas, perfis (admin, usuário, aprovador, supervisora) e acessos ao sistema.',
     };
   }
 

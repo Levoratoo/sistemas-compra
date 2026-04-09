@@ -9,13 +9,17 @@ import { Button } from '@/components/ui/button';
 import { useSidebar } from '@/components/layout/sidebar-context';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/components/auth/auth-context';
+import { canAccessTopLevelNav } from '@/lib/role-access';
 import { adminNavItem, mainNav } from '@/lib/nav';
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const { open, setOpen } = useSidebar();
-  const navItems = isAdmin ? [...mainNav, adminNavItem] : mainNav;
+  const navItems = [
+    ...mainNav.filter((item) => canAccessTopLevelNav(user?.role, item.href)),
+    ...(isAdmin ? [adminNavItem] : []),
+  ];
   const setOpenRef = useRef(setOpen);
   setOpenRef.current = setOpen;
 

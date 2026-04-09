@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { Skeleton } from '@/components/ui/skeleton';
+import { getDefaultPathForRole } from '@/lib/role-access';
 import type { UserRole } from '@/types/api';
 
 import { useAuth } from './auth-context';
@@ -17,7 +18,7 @@ export function RoleGuard({ roles, children }: { roles: UserRole[]; children: Re
     if (isLoading) return;
 
     if (!user || !roles.includes(user.role)) {
-      router.replace('/');
+      router.replace(getDefaultPathForRole(user?.role));
     }
   }, [user, isLoading, roles, router]);
 

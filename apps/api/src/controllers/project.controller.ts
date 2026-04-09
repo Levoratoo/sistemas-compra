@@ -92,6 +92,11 @@ class ProjectController {
     response.json(result);
   }
 
+  async getSummaryById(request: Request, response: Response) {
+    const result = await projectService.getProjectSummaryById(String(request.params.id));
+    response.json(result);
+  }
+
   async update(request: Request, response: Response) {
     const result = await projectService.updateProject(
       String(request.params.id),

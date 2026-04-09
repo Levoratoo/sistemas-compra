@@ -33,7 +33,7 @@ const createSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(8, 'Mínimo 8 caracteres.'),
   name: z.string().trim().min(1),
-  role: z.enum(['ADMIN', 'USER', 'APPROVER']),
+  role: z.enum(['ADMIN', 'USER', 'APPROVER', 'SUPERVISOR']),
 });
 
 type CreateForm = z.infer<typeof createSchema>;
@@ -85,7 +85,8 @@ export function UsersAdminPanel() {
           <h1 className="text-2xl font-semibold tracking-tight">Usuários</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Perfis: <strong>Administrador</strong> (gerencia acessos), <strong>Usuário</strong> (operacional) e{' '}
-            <strong>Aprovador</strong> (ex.: aprovações de itens faltantes). Apenas administradores veem esta tela.
+            <strong>Aprovador</strong> (ex.: aprovações de itens faltantes) e <strong>Supervisora</strong> (somente
+            projetos e relatório de itens faltantes). Apenas administradores veem esta tela.
           </p>
         </div>
         <Button className="gap-2" onClick={() => setOpen(true)} type="button">

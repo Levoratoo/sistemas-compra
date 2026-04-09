@@ -1,6 +1,7 @@
 import { Router } from 'express';
 
 import { roleController } from '../../controllers/role.controller.js';
+import { OPERATIONAL_USER_ROLES, requireRole } from '../../middlewares/auth.js';
 import { validateRequest } from '../../middlewares/validate.js';
 import { asyncHandler } from '../../utils/async-handler.js';
 import {
@@ -11,6 +12,8 @@ import {
 } from './role.schemas.js';
 
 export const roleRouter = Router();
+
+roleRouter.use(requireRole(...OPERATIONAL_USER_ROLES));
 
 roleRouter.post(
   '/projects/:id/roles',

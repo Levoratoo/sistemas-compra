@@ -1,6 +1,7 @@
 import { Router } from 'express';
 
 import { replenishmentController } from '../../controllers/replenishment.controller.js';
+import { OPERATIONAL_USER_ROLES, requireRole } from '../../middlewares/auth.js';
 import { validateRequest } from '../../middlewares/validate.js';
 import { asyncHandler } from '../../utils/async-handler.js';
 import {
@@ -10,6 +11,8 @@ import {
 } from './replenishment.schemas.js';
 
 export const replenishmentRouter = Router();
+
+replenishmentRouter.use(requireRole(...OPERATIONAL_USER_ROLES));
 
 replenishmentRouter.post(
   '/budget-items/:id/replenishment-rule',

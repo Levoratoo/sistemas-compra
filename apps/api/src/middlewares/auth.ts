@@ -15,6 +15,8 @@ type JwtPayload = {
   exp?: number;
 };
 
+export const OPERATIONAL_USER_ROLES: UserRole[] = ['ADMIN', 'USER', 'APPROVER'];
+
 export function authenticate(req: Request, _res: Response, next: NextFunction) {
   if (req.method === 'OPTIONS') {
     next();

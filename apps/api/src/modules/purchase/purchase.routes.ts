@@ -1,6 +1,7 @@
 import { Router } from 'express';
 
 import { purchaseController } from '../../controllers/purchase.controller.js';
+import { OPERATIONAL_USER_ROLES, requireRole } from '../../middlewares/auth.js';
 import { validateRequest } from '../../middlewares/validate.js';
 import { asyncHandler } from '../../utils/async-handler.js';
 import {
@@ -11,6 +12,8 @@ import {
 } from './purchase.schemas.js';
 
 export const purchaseRouter = Router();
+
+purchaseRouter.use(requireRole(...OPERATIONAL_USER_ROLES));
 
 purchaseRouter.post(
   '/projects/:id/purchases',

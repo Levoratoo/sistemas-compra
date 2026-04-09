@@ -2,9 +2,12 @@ import { Router } from 'express';
 import multer from 'multer';
 
 import { ocrController } from '../../controllers/ocr.controller.js';
+import { OPERATIONAL_USER_ROLES, requireRole } from '../../middlewares/auth.js';
 import { asyncHandler } from '../../utils/async-handler.js';
 
 export const ocrRouter = Router();
+
+ocrRouter.use(requireRole(...OPERATIONAL_USER_ROLES));
 
 /** Confirma que o módulo OCR está no deploy (útil após novo build da API). */
 ocrRouter.get('/ocr/status', (_request, response) => {

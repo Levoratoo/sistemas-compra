@@ -12,7 +12,8 @@ type AuthContextValue = {
   isLoading: boolean;
   isAuthenticated: boolean;
   isAdmin: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  isSupervisor: boolean;
+  login: (email: string, password: string) => Promise<AuthUser>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 };
@@ -77,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     const { user: next } = await loginRequest(email, password);
     setUser(next);
+    return next;
   }, []);
 
   const logout = useCallback(() => {
@@ -90,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading,
       isAuthenticated: Boolean(user),
       isAdmin: user?.role === 'ADMIN',
+      isSupervisor: user?.role === 'SUPERVISOR',
       login,
       logout,
       refreshUser,

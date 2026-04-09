@@ -113,7 +113,7 @@ export interface EntityTimestamps {
   updatedAt: string | null;
 }
 
-export type UserRole = 'ADMIN' | 'USER' | 'APPROVER';
+export type UserRole = 'ADMIN' | 'USER' | 'APPROVER' | 'SUPERVISOR';
 
 export interface AuthUser extends EntityTimestamps {
   id: string;

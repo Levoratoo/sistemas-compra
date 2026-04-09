@@ -7,6 +7,7 @@ import {
   createProject,
   deleteProject,
   getProject,
+  getProjectSummary,
   listProjects,
   type ApplyExtractionPayload,
   type ProjectPayload,
@@ -21,11 +22,19 @@ export function useProjectsQuery(filters?: { search?: string; projectStatus?: Pr
   });
 }
 
-export function useProjectQuery(projectId: string) {
+export function useProjectQuery(projectId: string, enabled = true) {
   return useQuery({
     queryKey: ['project', projectId],
     queryFn: () => getProject(projectId),
-    enabled: Boolean(projectId),
+    enabled: Boolean(projectId) && enabled,
+  });
+}
+
+export function useProjectSummaryQuery(projectId: string, enabled = true) {
+  return useQuery({
+    queryKey: ['project-summary', projectId],
+    queryFn: () => getProjectSummary(projectId),
+    enabled: Boolean(projectId) && enabled,
   });
 }
 

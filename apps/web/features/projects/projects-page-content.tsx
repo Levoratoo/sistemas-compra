@@ -5,6 +5,7 @@ import { useDeferredValue, useMemo, useState } from 'react';
 import { Plus, Search, SquarePen, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { useAuth } from '@/components/auth/auth-context';
 import { EmptyState } from '@/components/common/empty-state';
 import { ImplementationStatusBadge, ProjectStatusBadge } from '@/components/common/status-badge';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,8 @@ import { NewProjectFlowDialog } from './new-project-flow-dialog';
 import { ProjectFormDialog } from './project-form-dialog';
 
 export function ProjectsPageContent() {
+  const { user } = useAuth();
+  const isSupervisor = user?.role === 'SUPERVISOR';
   const [search, setSearch] = useState('');
   const deferredSearch = useDeferredValue(search);
   const [status, setStatus] = useState<ProjectStatus | ''>('');
@@ -56,19 +59,23 @@ export function ProjectsPageContent() {
     <div className="page-sections">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-2xl text-sm font-medium leading-relaxed text-muted-foreground">
-          Cadastre contratos, filtre a carteira e acesse compras, documentos e reposições por projeto.
+          {isSupervisor
+            ? 'Consulte a carteira e abra diretamente o relatório de itens faltantes de cada projeto.'
+            : 'Cadastre contratos, filtre a carteira e acesse compras, documentos e reposições por projeto.'}
         </p>
-        <Button
-          className="shrink-0 shadow-glow"
-          onClick={() => {
-            setEditingProject(null);
-            setFlowOpen(true);
-          }}
-          size="lg"
-        >
-          <Plus className="size-4" />
-          Novo projeto
-        </Button>
+        {!isSupervisor ? (
+          <Button
+            className="shrink-0 shadow-glow"
+            onClick={() => {
+              setEditingProject(null);
+              setFlowOpen(true);
+            }}
+            size="lg"
+          >
+            <Plus className="size-4" />
+            Novo projeto
+          </Button>
+        ) : null}
       </div>
 
       <Card>
@@ -108,12 +115,16 @@ export function ProjectsPageContent() {
         />
       ) : projects.length === 0 ? (
         <EmptyState
-          actionLabel="Criar primeiro projeto"
+          actionLabel={isSupervisor ? undefined : 'Criar primeiro projeto'}
           description="Comece cadastrando um contrato para acompanhar compras, orçamento e reposições em um só lugar."
-          onAction={() => {
-            setEditingProject(null);
-            setFlowOpen(true);
-          }}
+          onAction={
+            isSupervisor
+              ? undefined
+              : () => {
+                  setEditingProject(null);
+                  setFlowOpen(true);
+                }
+          }
           title="Nenhum projeto encontrado"
         />
       ) : (
@@ -156,21 +167,27 @@ export function ProjectsPageContent() {
                     <TableCell>
                       <div className="flex justify-end gap-2">
                         <Button asChild size="sm" variant="outline">
-                          <Link href={`/projects/${project.id}`}>Abrir</Link>
+                          <Link href={isSupervisor ? `/projects/${project.id}/missing-items` : `/projects/${project.id}`}>
+                            {isSupervisor ? 'Abrir relatório' : 'Abrir'}
+                          </Link>
                         </Button>
-                        <Button
-                          onClick={() => {
-                            setEditingProject(project);
-                            setDialogOpen(true);
-                          }}
-                          size="sm"
-                          variant="ghost"
-                        >
-                          <SquarePen className="size-4" />
-                        </Button>
-                        <Button onClick={() => handleDelete(project.id)} size="sm" variant="ghost">
-                          <Trash2 className="size-4" />
-                        </Button>
+                        {!isSupervisor ? (
+                          <>
+                            <Button
+                              onClick={() => {
+                                setEditingProject(project);
+                                setDialogOpen(true);
+                              }}
+                              size="sm"
+                              variant="ghost"
+                            >
+                              <SquarePen className="size-4" />
+                            </Button>
+                            <Button onClick={() => handleDelete(project.id)} size="sm" variant="ghost">
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </>
+                        ) : null}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -181,20 +198,24 @@ export function ProjectsPageContent() {
         </Card>
       )}
 
-      <NewProjectFlowDialog
-        onOpenChange={setFlowOpen}
-        onOpenManualForm={() => {
-          setEditingProject(null);
-          setDialogOpen(true);
-        }}
-        open={flowOpen}
-      />
+      {!isSupervisor ? (
+        <>
+          <NewProjectFlowDialog
+            onOpenChange={setFlowOpen}
+            onOpenManualForm={() => {
+              setEditingProject(null);
+              setDialogOpen(true);
+            }}
+            open={flowOpen}
+          />
 
-      <ProjectFormDialog
-        onOpenChange={setDialogOpen}
-        open={dialogOpen}
-        project={editingProject}
-      />
+          <ProjectFormDialog
+            onOpenChange={setDialogOpen}
+            open={dialogOpen}
+            project={editingProject}
+          />
+        </>
+      ) : null}
     </div>
   );
 }

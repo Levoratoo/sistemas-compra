@@ -78,8 +78,45 @@ export const projectDetailInclude = {
   },
 } satisfies Prisma.ProjectInclude;
 
+export const projectListItemSelect = {
+  id: true,
+  code: true,
+  name: true,
+  organizationName: true,
+  procurementProcessNumber: true,
+  bidNumber: true,
+  contractNumber: true,
+  city: true,
+  state: true,
+  objectSummary: true,
+  projectStatus: true,
+  implementationStatus: true,
+  plannedSignatureDate: true,
+  plannedStartDate: true,
+  actualStartDate: true,
+  contractDurationMonths: true,
+  monthlyContractValue: true,
+  selectedQuoteSlotNumber: true,
+  notes: true,
+  createdAt: true,
+  updatedAt: true,
+  _count: {
+    select: {
+      documents: true,
+      roles: true,
+      budgetItems: true,
+      purchaseOrders: true,
+      implementationTasks: true,
+    },
+  },
+} satisfies Prisma.ProjectSelect;
+
 export type ProjectAggregate = Prisma.ProjectGetPayload<{
   include: typeof projectDetailInclude;
+}>;
+
+export type ProjectListItemRecord = Prisma.ProjectGetPayload<{
+  select: typeof projectListItemSelect;
 }>;
 
 class ProjectRepository {
@@ -97,6 +134,23 @@ class ProjectRepository {
       orderBy: {
         createdAt: 'desc',
       },
+    });
+  }
+
+  findManySummaries(where?: Prisma.ProjectWhereInput) {
+    return prisma.project.findMany({
+      where,
+      select: projectListItemSelect,
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  findSummaryByProjectId(id: string) {
+    return prisma.project.findUnique({
+      where: { id },
+      select: projectListItemSelect,
     });
   }
 

@@ -2,6 +2,7 @@ import { Router } from 'express';
 
 import { documentController } from '../../controllers/document.controller.js';
 import { documentFolderController } from '../../controllers/document-folder.controller.js';
+import { OPERATIONAL_USER_ROLES, requireRole } from '../../middlewares/auth.js';
 import { validateRequest } from '../../middlewares/validate.js';
 import { asyncHandler } from '../../utils/async-handler.js';
 import {
@@ -16,6 +17,8 @@ import {
 } from './document.schemas.js';
 
 export const documentRouter = Router();
+
+documentRouter.use(requireRole(...OPERATIONAL_USER_ROLES));
 
 documentRouter.get(
   '/projects/:id/documents/:documentId/download',
