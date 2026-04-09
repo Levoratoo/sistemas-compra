@@ -455,11 +455,8 @@ export async function bootstrapProjectFromUpload(
   };
 
   const documentResult = await documentService.createProjectDocument(createdProject.id, docPayload);
-
-  const project = await projectService.getProjectById(createdProject.id);
-
   return {
-    project,
+    projectId: createdProject.id,
     documentId: documentResult.id,
   };
 }
@@ -516,10 +513,8 @@ export async function importDocumentToExistingProject(
     };
 
     const documentResult = await documentService.createProjectDocument(projectId, docPayload);
-    const project = await projectService.getProjectById(projectId);
-
     return {
-      project,
+      projectId,
       documentId: documentResult.id,
     };
   }
@@ -562,10 +557,8 @@ export async function importDocumentToExistingProject(
   };
 
   const documentResult = await documentService.createProjectDocument(projectId, docPayload);
-  const project = await projectService.getProjectById(projectId);
-
   return {
-    project,
+    projectId,
     documentId: documentResult.id,
   };
 }

@@ -1,13 +1,11 @@
 import { DataOriginType, DocumentReviewStatus, Prisma, TaskStatus } from '@prisma/client';
 
 import { prisma } from '../config/prisma.js';
-import { projectRepository } from '../repositories/project.repository.js';
 import { AppError } from '../utils/app-error.js';
 import { parseOptionalDate } from '../utils/date.js';
 import { toDecimal } from '../utils/decimal.js';
 import type { ApplyExtractionBody } from '../modules/extraction-apply/extraction-apply.schemas.js';
 import {
-  mapProjectAggregate,
   normalizeOptionalUniqueText,
   toProjectUpdateData,
 } from './project.service.js';
@@ -227,9 +225,11 @@ export async function applyExtractionToProject(
     });
   });
 
-  const updated = await projectRepository.findById(projectId);
-  if (!updated) {
-    throw new AppError('Projeto não encontrado.', 404);
-  }
-  return mapProjectAggregate(updated);
+  return {
+    projectId,
+    documentId,
+    roleCount: body.roles.length,
+    budgetItemCount: body.budgetItems.length,
+    taskCount: body.tasks.length,
+  };
 }

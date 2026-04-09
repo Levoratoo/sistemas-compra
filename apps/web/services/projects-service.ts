@@ -63,7 +63,7 @@ export function deleteProject(projectId: string) {
 }
 
 export type BootstrapProjectFromDocumentResult = {
-  project: ProjectDetail;
+  projectId: string;
   documentId: string;
 };
 
@@ -75,7 +75,7 @@ export function bootstrapProjectFromDocument(file: File, documentType: DocumentT
 }
 
 export type ImportDocumentToProjectResult = {
-  project: ProjectDetail;
+  projectId: string;
   documentId: string;
 };
 
@@ -155,12 +155,20 @@ export type ApplyExtractionPayload = {
   tasks: ApplyExtractionTaskInput[];
 };
 
+export type ApplyExtractionResult = {
+  projectId: string;
+  documentId: string;
+  roleCount: number;
+  budgetItemCount: number;
+  taskCount: number;
+};
+
 export function applyExtractionToProject(
   projectId: string,
   documentId: string,
   payload: ApplyExtractionPayload,
 ) {
-  return apiRequest<ProjectDetail>(`projects/${projectId}/documents/${documentId}/apply-extraction`, {
+  return apiRequest<ApplyExtractionResult>(`projects/${projectId}/documents/${documentId}/apply-extraction`, {
     method: 'POST',
     body: payload,
   });

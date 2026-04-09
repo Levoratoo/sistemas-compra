@@ -65,11 +65,11 @@ export function NewProjectFlowDialog({ open, onOpenChange, onOpenManualForm }: N
 
     setProcessing(true);
     try {
-      const { project, documentId } = await bootstrapProjectFromDocument(file, BOOTSTRAP_DOCUMENT_TYPE);
+      const { projectId, documentId } = await bootstrapProjectFromDocument(file, BOOTSTRAP_DOCUMENT_TYPE);
       await queryClient.invalidateQueries({ queryKey: ['projects'] });
       toast.success('Documento processado. Revise os dados extraídos.');
       handleClose(false);
-      router.push(`/projects/${project.id}/documents/${documentId}/review`);
+      router.push(`/projects/${projectId}/documents/${documentId}/review`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Não foi possível processar o documento.';
       toast.error(message);
