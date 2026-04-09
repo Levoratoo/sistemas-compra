@@ -23,6 +23,29 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+const demoCredentials = [
+  {
+    label: 'Administrador',
+    email: 'admin@sitecompras.local',
+    password: 'Admin@123',
+  },
+  {
+    label: 'Usuario operacional',
+    email: 'usuario@sitecompras.local',
+    password: 'Usuario@123',
+  },
+  {
+    label: 'Aprovador',
+    email: 'aprovador@sitecompras.local',
+    password: 'Aprovador@123',
+  },
+  {
+    label: 'Supervisora',
+    email: 'supervisora@sitecompras.local',
+    password: 'Supervisora@123',
+  },
+] as const;
+
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -66,7 +89,7 @@ export function LoginForm() {
         <CardTitle className="font-heading text-2xl">Entrar</CardTitle>
         <CardDescription>Use o e-mail e a senha fornecidos pelo administrador.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6">
         <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
           <div className="space-y-2">
             <Label htmlFor="email">E-mail</Label>
@@ -94,6 +117,50 @@ export function LoginForm() {
             {submitting ? 'Entrando...' : 'Entrar'}
           </Button>
         </form>
+        <div className="rounded-2xl border border-border/70 bg-muted/30 p-4">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-foreground">Credenciais de acesso</p>
+            <p className="text-xs text-muted-foreground">
+              Perfis demo disponiveis para entrar rapidamente.
+            </p>
+          </div>
+          <div className="mt-3 space-y-3">
+            {demoCredentials.map((credential) => (
+              <div
+                key={credential.email}
+                className="flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-background/90 p-3"
+              >
+                <div className="space-y-1 text-sm">
+                  <p className="font-medium text-foreground">{credential.label}</p>
+                  <p className="text-xs text-muted-foreground">
+                    E-mail:{' '}
+                    <span className="font-mono text-foreground">{credential.email}</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Senha:{' '}
+                    <span className="font-mono text-foreground">{credential.password}</span>
+                  </p>
+                </div>
+                <Button
+                  className="shrink-0"
+                  onClick={() => {
+                    form.setValue('email', credential.email, { shouldDirty: true, shouldValidate: true });
+                    form.setValue('password', credential.password, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                    form.clearErrors();
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Usar
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

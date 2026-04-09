@@ -428,6 +428,14 @@ async function main() {
       role: 'APPROVER',
     },
   });
+  await prisma.user.create({
+    data: {
+      email: 'supervisora@sitecompras.local',
+      passwordHash: hashPassword('Supervisora@123'),
+      name: 'Supervisora',
+      role: 'SUPERVISOR',
+    },
+  });
 
   console.log('Seed concluida com sucesso.');
 }

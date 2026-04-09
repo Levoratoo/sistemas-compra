@@ -1,11 +1,11 @@
 /**
- * Cria ou atualiza só os 3 utilizadores demo (mesmas passwords que `seed.ts`).
- * Não apaga dados — seguro para correr na base de produção/staging quando ainda não há users.
+ * Cria ou atualiza so os 4 usuarios demo (mesmas senhas do `seed.ts`).
+ * Nao apaga dados e pode ser usado para repor acessos locais, staging ou producao.
  *
- * Render (Shell, com DATABASE_URL já definido pelo painel):
+ * Render:
  *   cd apps/api && npx tsx prisma/seed-users-only.ts
  *
- * Local (com .env):
+ * Local:
  *   npm run db:seed:users -w apps/api
  */
 import path from 'node:path';
@@ -49,36 +49,37 @@ const demoUsers: Array<{
   role: UserRole;
 }> = [
   { email: 'admin@sitecompras.local', password: 'Admin@123', name: 'Administrador', role: 'ADMIN' },
-  { email: 'usuario@sitecompras.local', password: 'Usuario@123', name: 'Usuário operacional', role: 'USER' },
+  { email: 'usuario@sitecompras.local', password: 'Usuario@123', name: 'Usuario operacional', role: 'USER' },
   { email: 'aprovador@sitecompras.local', password: 'Aprovador@123', name: 'Aprovador', role: 'APPROVER' },
+  { email: 'supervisora@sitecompras.local', password: 'Supervisora@123', name: 'Supervisora', role: 'SUPERVISOR' },
 ];
 
 async function main() {
-  for (const u of demoUsers) {
-    const email = u.email.trim().toLowerCase();
-    const passwordHash = hashPassword(u.password);
+  for (const user of demoUsers) {
+    const email = user.email.trim().toLowerCase();
+    const passwordHash = hashPassword(user.password);
 
     await prisma.user.upsert({
       where: { email },
       create: {
         email,
         passwordHash,
-        name: u.name,
-        role: u.role,
+        name: user.name,
+        role: user.role,
         isActive: true,
       },
       update: {
         passwordHash,
-        name: u.name,
-        role: u.role,
+        name: user.name,
+        role: user.role,
         isActive: true,
       },
     });
 
-    console.log(`User OK: ${email} (${u.role})`);
+    console.log(`User OK: ${email} (${user.role})`);
   }
 
-  console.log('seed-users-only concluído.');
+  console.log('seed-users-only concluido.');
 }
 
 main()
