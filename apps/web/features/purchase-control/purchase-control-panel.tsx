@@ -258,29 +258,93 @@ function ymdAddDays(ymd: string, days: number): string {
   return `${y}-${m}-${day}`;
 }
 
+/** yyyy-mm-dd a partir de hoje + offset (dias podem ser negativos). */
+function ymdTodayOffset(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+type RandomReposicaoScenario = 'nearDue' | 'overdue' | 'calm' | 'repostoLabel';
+
+function scenarioFromRowIndex(rowIndex: number): RandomReposicaoScenario {
+  const m = rowIndex % 4;
+  if (m === 0) return 'nearDue';
+  if (m === 1) return 'overdue';
+  if (m === 2) return 'calm';
+  return 'repostoLabel';
+}
+
 /**
  * Gera dados de teste para todas as colunas editáveis (Fase 1 + Fase 2).
- * Colunas somente leitura (órgão, data assinatura projeto, valor total calculado, contrato, reposição prevista calculada) não entram no payload.
+ * Por linha alterna cenários de reposição: perto de vencer (janela amarela), em atraso, em dia (data longe) e rótulo “Reposto”
+ * (alinhado a `purchaseControlReplenishmentRowStatus` / telas de reposição). `nextReplenishmentExpectedAt` explícito prevalece sobre entrega+6m.
  */
-function buildRandomPurchaseControlPayload(): Partial<BudgetItemPayload> {
+function buildRandomPurchaseControlPayload(rowIndex: number): Partial<BudgetItemPayload> {
   const cat = RANDOM_CATEGORIES[randomInt(0, RANDOM_CATEGORIES.length - 1)]!;
   const name = RANDOM_ITEM_NAMES[randomInt(0, RANDOM_ITEM_NAMES.length - 1)]!;
   const plannedQuantity = randomInt(1, 48);
   const rubricMaxValue = Math.round((Math.random() * 8000 + 300) * 100) / 100;
   const peopleCount = randomInt(1, 50);
   const actualUnitValue = Math.round((Math.random() * 400 + 5) * 100) / 100;
-  const payYmd = randomYmdFromToday(10, 200);
-  const expYmd = ymdAddDays(payYmd, randomInt(5, 45));
-  const delYmd = ymdAddDays(expYmd, randomInt(1, 25));
+  const scenario = scenarioFromRowIndex(rowIndex);
+
+  let payYmd: string;
+  let expYmd: string;
+  let delYmd: string;
+  let nextRepIso: string | null;
+  let replenishmentStateLabel: string;
+
+  switch (scenario) {
+    case 'nearDue': {
+      const nextYmd = ymdTodayOffset(randomInt(6, 28));
+      nextRepIso = dateToIsoMidday(nextYmd);
+      delYmd = ymdTodayOffset(-randomInt(150, 190));
+      expYmd = ymdAddDays(delYmd, -randomInt(4, 18));
+      payYmd = ymdAddDays(expYmd, -randomInt(12, 40));
+      replenishmentStateLabel = 'Acompanhar — prazo de reposição próximo';
+      break;
+    }
+    case 'overdue': {
+      const nextYmd = ymdTodayOffset(-randomInt(10, 55));
+      nextRepIso = dateToIsoMidday(nextYmd);
+      delYmd = ymdTodayOffset(-randomInt(220, 420));
+      expYmd = ymdAddDays(delYmd, -randomInt(5, 25));
+      payYmd = ymdAddDays(expYmd, -randomInt(15, 50));
+      replenishmentStateLabel = 'Atraso — repor o quanto antes';
+      break;
+    }
+    case 'calm': {
+      const nextYmd = ymdTodayOffset(randomInt(140, 320));
+      nextRepIso = dateToIsoMidday(nextYmd);
+      delYmd = ymdTodayOffset(-randomInt(20, 90));
+      expYmd = ymdAddDays(delYmd, -randomInt(3, 14));
+      payYmd = ymdAddDays(expYmd, -randomInt(10, 35));
+      replenishmentStateLabel = 'Em dia';
+      break;
+    }
+    case 'repostoLabel': {
+      const nextYmd = ymdTodayOffset(randomInt(45, 160));
+      nextRepIso = dateToIsoMidday(nextYmd);
+      delYmd = ymdTodayOffset(-randomInt(160, 240));
+      expYmd = ymdAddDays(delYmd, -randomInt(4, 20));
+      payYmd = ymdAddDays(expYmd, -randomInt(12, 45));
+      replenishmentStateLabel = 'Reposto — teste automático (mesmos dados nas telas de reposição)';
+      break;
+    }
+  }
+
   const payIso = dateToIsoMidday(payYmd);
   const expIso = dateToIsoMidday(expYmd);
   const delIso = dateToIsoMidday(delYmd);
-  const nextRepIso = delIso ? nextReplenishmentIsoFromDelivered(delIso) : null;
 
   return {
     itemCategory: cat,
     name,
-    specification: `Especificação teste — lote ${randomInt(100, 999)}; conforme edital.`,
+    specification: `Especificação teste — lote ${randomInt(100, 999)}; cenário ${scenario}; conforme edital.`,
     sizeLabel: ['PP', 'P', 'M', 'G', 'GG', 'XG'][randomInt(0, 5)] ?? 'Único',
     requiresCa: Math.random() < 0.4 ? true : Math.random() < 0.5 ? false : null,
     roleReference: `${randomInt(1, 12)}. ${['Materiais', 'Equipamentos', 'EPIs', 'Uniformes'][randomInt(0, 3)]} — referência ${randomInt(1, 99)}`,
@@ -299,10 +363,10 @@ function buildRandomPurchaseControlPayload(): Partial<BudgetItemPayload> {
     opDeliveredAt: delIso,
     nextReplenishmentExpectedAt: nextRepIso,
     operationalStagesStatus: `Etapa ${randomInt(1, 5)} / ${randomInt(5, 8)}`,
-    replenishmentStateLabel: Math.random() < 0.5 ? 'Em dia' : 'Acompanhar',
+    replenishmentStateLabel,
     competenceLabel: `${String(randomInt(1, 12)).padStart(2, '0')}/2026`,
     administrativeFeePercent: Math.round(Math.random() * 120) / 10,
-    notes: `Preenchimento automático de teste em ${new Date().toLocaleString('pt-BR')}.`,
+    notes: `Teste automático (${scenario}) em ${new Date().toLocaleString('pt-BR')} — datas alinhadas ao controle e às telas de reposição.`,
   };
 }
 
@@ -403,10 +467,10 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
     setRandomFillBusy(true);
     try {
       const results = await Promise.allSettled(
-        targets.map((row) =>
+        targets.map((row, index) =>
           updateItem.mutateAsync({
             id: row.id,
-            payload: buildRandomPurchaseControlPayload(),
+            payload: buildRandomPurchaseControlPayload(index),
           }),
         ),
       );
@@ -414,7 +478,9 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
       if (failed > 0) {
         toast.error(`${failed} linha(s) falharam ao salvar. Verifique a rede ou tente de novo.`);
       } else {
-        toast.success(`${targets.length} linha(s) preenchidas com dados de teste (todas as colunas editáveis).`);
+        toast.success(
+          `${targets.length} linha(s) preenchidas com cenários de reposição (próximo do vencimento, em atraso, em dia e reposto).`,
+        );
       }
     } catch {
       toast.error('Falha ao aplicar valores aleatórios.');
