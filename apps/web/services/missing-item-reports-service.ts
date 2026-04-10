@@ -1,5 +1,10 @@
 import { apiRequest, apiUploadJson } from '@/services/api-client';
-import type { MissingItemReport, MissingItemUrgency, OwnerApprovalStatus } from '@/types/api';
+import type {
+  MissingItemReport,
+  MissingItemUrgency,
+  OwnerApprovalStatus,
+  PendingMissingItemApproval,
+} from '@/types/api';
 
 export type MissingItemReportPayload = {
   requesterName: string;
@@ -16,6 +21,10 @@ export type MissingItemReportUpdatePayload = Partial<MissingItemReportPayload> &
 
 export function listMissingItemReports(projectId: string) {
   return apiRequest<MissingItemReport[]>(`projects/${projectId}/missing-item-reports`);
+}
+
+export function listPendingMissingItemApprovals() {
+  return apiRequest<PendingMissingItemApproval[]>('missing-item-reports/pending-approval');
 }
 
 export function createMissingItemReport(projectId: string, payload: MissingItemReportPayload) {

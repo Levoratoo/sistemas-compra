@@ -10,14 +10,16 @@ import { useSidebar } from '@/components/layout/sidebar-context';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/components/auth/auth-context';
 import { canAccessTopLevelNav } from '@/lib/role-access';
-import { adminNavItem, mainNav } from '@/lib/nav';
+import { adminNavItem, approverInboxNavItem, mainNav } from '@/lib/nav';
 
 export function AppSidebar() {
   const pathname = usePathname();
   const { isAdmin, user } = useAuth();
   const { open, setOpen } = useSidebar();
+  const showApproverInbox = user?.role === 'APPROVER' || user?.role === 'ADMIN';
   const navItems = [
     ...mainNav.filter((item) => canAccessTopLevelNav(user?.role, item.href)),
+    ...(showApproverInbox ? [approverInboxNavItem] : []),
     ...(isAdmin ? [adminNavItem] : []),
   ];
   const setOpenRef = useRef(setOpen);

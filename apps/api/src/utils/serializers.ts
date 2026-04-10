@@ -121,6 +121,18 @@ export function serializeMissingItemReport(report: MissingItemReportWithAttachme
   };
 }
 
+type PendingMissingItemRow = MissingItemReportWithAttachments & {
+  project: { id: string; code: string; name: string };
+};
+
+export function serializePendingMissingItemReport(row: PendingMissingItemRow) {
+  const { project, ...report } = row;
+  return {
+    ...serializeMissingItemReport(report),
+    project: { id: project.id, code: project.code, name: project.name },
+  };
+}
+
 export function serializeBudgetItem(item: BudgetItem) {
   return {
     ...item,

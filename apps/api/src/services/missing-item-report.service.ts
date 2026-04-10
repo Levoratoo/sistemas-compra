@@ -17,7 +17,7 @@ import type {
 import { AppError } from '../utils/app-error.js';
 import { parseOptionalDate } from '../utils/date.js';
 import { ensureRelativeStoragePath, sanitizeFileName, toRelativeProjectPath } from '../utils/file.js';
-import { serializeMissingItemReport } from '../utils/serializers.js';
+import { serializeMissingItemReport, serializePendingMissingItemReport } from '../utils/serializers.js';
 
 type ViewerAuth = {
   userId?: string;
@@ -40,6 +40,13 @@ async function assertSupervisorCanAccessProject(projectId: string, viewer?: View
   const hasAccess = await userRepository.hasReleasedProject(viewer.userId, projectId);
   if (!hasAccess) {
     throw new AppError('Sem permissao para este projeto.', 403);
+  }
+}
+
+function assertApproverOrAdmin(viewer?: ViewerAuth) {
+  const role = viewer?.role;
+  if (role !== 'APPROVER' && role !== 'ADMIN') {
+    throw new AppError('Apenas aprovadores ou administradores podem consultar a fila de aprovações.', 403);
   }
 }
 
@@ -139,6 +146,12 @@ class MissingItemReportService {
     await assertSupervisorCanAccessProject(projectId, viewer);
     const rows = await missingItemReportRepository.findByProject(projectId);
     return rows.map(serializeMissingItemReport);
+  }
+
+  async listPendingApproval(viewer?: ViewerAuth) {
+    assertApproverOrAdmin(viewer);
+    const rows = await missingItemReportRepository.findPendingApprovalWithProject();
+    return rows.map(serializePendingMissingItemReport);
   }
 
   async update(reportId: string, input: UpdateMissingItemReportInput, viewer?: ViewerAuth) {

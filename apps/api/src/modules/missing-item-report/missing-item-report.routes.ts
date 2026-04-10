@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 
 import { missingItemReportController } from '../../controllers/missing-item-report.controller.js';
+import { requireRole } from '../../middlewares/auth.js';
 import { validateRequest } from '../../middlewares/validate.js';
 import { asyncHandler } from '../../utils/async-handler.js';
 import {
@@ -18,6 +19,12 @@ const uploadAttachment = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 },
 });
+
+missingItemReportRouter.get(
+  '/missing-item-reports/pending-approval',
+  requireRole('APPROVER', 'ADMIN'),
+  asyncHandler((request, response) => missingItemReportController.listPendingApproval(request, response)),
+);
 
 missingItemReportRouter.post(
   '/projects/:id/missing-item-reports',

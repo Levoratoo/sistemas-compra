@@ -21,6 +21,11 @@ class MissingItemReportController {
     response.json(result);
   }
 
+  async listPendingApproval(request: Request, response: Response) {
+    const result = await missingItemReportService.listPendingApproval(request.auth);
+    response.json(result);
+  }
+
   async update(request: Request, response: Response) {
     const result = await missingItemReportService.update(
       String(request.params.id),

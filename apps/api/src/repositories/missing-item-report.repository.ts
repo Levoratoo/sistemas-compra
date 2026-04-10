@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client';
+import { OwnerApprovalStatus, type Prisma } from '@prisma/client';
 
 import { prisma } from '../config/prisma.js';
 
@@ -7,6 +7,15 @@ const attachmentsInclude = {
     orderBy: { createdAt: 'asc' as const },
   },
 } satisfies Prisma.MissingItemReportInclude;
+
+const pendingApprovalInclude = {
+  attachments: {
+    orderBy: { createdAt: 'asc' as const },
+  },
+  project: {
+    select: { id: true, code: true, name: true },
+  },
+} as const satisfies Prisma.MissingItemReportInclude;
 
 class MissingItemReportRepository {
   create(data: Prisma.MissingItemReportUncheckedCreateInput) {
@@ -21,6 +30,14 @@ class MissingItemReportRepository {
       where: { projectId },
       orderBy: { requestDate: 'desc' },
       include: attachmentsInclude,
+    });
+  }
+
+  findPendingApprovalWithProject() {
+    return prisma.missingItemReport.findMany({
+      where: { ownerApprovalStatus: OwnerApprovalStatus.PENDING },
+      orderBy: { requestDate: 'desc' },
+      include: pendingApprovalInclude,
     });
   }
 

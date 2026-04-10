@@ -74,6 +74,11 @@ export interface MissingItemReport extends EntityTimestamps {
   ownerApprovedAt: string | null;
   attachments: MissingItemReportAttachment[];
 }
+
+/** Solicitação na fila global de aprovação (GET pending-approval), com dados do contrato. */
+export interface PendingMissingItemApproval extends MissingItemReport {
+  project: { id: string; code: string; name: string };
+}
 export type PurchaseStatus =
   | 'TO_START'
   | 'QUOTING'

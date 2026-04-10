@@ -7,6 +7,7 @@ import {
   deleteMissingItemReport,
   deleteMissingItemReportAttachment,
   listMissingItemReports,
+  listPendingMissingItemApprovals,
   type MissingItemReportPayload,
   type MissingItemReportUpdatePayload,
   updateMissingItemReport,
@@ -18,6 +19,26 @@ export function useMissingItemReportsQuery(projectId: string) {
     queryKey: ['missing-item-reports', projectId],
     queryFn: () => listMissingItemReports(projectId),
     enabled: Boolean(projectId),
+  });
+}
+
+export function usePendingMissingItemApprovalsQuery() {
+  return useQuery({
+    queryKey: ['missing-item-reports', 'pending-approval'],
+    queryFn: () => listPendingMissingItemApprovals(),
+  });
+}
+
+/** Aprovar/rejeitar na fila global: invalida a fila e quaisquer listagens por projeto. */
+export function useMissingItemApprovalDecisionMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, ownerApprovalStatus }: { id: string; ownerApprovalStatus: 'APPROVED' | 'REJECTED' }) =>
+      updateMissingItemReport(id, { ownerApprovalStatus }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['missing-item-reports'] });
+    },
   });
 }
 
