@@ -145,11 +145,11 @@ function addFilesFromList(files: FileList | null, onAdd: (files: File[]) => void
 
 function AttachmentList({
   attachments,
-  onRemove,
+  onRequestRemove,
   disabled,
 }: {
   attachments: MissingItemReportAttachment[];
-  onRemove: (id: string) => void;
+  onRequestRemove: (attachment: MissingItemReportAttachment) => void;
   disabled?: boolean;
 }) {
   if (!attachments.length) return null;
@@ -175,7 +175,7 @@ function AttachmentList({
           </div>
           <Button
             aria-label="Baixar"
-            className="size-8 shrink-0"
+            className="h-9 w-9 shrink-0"
             disabled={disabled}
             size="icon"
             type="button"
@@ -183,23 +183,65 @@ function AttachmentList({
             asChild
           >
             <a download={att.originalFileName} href={attachmentHref(att.storagePath)} rel="noopener noreferrer">
-              <Download className="size-4" />
+              <Download className="size-[18px]" />
             </a>
           </Button>
           <Button
             aria-label="Remover anexo"
-            className="size-8 shrink-0 text-destructive hover:text-destructive"
+            className="h-9 w-9 shrink-0 text-destructive hover:text-destructive"
             disabled={disabled}
-            onClick={() => onRemove(att.id)}
+            onClick={() => onRequestRemove(att)}
             size="icon"
             type="button"
             variant="ghost"
           >
-            <Trash2 className="size-4" />
+            <Trash2 className="size-[18px]" />
           </Button>
         </li>
       ))}
     </ul>
+  );
+}
+
+function ConfirmDestructiveDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  confirmLabel,
+  pending,
+  onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  pending?: boolean;
+  onConfirm: () => void | Promise<void>;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2 sm:justify-end">
+          <Button disabled={pending} onClick={() => onOpenChange(false)} type="button" variant="ghost">
+            Cancelar
+          </Button>
+          <Button
+            disabled={pending}
+            onClick={() => void onConfirm()}
+            type="button"
+            variant="destructive"
+          >
+            {pending ? 'Aguarde…' : confirmLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -219,6 +261,7 @@ function ReportDialog({
   const fileCreateRef = useRef<HTMLInputElement>(null);
   const fileEditRef = useRef<HTMLInputElement>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [removeAttachmentId, setRemoveAttachmentId] = useState<string | null>(null);
 
   const form = useForm<FormValues, undefined, FormSubmitValues>({
     resolver: zodResolver(formSchema),
@@ -308,12 +351,18 @@ function ReportDialog({
     }
   }
 
-  async function handleRemoveAttachment(attachmentId: string) {
-    if (!window.confirm('Remover este anexo?')) return;
+  const removeAttachmentLabel =
+    removeAttachmentId && report
+      ? report.attachments.find((a) => a.id === removeAttachmentId)?.originalFileName
+      : undefined;
+
+  async function confirmRemoveAttachment() {
+    if (!removeAttachmentId) return;
 
     try {
-      await deleteAttachment.mutateAsync(attachmentId);
+      await deleteAttachment.mutateAsync(removeAttachmentId);
       toast.success('Anexo removido.');
+      setRemoveAttachmentId(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível remover o anexo.');
     }
@@ -338,7 +387,29 @@ function ReportDialog({
   const editAttachments = report?.attachments ?? [];
 
   return (
-    <Dialog onOpenChange={onOpenChange} open={open}>
+    <>
+      <ConfirmDestructiveDialog
+        confirmLabel="Remover anexo"
+        description={
+          removeAttachmentLabel
+            ? `O arquivo "${removeAttachmentLabel}" será removido desta solicitação.`
+            : 'O anexo será removido desta solicitação.'
+        }
+        onConfirm={confirmRemoveAttachment}
+        onOpenChange={(next) => {
+          if (!next) setRemoveAttachmentId(null);
+        }}
+        open={removeAttachmentId !== null}
+        pending={deleteAttachment.isPending}
+        title="Remover anexo?"
+      />
+      <Dialog
+        onOpenChange={(next) => {
+          if (!next) setRemoveAttachmentId(null);
+          onOpenChange(next);
+        }}
+        open={open}
+      >
       <DialogContent className="max-h-[min(92vh,760px)] flex flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
         <div className="border-b border-border/60 bg-muted/20 px-6 py-5">
           <DialogHeader className="space-y-1.5 text-left">
@@ -421,7 +492,7 @@ function ReportDialog({
                   <AttachmentList
                     attachments={editAttachments}
                     disabled={deleteAttachment.isPending}
-                    onRemove={handleRemoveAttachment}
+                    onRequestRemove={(att) => setRemoveAttachmentId(att.id)}
                   />
                   <input
                     ref={fileEditRef}
@@ -513,6 +584,7 @@ function ReportDialog({
         </form>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
 
@@ -538,6 +610,11 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
   const [randomFillBusy, setRandomFillBusy] = useState(false);
   /** IDs das solicitações com detalhes expandidos. */
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  const [deleteReportTarget, setDeleteReportTarget] = useState<MissingItemReport | null>(null);
+  const [removeAttachmentConfirm, setRemoveAttachmentConfirm] = useState<{
+    id: string;
+    fileName: string;
+  } | null>(null);
 
   function toggleExpanded(id: string) {
     setExpandedIds((prev) => {
@@ -564,23 +641,25 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
     setDialogOpen(true);
   }
 
-  async function handleDelete(row: MissingItemReport) {
-    if (!window.confirm('Excluir esta solicitação e todos os anexos?')) return;
+  async function confirmDeleteReport() {
+    if (!deleteReportTarget) return;
 
     try {
-      await deleteReport.mutateAsync(row.id);
+      await deleteReport.mutateAsync(deleteReportTarget.id);
       toast.success('Solicitação excluída.');
+      setDeleteReportTarget(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível excluir.');
     }
   }
 
-  async function handleCardRemoveAttachment(attachmentId: string) {
-    if (!window.confirm('Remover este anexo?')) return;
+  async function confirmCardRemoveAttachment() {
+    if (!removeAttachmentConfirm) return;
 
     try {
-      await deleteAttachment.mutateAsync(attachmentId);
+      await deleteAttachment.mutateAsync(removeAttachmentConfirm.id);
       toast.success('Anexo removido.');
+      setRemoveAttachmentConfirm(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível remover.');
     }
@@ -788,27 +867,27 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
                           </div>
                         </div>
                       </button>
-                      <div className="flex shrink-0 items-start gap-0.5 border-l border-border/40 py-1.5 pr-2 sm:pr-3">
+                      <div className="flex shrink-0 items-center gap-1 border-l border-border/40 px-1 py-2 sm:px-1.5 sm:py-2.5">
                         <Button
                           aria-label="Editar solicitação"
-                          className="size-8 text-muted-foreground"
+                          className="h-10 w-10 text-muted-foreground sm:h-11 sm:w-11"
                           onClick={() => openEdit(row)}
                           size="icon"
                           type="button"
                           variant="ghost"
                         >
-                          <Pencil className="size-3.5" />
+                          <Pencil className="size-[18px] sm:size-5" />
                         </Button>
                         <Button
                           aria-label="Excluir solicitação"
-                          className="size-8 text-destructive hover:text-destructive"
+                          className="h-10 w-10 text-destructive hover:text-destructive sm:h-11 sm:w-11"
                           disabled={deleteReport.isPending}
-                          onClick={() => void handleDelete(row)}
+                          onClick={() => setDeleteReportTarget(row)}
                           size="icon"
                           type="button"
                           variant="ghost"
                         >
-                          <Trash2 className="size-3.5" />
+                          <Trash2 className="size-[18px] sm:size-5" />
                         </Button>
                       </div>
                     </div>
@@ -872,7 +951,9 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
                             <AttachmentList
                               attachments={row.attachments}
                               disabled={deleteAttachment.isPending}
-                              onRemove={handleCardRemoveAttachment}
+                              onRequestRemove={(att) =>
+                                setRemoveAttachmentConfirm({ id: att.id, fileName: att.originalFileName })
+                              }
                             />
                           ) : (
                             <p className="text-[11px] leading-snug text-muted-foreground">
@@ -889,6 +970,34 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
           )}
         </CardContent>
       </Card>
+
+      <ConfirmDestructiveDialog
+        confirmLabel="Excluir solicitação"
+        description="Esta ação não pode ser desfeita. Todos os anexos desta solicitação serão removidos."
+        onConfirm={confirmDeleteReport}
+        onOpenChange={(next) => {
+          if (!next) setDeleteReportTarget(null);
+        }}
+        open={deleteReportTarget !== null}
+        pending={deleteReport.isPending}
+        title="Excluir esta solicitação?"
+      />
+
+      <ConfirmDestructiveDialog
+        confirmLabel="Remover anexo"
+        description={
+          removeAttachmentConfirm
+            ? `O arquivo "${removeAttachmentConfirm.fileName}" será removido desta solicitação.`
+            : 'O anexo será removido.'
+        }
+        onConfirm={confirmCardRemoveAttachment}
+        onOpenChange={(next) => {
+          if (!next) setRemoveAttachmentConfirm(null);
+        }}
+        open={removeAttachmentConfirm !== null}
+        pending={deleteAttachment.isPending}
+        title="Remover anexo?"
+      />
 
       <ReportDialog
         onOpenChange={(next) => {
