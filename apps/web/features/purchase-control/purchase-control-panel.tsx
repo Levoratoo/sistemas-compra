@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { Dices } from 'lucide-react';
+import { Dices, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { EmptyState } from '@/components/common/empty-state';
@@ -166,6 +166,149 @@ function isPendingReplenishmentRow(item: BudgetItem): boolean {
   if (item.replenishmentCycleConfirmedAt) return false;
   const eff = effectiveNextReplenishmentIso(item);
   return eff != null && isReplenishmentAttentionUi(eff);
+}
+
+/** Linha com ciclo de reposição confirmado (destaque verde na tabela). */
+function isGreenReplenishmentRow(item: BudgetItem): boolean {
+  return Boolean(item.replenishmentCycleConfirmedAt);
+}
+
+type ReplenishmentRowFilter = 'all' | 'yellow' | 'green';
+
+function PurchaseReplenishmentFilter({
+  value,
+  onChange,
+}: {
+  value: ReplenishmentRowFilter;
+  onChange: (v: ReplenishmentRowFilter) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const label =
+    value === 'yellow'
+      ? 'Alerta (amarelo)'
+      : value === 'green'
+        ? 'Confirmado (verde)'
+        : 'Filtrar por cor';
+
+  return (
+    <div ref={rootRef} className="relative">
+      <Button
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className={cn(
+          'h-9 gap-2 rounded-full border border-border/80 bg-background/95 px-3 shadow-sm transition-all hover:bg-muted/70 hover:shadow-md',
+          value !== 'all' && 'border-primary/35 ring-1 ring-primary/20',
+        )}
+        onClick={() => setOpen((o) => !o)}
+        size="sm"
+        title="Filtrar linhas por status de reposição (cores da planilha)"
+        type="button"
+        variant="outline"
+      >
+        <Filter className="size-4 shrink-0 text-muted-foreground" strokeWidth={2} />
+        <span className="hidden text-[11px] font-semibold tracking-tight text-foreground sm:inline">{label}</span>
+        {value !== 'all' && (
+          <span
+            className={cn(
+              'size-2 shrink-0 rounded-full',
+              value === 'yellow' ? 'bg-amber-500' : 'bg-emerald-600 dark:bg-emerald-400',
+            )}
+            aria-hidden
+          />
+        )}
+      </Button>
+      {open ? (
+        <div
+          className="absolute right-0 top-[calc(100%+8px)] z-[100] w-[min(calc(100vw-2rem),18rem)] overflow-hidden rounded-2xl border border-border/80 bg-card py-1.5 text-card-foreground shadow-soft ring-1 ring-black/5 dark:ring-white/10"
+          role="menu"
+        >
+          <p className="px-3 pb-1.5 pt-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            Status de reposição
+          </p>
+          <button
+            className={cn(
+              'flex w-full items-start gap-3 px-3 py-2.5 text-left text-[11px] transition-colors hover:bg-muted/90',
+              value === 'yellow' && 'bg-amber-500/10',
+            )}
+            onClick={() => {
+              onChange('yellow');
+              setOpen(false);
+            }}
+            role="menuitem"
+            type="button"
+          >
+            <span
+              className="mt-0.5 h-8 w-1 shrink-0 rounded-full bg-amber-400 shadow-sm ring-1 ring-amber-600/25 dark:bg-amber-500"
+              aria-hidden
+            />
+            <span className="min-w-0 flex-1">
+              <span className="font-semibold text-foreground">Amarelo</span>
+              <span className="mt-0.5 block text-[10px] leading-snug text-muted-foreground">
+                Alerta de reposição — janela de 30 dias antes da data até confirmar o ciclo.
+              </span>
+            </span>
+          </button>
+          <button
+            className={cn(
+              'flex w-full items-start gap-3 px-3 py-2.5 text-left text-[11px] transition-colors hover:bg-muted/90',
+              value === 'green' && 'bg-emerald-500/10',
+            )}
+            onClick={() => {
+              onChange('green');
+              setOpen(false);
+            }}
+            role="menuitem"
+            type="button"
+          >
+            <span
+              className="mt-0.5 h-8 w-1 shrink-0 rounded-full bg-emerald-500 shadow-sm ring-1 ring-emerald-700/25 dark:bg-emerald-400"
+              aria-hidden
+            />
+            <span className="min-w-0 flex-1">
+              <span className="font-semibold text-foreground">Verde</span>
+              <span className="mt-0.5 block text-[10px] leading-snug text-muted-foreground">
+                Ciclo de reposição já confirmado nesta linha.
+              </span>
+            </span>
+          </button>
+          {value !== 'all' ? (
+            <>
+              <div className="mx-2 my-1 h-px bg-border" role="separator" />
+              <button
+                className="w-full px-3 py-2 text-center text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                onClick={() => {
+                  onChange('all');
+                  setOpen(false);
+                }}
+                role="menuitem"
+                type="button"
+              >
+                Mostrar todos os itens
+              </button>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 const RANDOM_CATEGORIES: BudgetItem['itemCategory'][] = ['UNIFORM', 'EPI', 'EQUIPMENT', 'CONSUMABLE', 'OTHER'];
@@ -364,13 +507,14 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
   );
 
   const [randomFillBusy, setRandomFillBusy] = useState(false);
-  const [onlyPendingReplenishment, setOnlyPendingReplenishment] = useState(false);
+  const [replenishmentFilter, setReplenishmentFilter] = useState<ReplenishmentRowFilter>('all');
 
   const items = itemsQuery.data ?? [];
-  const visibleItems = useMemo(
-    () => (onlyPendingReplenishment ? items.filter(isPendingReplenishmentRow) : items),
-    [items, onlyPendingReplenishment],
-  );
+  const visibleItems = useMemo(() => {
+    if (replenishmentFilter === 'all') return items;
+    if (replenishmentFilter === 'yellow') return items.filter(isPendingReplenishmentRow);
+    return items.filter(isGreenReplenishmentRow);
+  }, [items, replenishmentFilter]);
 
   async function patch(id: string, payload: Partial<BudgetItemPayload>) {
     try {
@@ -438,7 +582,11 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
           title="Nenhum item neste projeto"
         />
       ) : (
-        <Card className="min-w-0 overflow-hidden border-border/80 shadow-sm">
+        <>
+          <div className="flex min-w-0 items-center justify-end gap-2 px-0.5 pb-1 pt-0 sm:px-1">
+            <PurchaseReplenishmentFilter onChange={setReplenishmentFilter} value={replenishmentFilter} />
+          </div>
+          <Card className="min-w-0 overflow-hidden border-border/80 shadow-sm">
           <CardContent className="min-w-0 p-0">
             <div className="max-h-[min(78vh,920px)] w-full min-w-0 overflow-x-auto overflow-y-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
               <table
@@ -458,31 +606,18 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
                     >
                       <div className="flex flex-col items-stretch justify-center gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                         <span className="min-w-0 shrink">Fase 1 — Referência do edital</span>
-                        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
-                          <label className="flex cursor-pointer items-center gap-2 text-left text-[10px] font-semibold normal-case leading-tight text-primary">
-                            <input
-                              checked={onlyPendingReplenishment}
-                              className="size-3.5 shrink-0 rounded border-border accent-primary"
-                              onChange={(e) => setOnlyPendingReplenishment(e.target.checked)}
-                              type="checkbox"
-                            />
-                            <span className="min-w-0">
-                              Exibir apenas itens pendentes de reposição (janela de 30 dias antes da data até confirmar)
-                            </span>
-                          </label>
-                          <Button
-                            className="h-auto min-h-7 max-w-[min(100%,16rem)] shrink-0 gap-1.5 whitespace-normal px-2 py-1 text-center text-[10px] font-semibold leading-tight normal-case"
-                            disabled={randomFillBusy}
-                            onClick={() => void fillRandomPurchaseControlData()}
-                            size="sm"
-                            title="Preenche todas as colunas editáveis (classificação, textos, tamanhos, números, datas, fornecedor, GLPI, taxa, observação, etc.) com dados aleatórios para testes."
-                            type="button"
-                            variant="secondary"
-                          >
-                            <Dices className="size-3.5 shrink-0" />
-                            Gerar informações aleatórias
-                          </Button>
-                        </div>
+                        <Button
+                          className="h-auto min-h-7 max-w-[min(100%,16rem)] shrink-0 gap-1.5 whitespace-normal px-2 py-1 text-center text-[10px] font-semibold leading-tight normal-case"
+                          disabled={randomFillBusy}
+                          onClick={() => void fillRandomPurchaseControlData()}
+                          size="sm"
+                          title="Preenche todas as colunas editáveis (classificação, textos, tamanhos, números, datas, fornecedor, GLPI, taxa, observação, etc.) com dados aleatórios para testes."
+                          type="button"
+                          variant="secondary"
+                        >
+                          <Dices className="size-3.5 shrink-0" />
+                          Gerar informações aleatórias
+                        </Button>
                       </div>
                     </th>
                     <th
@@ -508,14 +643,15 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleItems.length === 0 && onlyPendingReplenishment && items.length > 0 ? (
+                  {visibleItems.length === 0 && replenishmentFilter !== 'all' && items.length > 0 ? (
                     <tr>
                       <td
                         className="border-b border-border bg-muted/30 px-4 py-10 text-center text-[11px] text-muted-foreground"
                         colSpan={PURCHASE_CONTROL_COL_COUNT}
                       >
-                        Nenhum item pendente de reposição neste momento. Desmarque o filtro acima para ver todos os
-                        itens.
+                        {replenishmentFilter === 'yellow'
+                          ? 'Nenhum item em alerta de reposição (amarelo) neste momento. Use o ícone de filtro acima da planilha para mostrar todos ou as linhas verdes.'
+                          : 'Nenhum item com ciclo de reposição confirmado (verde) neste momento. Use o ícone de filtro acima da planilha para mostrar todos ou as linhas amarelas.'}
                       </td>
                     </tr>
                   ) : (
@@ -549,6 +685,7 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
             </div>
           </CardContent>
         </Card>
+        </>
       )}
     </div>
   );
