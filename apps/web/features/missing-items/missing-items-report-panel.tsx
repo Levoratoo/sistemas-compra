@@ -45,6 +45,7 @@ import { formatDate, formatDateTime, formatFileSize } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { projectDocumentPublicFileUrl } from '@/lib/project-document-url';
 import { useMissingItemReportsMutations, useMissingItemReportsQuery } from '@/hooks/use-missing-item-reports';
+import { ApiError } from '@/services/api-client';
 import type { MissingItemReportPayload, MissingItemReportUpdatePayload } from '@/services/missing-item-reports-service';
 import type { MissingItemReport, MissingItemReportAttachment, MissingItemUrgency, OwnerApprovalStatus } from '@/types/api';
 
@@ -517,6 +518,16 @@ function ReportDialog({
 
 const RANDOM_FILL_COUNT = 6;
 
+function formatMutationErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof ApiError) {
+    return error.message;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return fallback;
+}
+
 export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
   const { data: reports, isLoading, isError } = useMissingItemReportsQuery(projectId);
   const { createReport, updateReport, deleteReport, uploadAttachment, deleteAttachment } =
@@ -593,8 +604,10 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
   async function fillRandomMissingItemReports() {
     setRandomFillBusy(true);
     try {
-      const results = await Promise.allSettled(
-        Array.from({ length: RANDOM_FILL_COUNT }, async (_, index) => {
+      let ok = 0;
+      let firstError: unknown;
+      for (let index = 0; index < RANDOM_FILL_COUNT; index++) {
+        try {
           const payload = buildRandomMissingItemPayload(index);
           const created = await createReport.mutateAsync(payload);
           const status = RANDOM_APPROVAL_ROTATION[index % RANDOM_APPROVAL_ROTATION.length]!;
@@ -604,18 +617,29 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
               payload: { ownerApprovalStatus: status },
             });
           }
-        }),
-      );
-      const failed = results.filter((r) => r.status === 'rejected').length;
-      if (failed > 0) {
-        toast.error(`${failed} solicitação(ões) falharam. Verifique a rede ou tente de novo.`);
+          ok++;
+        } catch (error) {
+          if (!firstError) {
+            firstError = error;
+          }
+        }
+      }
+
+      if (ok < RANDOM_FILL_COUNT) {
+        const detail = formatMutationErrorMessage(firstError, 'Erro desconhecido.');
+        const failed = RANDOM_FILL_COUNT - ok;
+        toast.error(
+          ok === 0
+            ? `${failed} solicitação(ões) falharam: ${detail}`
+            : `${failed} de ${RANDOM_FILL_COUNT} falharam (${ok} criada(s)): ${detail}`,
+        );
       } else {
         toast.success(
           `${RANDOM_FILL_COUNT} solicitações de teste criadas (urgências e status de aprovação variados).`,
         );
       }
-    } catch {
-      toast.error('Falha ao gerar solicitações de teste.');
+    } catch (error) {
+      toast.error(`Falha ao gerar solicitações de teste: ${formatMutationErrorMessage(error, 'tente de novo.')}`);
     } finally {
       setRandomFillBusy(false);
     }
