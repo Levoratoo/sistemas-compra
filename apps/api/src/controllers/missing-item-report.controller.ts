@@ -11,12 +11,13 @@ class MissingItemReportController {
     const result = await missingItemReportService.create(
       String(request.params.id),
       request.body as CreateMissingItemReportInput,
+      request.auth,
     );
     response.status(201).json(result);
   }
 
   async listByProject(request: Request, response: Response) {
-    const result = await missingItemReportService.listByProject(String(request.params.id));
+    const result = await missingItemReportService.listByProject(String(request.params.id), request.auth);
     response.json(result);
   }
 
@@ -24,22 +25,23 @@ class MissingItemReportController {
     const result = await missingItemReportService.update(
       String(request.params.id),
       request.body as UpdateMissingItemReportInput,
+      request.auth,
     );
     response.json(result);
   }
 
   async delete(request: Request, response: Response) {
-    await missingItemReportService.delete(String(request.params.id));
+    await missingItemReportService.delete(String(request.params.id), request.auth);
     response.status(204).send();
   }
 
   async addAttachment(request: Request, response: Response) {
-    const result = await missingItemReportService.addAttachment(String(request.params.id), request.file);
+    const result = await missingItemReportService.addAttachment(String(request.params.id), request.file, request.auth);
     response.status(201).json(result);
   }
 
   async deleteAttachment(request: Request, response: Response) {
-    const result = await missingItemReportService.deleteAttachment(String(request.params.id));
+    const result = await missingItemReportService.deleteAttachment(String(request.params.id), request.auth);
     response.json(result);
   }
 }

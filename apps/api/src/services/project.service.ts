@@ -5,6 +5,7 @@ import {
   type ProjectAggregate,
   type ProjectListItemRecord,
 } from '../repositories/project.repository.js';
+import { userRepository } from '../repositories/user.repository.js';
 import { ensureCndRootFolder } from './supplier-cnd-folders.service.js';
 import { syncAllSupplierCndAttachmentsToProject } from './supplier-cnd-sync.service.js';
 import { AppError } from '../utils/app-error.js';
@@ -28,6 +29,11 @@ import type {
   ListProjectsQuery,
   UpdateProjectInput,
 } from '../modules/project/project.schemas.js';
+
+type ProjectViewerContext = {
+  userId?: string;
+  role?: UserRole;
+};
 
 /**
  * Campos usados em @@unique(organizationName, procurementProcessNumber|contractNumber).
@@ -179,7 +185,12 @@ class ProjectService {
     return mapProjectAggregate(created);
   }
 
-  async listProjects(query: ListProjectsQuery, _viewerRole?: UserRole) {
+  async listProjects(query: ListProjectsQuery, viewer?: ProjectViewerContext) {
+    const releasedProjectIds =
+      viewer?.role === 'SUPERVISOR' && viewer.userId
+        ? await userRepository.listReleasedProjectIds(viewer.userId)
+        : null;
+
     const where: Prisma.ProjectWhereInput = {
       AND: [
         query.search
@@ -193,6 +204,7 @@ class ProjectService {
             }
           : {},
         query.projectStatus ? { projectStatus: query.projectStatus } : {},
+        releasedProjectIds ? { id: { in: releasedProjectIds } } : {},
         query.organizationName ? { organizationName: query.organizationName } : {},
       ],
     };
@@ -212,11 +224,18 @@ class ProjectService {
     return mapProjectAggregate(project);
   }
 
-  async getProjectSummaryById(id: string, _viewerRole?: UserRole) {
+  async getProjectSummaryById(id: string, viewer?: ProjectViewerContext) {
     const project = await projectRepository.findSummaryByProjectId(id);
 
     if (!project) {
       throw new AppError('Project not found', 404);
+    }
+
+    if (viewer?.role === 'SUPERVISOR' && viewer.userId) {
+      const hasAccess = await userRepository.hasReleasedProject(viewer.userId, id);
+      if (!hasAccess) {
+        throw new AppError('Project not found', 404);
+      }
     }
 
     return mapProjectListItem(project);

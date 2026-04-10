@@ -20,13 +20,24 @@ import { decimalToNumber } from './decimal.js';
 import { toIsoString } from './date.js';
 import { deriveSupplierCndStatus } from './supplier-cnd-status.js';
 
-export function serializeUser(user: User) {
+type UserWithReleasedProjects = User & {
+  releasedProjects?: Array<{
+    project: Pick<Project, 'id' | 'code' | 'name'>;
+  }>;
+};
+
+export function serializeUser(user: UserWithReleasedProjects) {
   return {
     id: user.id,
     email: user.email,
     name: user.name,
     role: user.role,
     isActive: user.isActive,
+    releasedProjects: (user.releasedProjects ?? []).map((entry) => ({
+      id: entry.project.id,
+      code: entry.project.code,
+      name: entry.project.name,
+    })),
     createdAt: toIsoString(user.createdAt),
     updatedAt: toIsoString(user.updatedAt),
   };

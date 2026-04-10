@@ -115,12 +115,19 @@ export interface EntityTimestamps {
 
 export type UserRole = 'ADMIN' | 'USER' | 'APPROVER' | 'SUPERVISOR';
 
+export interface ReleasedProjectSummary {
+  id: string;
+  code: string;
+  name: string;
+}
+
 export interface AuthUser extends EntityTimestamps {
   id: string;
   email: string;
   name: string;
   role: UserRole;
   isActive: boolean;
+  releasedProjects: ReleasedProjectSummary[];
 }
 
 export interface Project extends EntityTimestamps {

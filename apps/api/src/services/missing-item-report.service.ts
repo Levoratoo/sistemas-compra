@@ -2,12 +2,13 @@ import { randomBytes } from 'node:crypto';
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { OwnerApprovalStatus } from '@prisma/client';
+import { OwnerApprovalStatus, type UserRole } from '@prisma/client';
 
 import { env } from '../config/env.js';
 import { missingItemReportAttachmentRepository } from '../repositories/missing-item-report-attachment.repository.js';
 import { missingItemReportRepository } from '../repositories/missing-item-report.repository.js';
 import { projectRepository } from '../repositories/project.repository.js';
+import { userRepository } from '../repositories/user.repository.js';
 import { notifyMissingItemReportCreated } from './emailjs.service.js';
 import type {
   CreateMissingItemReportInput,
@@ -18,11 +19,27 @@ import { parseOptionalDate } from '../utils/date.js';
 import { ensureRelativeStoragePath, sanitizeFileName, toRelativeProjectPath } from '../utils/file.js';
 import { serializeMissingItemReport } from '../utils/serializers.js';
 
+type ViewerAuth = {
+  userId?: string;
+  role?: UserRole;
+};
+
 async function ensureProjectExists(projectId: string) {
   const project = await projectRepository.exists(projectId);
 
   if (!project) {
     throw new AppError('Project not found', 404);
+  }
+}
+
+async function assertSupervisorCanAccessProject(projectId: string, viewer?: ViewerAuth) {
+  if (viewer?.role !== 'SUPERVISOR' || !viewer.userId) {
+    return;
+  }
+
+  const hasAccess = await userRepository.hasReleasedProject(viewer.userId, projectId);
+  if (!hasAccess) {
+    throw new AppError('Sem permissao para este projeto.', 403);
   }
 }
 
@@ -77,8 +94,9 @@ async function unlinkStoredFile(storagePath: string) {
 }
 
 class MissingItemReportService {
-  async create(projectId: string, input: CreateMissingItemReportInput) {
+  async create(projectId: string, input: CreateMissingItemReportInput, viewer?: ViewerAuth) {
     await ensureProjectExists(projectId);
+    await assertSupervisorCanAccessProject(projectId, viewer);
     const requestDate = parseOptionalDate(input.requestDate);
 
     if (!requestDate) {
@@ -116,18 +134,21 @@ class MissingItemReportService {
     return serializeMissingItemReport(row);
   }
 
-  async listByProject(projectId: string) {
+  async listByProject(projectId: string, viewer?: ViewerAuth) {
     await ensureProjectExists(projectId);
+    await assertSupervisorCanAccessProject(projectId, viewer);
     const rows = await missingItemReportRepository.findByProject(projectId);
     return rows.map(serializeMissingItemReport);
   }
 
-  async update(reportId: string, input: UpdateMissingItemReportInput) {
+  async update(reportId: string, input: UpdateMissingItemReportInput, viewer?: ViewerAuth) {
     const existing = await missingItemReportRepository.findById(reportId);
 
     if (!existing) {
       throw new AppError('Missing item report not found', 404);
     }
+
+    await assertSupervisorCanAccessProject(existing.projectId, viewer);
 
     let nextRequestDate: Date | undefined;
 
@@ -162,12 +183,14 @@ class MissingItemReportService {
     return serializeMissingItemReport(row);
   }
 
-  async delete(reportId: string) {
+  async delete(reportId: string, viewer?: ViewerAuth) {
     const existing = await missingItemReportRepository.findById(reportId);
 
     if (!existing) {
       throw new AppError('Missing item report not found', 404);
     }
+
+    await assertSupervisorCanAccessProject(existing.projectId, viewer);
 
     for (const att of existing.attachments) {
       await unlinkStoredFile(att.storagePath);
@@ -179,6 +202,7 @@ class MissingItemReportService {
   async addAttachment(
     reportId: string,
     file: { buffer: Buffer; originalname: string; mimetype?: string } | undefined,
+    viewer?: ViewerAuth,
   ) {
     if (!file?.buffer?.length) {
       throw new AppError('Envie um arquivo no campo file.', 400);
@@ -189,6 +213,8 @@ class MissingItemReportService {
     if (!report) {
       throw new AppError('Missing item report not found', 404);
     }
+
+    await assertSupervisorCanAccessProject(report.projectId, viewer);
 
     const storage = await storeAttachmentBuffer(report.projectId, reportId, file.buffer, file.originalname);
 
@@ -209,12 +235,14 @@ class MissingItemReportService {
     return serializeMissingItemReport(updated);
   }
 
-  async deleteAttachment(attachmentId: string) {
+  async deleteAttachment(attachmentId: string, viewer?: ViewerAuth) {
     const att = await missingItemReportAttachmentRepository.findById(attachmentId);
 
     if (!att) {
       throw new AppError('Attachment not found', 404);
     }
+
+    await assertSupervisorCanAccessProject(att.report.projectId, viewer);
 
     await unlinkStoredFile(att.storagePath);
     await missingItemReportAttachmentRepository.delete(attachmentId);

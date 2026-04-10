@@ -7,6 +7,7 @@ export const createUserSchema = z.object({
   name: z.string().trim().min(1),
   role: z.nativeEnum(UserRole),
   isActive: z.boolean().optional(),
+  releasedProjectIds: z.array(z.string().trim().min(1)).optional(),
 });
 
 export const updateUserSchema = z
@@ -16,6 +17,7 @@ export const updateUserSchema = z
     name: z.string().trim().min(1).optional(),
     role: z.nativeEnum(UserRole).optional(),
     isActive: z.boolean().optional(),
+    releasedProjectIds: z.array(z.string().trim().min(1)).optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Informe ao menos um campo para atualizar.',

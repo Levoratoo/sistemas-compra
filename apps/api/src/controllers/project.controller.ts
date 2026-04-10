@@ -83,7 +83,10 @@ class ProjectController {
   }
 
   async list(request: Request, response: Response) {
-    const result = await projectService.listProjects(request.query as ListProjectsQuery, request.auth?.role);
+    const result = await projectService.listProjects(request.query as ListProjectsQuery, {
+      role: request.auth?.role,
+      userId: request.auth?.userId,
+    });
     response.json(result);
   }
 
@@ -93,7 +96,10 @@ class ProjectController {
   }
 
   async getSummaryById(request: Request, response: Response) {
-    const result = await projectService.getProjectSummaryById(String(request.params.id), request.auth?.role);
+    const result = await projectService.getProjectSummaryById(String(request.params.id), {
+      role: request.auth?.role,
+      userId: request.auth?.userId,
+    });
     response.json(result);
   }
 

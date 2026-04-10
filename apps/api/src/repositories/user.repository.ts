@@ -6,17 +6,41 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
+const releasedProjectsInclude = {
+  releasedProjects: {
+    include: {
+      project: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: 'asc' as const,
+    },
+  },
+} as const;
+
 class UserRepository {
   findByEmail(email: string) {
-    return prisma.user.findUnique({ where: { email: normalizeEmail(email) } });
+    return prisma.user.findUnique({
+      where: { email: normalizeEmail(email) },
+      include: releasedProjectsInclude,
+    });
   }
 
   findById(id: string) {
-    return prisma.user.findUnique({ where: { id } });
+    return prisma.user.findUnique({
+      where: { id },
+      include: releasedProjectsInclude,
+    });
   }
 
   findMany() {
     return prisma.user.findMany({
+      include: releasedProjectsInclude,
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -30,23 +54,57 @@ class UserRepository {
     });
   }
 
-  create(data: Prisma.UserUncheckedCreateInput) {
+  create(data: Prisma.UserCreateInput) {
     return prisma.user.create({
       data: {
         ...data,
         email: normalizeEmail(data.email),
       },
+      include: releasedProjectsInclude,
     });
   }
 
-  update(id: string, data: Prisma.UserUncheckedUpdateInput) {
-    const payload: Prisma.UserUncheckedUpdateInput = { ...data };
+  update(id: string, data: Prisma.UserUpdateInput) {
+    const payload: Prisma.UserUpdateInput = { ...data };
 
     if (typeof payload.email === 'string') {
       payload.email = normalizeEmail(payload.email);
     }
 
-    return prisma.user.update({ where: { id }, data: payload });
+    return prisma.user.update({
+      where: { id },
+      data: payload,
+      include: releasedProjectsInclude,
+    });
+  }
+
+  async hasReleasedProject(userId: string, projectId: string) {
+    const user = await prisma.user.findUnique({
+      where: {
+        id: userId,
+      },
+      select: {
+        releasedProjects: {
+          where: { projectId },
+          select: { id: true },
+        },
+      },
+    });
+
+    return Boolean(user?.releasedProjects.length);
+  }
+
+  async listReleasedProjectIds(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        releasedProjects: {
+          select: { projectId: true },
+        },
+      },
+    });
+
+    return (user?.releasedProjects ?? []).map((entry) => entry.projectId);
   }
 }
 

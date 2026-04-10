@@ -7,6 +7,7 @@ export type CreateUserPayload = {
   name: string;
   role: UserRole;
   isActive?: boolean;
+  releasedProjectIds?: string[];
 };
 
 export type UpdateUserPayload = {
@@ -15,6 +16,7 @@ export type UpdateUserPayload = {
   name?: string;
   role?: UserRole;
   isActive?: boolean;
+  releasedProjectIds?: string[];
 };
 
 export function listUsers() {

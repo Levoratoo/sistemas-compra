@@ -189,6 +189,13 @@ class ProjectRepository {
       select: { id: true, name: true, code: true },
     });
   }
+
+  findExistingIds(ids: string[]) {
+    return prisma.project.findMany({
+      where: { id: { in: ids } },
+      select: { id: true },
+    });
+  }
 }
 
 export const projectRepository = new ProjectRepository();
