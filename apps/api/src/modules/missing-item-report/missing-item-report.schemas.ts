@@ -31,6 +31,7 @@ export const updateMissingItemReportSchema = z
     necessityReason: z.string().trim().min(1).optional(),
     urgencyLevel: z.nativeEnum(MissingItemUrgency).optional(),
     ownerApprovalStatus: z.nativeEnum(OwnerApprovalStatus).optional(),
+    ownerRejectionNote: z.union([z.string().trim().max(4000), z.literal('')]).optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Informe ao menos um campo para atualizar.',

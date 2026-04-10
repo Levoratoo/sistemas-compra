@@ -34,8 +34,19 @@ export function useMissingItemApprovalDecisionMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, ownerApprovalStatus }: { id: string; ownerApprovalStatus: 'APPROVED' | 'REJECTED' }) =>
-      updateMissingItemReport(id, { ownerApprovalStatus }),
+    mutationFn: ({
+      id,
+      ownerApprovalStatus,
+      ownerRejectionNote,
+    }: {
+      id: string;
+      ownerApprovalStatus: 'APPROVED' | 'REJECTED';
+      ownerRejectionNote?: string | null;
+    }) =>
+      updateMissingItemReport(id, {
+        ownerApprovalStatus,
+        ...(ownerApprovalStatus === 'REJECTED' ? { ownerRejectionNote: ownerRejectionNote ?? null } : {}),
+      }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['missing-item-reports'] });
     },

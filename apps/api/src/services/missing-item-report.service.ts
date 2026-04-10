@@ -189,7 +189,18 @@ class MissingItemReportService {
       ...(input.necessityReason !== undefined ? { necessityReason: input.necessityReason } : {}),
       ...(input.urgencyLevel !== undefined ? { urgencyLevel: input.urgencyLevel } : {}),
       ...(input.ownerApprovalStatus !== undefined
-        ? { ownerApprovalStatus: input.ownerApprovalStatus, ownerApprovedAt }
+        ? {
+            ownerApprovalStatus: input.ownerApprovalStatus,
+            ownerApprovedAt,
+            ...(input.ownerApprovalStatus === OwnerApprovalStatus.REJECTED
+              ? {
+                  ownerRejectionNote:
+                    typeof input.ownerRejectionNote === 'string' && input.ownerRejectionNote.trim() !== ''
+                      ? input.ownerRejectionNote.trim()
+                      : null,
+                }
+              : { ownerRejectionNote: null }),
+          }
         : {}),
     });
 

@@ -9,7 +9,17 @@ import { EmptyState } from '@/components/common/empty-state';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
 import { getMissingItemUrgencyLabel } from '@/lib/constants';
 import { formatDate, formatFileSize } from '@/lib/format';
 import { projectDocumentPublicFileUrl } from '@/lib/project-document-url';
@@ -36,6 +46,8 @@ export function PendingMissingItemsApprovalsPanel({ scopeProjectId }: PanelProps
   const { data: rawItems, isLoading, isError, refetch } = usePendingMissingItemApprovalsQuery();
   const decision = useMissingItemApprovalDecisionMutation();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  const [rejectTarget, setRejectTarget] = useState<PendingMissingItemApproval | null>(null);
+  const [rejectNote, setRejectNote] = useState('');
 
   function toggleExpanded(id: string) {
     setExpandedIds((prev) => {
@@ -52,10 +64,26 @@ export function PendingMissingItemsApprovalsPanel({ scopeProjectId }: PanelProps
     return rawItems.filter((i) => i.projectId === scopeProjectId);
   }, [rawItems, scopeProjectId]);
 
-  async function setStatus(row: PendingMissingItemApproval, ownerApprovalStatus: 'APPROVED' | 'REJECTED') {
+  async function approve(row: PendingMissingItemApproval) {
     try {
-      await decision.mutateAsync({ id: row.id, ownerApprovalStatus });
-      toast.success(ownerApprovalStatus === 'APPROVED' ? 'Solicitação aprovada.' : 'Solicitação rejeitada.');
+      await decision.mutateAsync({ id: row.id, ownerApprovalStatus: 'APPROVED' });
+      toast.success('Solicitação aprovada.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar.');
+    }
+  }
+
+  async function confirmReject() {
+    if (!rejectTarget) return;
+    try {
+      await decision.mutateAsync({
+        id: rejectTarget.id,
+        ownerApprovalStatus: 'REJECTED',
+        ownerRejectionNote: rejectNote.trim() || null,
+      });
+      toast.success('Solicitação rejeitada.');
+      setRejectTarget(null);
+      setRejectNote('');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar.');
     }
@@ -63,6 +91,60 @@ export function PendingMissingItemsApprovalsPanel({ scopeProjectId }: PanelProps
 
   return (
     <div className="space-y-8">
+      <Dialog
+        open={rejectTarget !== null}
+        onOpenChange={(next) => {
+          if (!next) {
+            setRejectTarget(null);
+            setRejectNote('');
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rejeitar solicitação?</DialogTitle>
+            <DialogDescription>
+              Opcionalmente explique o motivo para quem registou o pedido poder acompanhar no relatório do contrato.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="reject-note">Observação / motivo da rejeição</Label>
+            <Textarea
+              id="reject-note"
+              className="min-h-[100px] resize-y"
+              maxLength={4000}
+              onChange={(e) => setRejectNote(e.target.value)}
+              placeholder="Ex.: Orçamento fora do perfil deste contrato; item já coberto por outro processo…"
+              value={rejectNote}
+            />
+            <p className="text-xs text-muted-foreground">{rejectNote.length}/4000 caracteres</p>
+          </div>
+          <DialogFooter className="gap-2 sm:justify-end">
+            <Button
+              data-dialog-cancel
+              disabled={decision.isPending}
+              onClick={() => {
+                setRejectTarget(null);
+                setRejectNote('');
+              }}
+              type="button"
+              variant="ghost"
+            >
+              Cancelar
+            </Button>
+            <Button
+              data-dialog-confirm
+              disabled={decision.isPending}
+              onClick={() => void confirmReject()}
+              type="button"
+              variant="destructive"
+            >
+              {decision.isPending ? 'Aguarde…' : 'Confirmar rejeição'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Aprovações — itens faltantes</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
@@ -172,7 +254,7 @@ export function PendingMissingItemsApprovalsPanel({ scopeProjectId }: PanelProps
                         <div className="flex flex-wrap gap-2">
                           <Button
                             disabled={decision.isPending}
-                            onClick={() => void setStatus(row, 'APPROVED')}
+                            onClick={() => void approve(row)}
                             size="sm"
                             type="button"
                             variant="default"
@@ -181,7 +263,10 @@ export function PendingMissingItemsApprovalsPanel({ scopeProjectId }: PanelProps
                           </Button>
                           <Button
                             disabled={decision.isPending}
-                            onClick={() => void setStatus(row, 'REJECTED')}
+                            onClick={() => {
+                              setRejectTarget(row);
+                              setRejectNote('');
+                            }}
                             size="sm"
                             type="button"
                             variant="outline"

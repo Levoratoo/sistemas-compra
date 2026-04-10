@@ -521,6 +521,16 @@ function ReportDialog({
                     Última resposta registrada em {formatDateTime(report.ownerApprovedAt)}.
                   </p>
                 ) : null}
+                {report?.ownerApprovalStatus === 'REJECTED' ? (
+                  <div className="mt-3 rounded-lg border border-destructive/25 bg-destructive/[0.06] px-3 py-2.5">
+                    <p className="text-[11px] font-medium text-muted-foreground">Motivo da rejeição (aprovador)</p>
+                    <p className="mt-1 text-sm leading-relaxed text-foreground">
+                      {report.ownerRejectionNote?.trim()
+                        ? report.ownerRejectionNote
+                        : 'Nenhuma observação registada.'}
+                    </p>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -982,10 +992,29 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
                             <p className="mt-0.5 text-sm leading-relaxed text-foreground">{row.necessityReason}</p>
                           </div>
                         </div>
-                        {row.ownerApprovedAt ? (
+                        {row.ownerApprovalStatus !== 'PENDING' && row.ownerApprovedAt ? (
                           <p className="mt-3 text-[11px] text-muted-foreground">
-                            Resposta do dono: {formatDateTime(row.ownerApprovedAt)}
+                            Decisão do aprovador: {formatDateTime(row.ownerApprovedAt)}
                           </p>
+                        ) : null}
+                        {row.ownerApprovalStatus === 'REJECTED' ? (
+                          <div
+                            className={cn(
+                              'mt-3 rounded-lg border px-3 py-2.5',
+                              row.ownerRejectionNote
+                                ? 'border-destructive/30 bg-destructive/[0.06]'
+                                : 'border-border/60 bg-muted/30',
+                            )}
+                          >
+                            <p className="text-[10px] font-medium uppercase tracking-[0.06em] text-muted-foreground">
+                              Motivo da rejeição
+                            </p>
+                            <p className="mt-1.5 text-sm leading-relaxed text-foreground">
+                              {row.ownerRejectionNote?.trim()
+                                ? row.ownerRejectionNote
+                                : 'Nenhuma observação registada pelo aprovador.'}
+                            </p>
+                          </div>
                         ) : null}
 
                         <div className="mt-4 border-t border-border/40 pt-3">

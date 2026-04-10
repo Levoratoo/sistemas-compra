@@ -17,6 +17,8 @@ export type MissingItemReportPayload = {
 
 export type MissingItemReportUpdatePayload = Partial<MissingItemReportPayload> & {
   ownerApprovalStatus?: OwnerApprovalStatus;
+  /** Motivo da rejeição (ao definir status REJECTED). */
+  ownerRejectionNote?: string | null;
 };
 
 export function listMissingItemReports(projectId: string) {

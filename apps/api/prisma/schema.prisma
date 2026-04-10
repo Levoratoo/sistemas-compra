@@ -733,6 +733,8 @@ model MissingItemReport {
   urgencyLevel        MissingItemUrgency
   ownerApprovalStatus OwnerApprovalStatus @default(PENDING)
   ownerApprovedAt     DateTime?
+  /** Texto opcional do aprovador ao rejeitar (motivo). */
+  ownerRejectionNote  String?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 

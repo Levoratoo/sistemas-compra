@@ -72,6 +72,8 @@ export interface MissingItemReport extends EntityTimestamps {
   urgencyLevel: MissingItemUrgency;
   ownerApprovalStatus: OwnerApprovalStatus;
   ownerApprovedAt: string | null;
+  /** Preenchido pelo aprovador ao rejeitar (motivo). */
+  ownerRejectionNote: string | null;
   attachments: MissingItemReportAttachment[];
 }
 
