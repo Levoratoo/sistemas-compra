@@ -21,7 +21,12 @@ type JwtPayload = {
 export const OPERATIONAL_USER_ROLES: UserRole[] = ['ADMIN', 'USER', 'APPROVER'];
 export const PROJECT_VIEWER_ROLES: UserRole[] = ['ADMIN', 'USER', 'APPROVER', 'SUPERVISOR'];
 
-export function authenticate(req: Request, _res: Response, next: NextFunction) {
+/**
+ * Deve ser registado com {@link asyncHandler} no router — o JWT é verificado de forma assíncrona
+ * e o papel vem do banco; sem `asyncHandler`, o próximo middleware (`requireRole`) pode correr
+ * antes de `req.auth` existir e devolver 403 indevido.
+ */
+export async function authenticate(req: Request, _res: Response, next: NextFunction): Promise<void> {
   if (req.method === 'OPTIONS') {
     next();
     return;
@@ -46,10 +51,6 @@ export function authenticate(req: Request, _res: Response, next: NextFunction) {
     return;
   }
 
-  void authenticateWithDatabase(req, next, token).catch(next);
-}
-
-async function authenticateWithDatabase(req: Request, next: NextFunction, token: string) {
   let userId: string;
 
   try {

@@ -43,7 +43,7 @@ publicApiRoutes.head('/', (_request, response) => sendHealthHead(response));
 
 const protectedApiRoutes = Router();
 
-protectedApiRoutes.use(authenticate);
+protectedApiRoutes.use(asyncHandler(authenticate));
 
 protectedApiRoutes.use(authProtectedRouter);
 protectedApiRoutes.use(userAdminRouter);

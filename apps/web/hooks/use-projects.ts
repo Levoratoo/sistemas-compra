@@ -17,11 +17,13 @@ import {
 import type { ProjectStatus } from '@/types/api';
 
 export function useProjectsQuery(filters?: { search?: string; projectStatus?: ProjectStatus }) {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
 
   return useQuery({
     queryKey: ['projects', user?.id ?? 'anonymous', user?.role ?? 'anonymous', filters],
     queryFn: () => listProjects(filters),
+    /** Evita pedido antes de /auth/me e com chave `anonymous` (mistura de perfis / 403 fantasma). */
+    enabled: !authLoading,
   });
 }
 

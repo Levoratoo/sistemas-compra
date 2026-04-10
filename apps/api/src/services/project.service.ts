@@ -186,10 +186,16 @@ class ProjectService {
   }
 
   async listProjects(query: ListProjectsQuery, viewer?: ProjectViewerContext) {
-    const releasedProjectIds =
-      viewer?.role === 'SUPERVISOR' && viewer.userId
-        ? await userRepository.listReleasedProjectIds(viewer.userId)
-        : null;
+    const isSupervisor = viewer?.role === 'SUPERVISOR' && Boolean(viewer.userId);
+
+    let releasedIds: string[] | null = null;
+    if (isSupervisor) {
+      releasedIds = await userRepository.listReleasedProjectIds(viewer!.userId!);
+      /** Sem liberações: devolver lista vazia (evita ambiguidade com `in: []` e deixa o fluxo explícito). */
+      if (releasedIds.length === 0) {
+        return [];
+      }
+    }
 
     const where: Prisma.ProjectWhereInput = {
       AND: [
@@ -204,7 +210,7 @@ class ProjectService {
             }
           : {},
         query.projectStatus ? { projectStatus: query.projectStatus } : {},
-        releasedProjectIds ? { id: { in: releasedProjectIds } } : {},
+        isSupervisor && releasedIds ? { id: { in: releasedIds } } : {},
         query.organizationName ? { organizationName: query.organizationName } : {},
       ],
     };
