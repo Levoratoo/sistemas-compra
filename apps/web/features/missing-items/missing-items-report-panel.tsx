@@ -990,7 +990,7 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
                 Para o serviço executado pela supervisora
               </p>
               <div className="overflow-x-auto rounded-xl border border-border/70 bg-card shadow-sm">
-                <table className="w-full min-w-[1040px] border-collapse text-left text-sm">
+                <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
                   <caption className="caption-bottom px-3 py-2 text-left text-xs text-muted-foreground">
                     Dados do Pedido — órgão conforme o contrato; status de aprovação do dono da empresa.
                   </caption>
@@ -1008,7 +1008,7 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
                       <th className="min-w-[80px] px-2 py-2.5">Categoria</th>
                       <th className="min-w-[160px] px-2 py-2.5">Justificativas</th>
                       <th className="whitespace-nowrap px-2 py-2.5">Status</th>
-                      <th className="w-[88px] px-2 py-2.5 text-right">Ações</th>
+                      <th className="min-w-[120px] px-2 py-2.5 text-right">Ações</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1075,27 +1075,27 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
                             </Badge>
                           </td>
                           <td className="px-2 py-2 text-right">
-                            <div className="flex justify-end gap-0.5">
+                            <div className="flex justify-end gap-1">
                               <Button
                                 aria-label="Editar"
-                                className="h-8 w-8"
+                                className="h-10 w-10 shrink-0 sm:h-11 sm:w-11"
                                 onClick={() => openEdit(row)}
                                 size="icon"
                                 type="button"
                                 variant="ghost"
                               >
-                                <Pencil className="size-4" />
+                                <Pencil className="size-[18px] sm:size-5" aria-hidden />
                               </Button>
                               <Button
                                 aria-label="Excluir"
-                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                className="h-10 w-10 shrink-0 text-destructive hover:text-destructive sm:h-11 sm:w-11"
                                 disabled={deleteReport.isPending}
                                 onClick={() => setDeleteReportTarget(row)}
                                 size="icon"
                                 type="button"
                                 variant="ghost"
                               >
-                                <Trash2 className="size-4" />
+                                <Trash2 className="size-[18px] sm:size-5" aria-hidden />
                               </Button>
                             </div>
                           </td>
