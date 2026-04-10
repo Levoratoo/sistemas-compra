@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useMemo } from 'react';
 import { ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -21,9 +22,20 @@ function urgencyBadgeVariant(level: PendingMissingItemApproval['urgencyLevel']) 
   return 'secondary' as const;
 }
 
-export function PendingMissingItemsApprovalsPanel() {
-  const { data: items, isLoading, isError, refetch } = usePendingMissingItemApprovalsQuery();
+type PanelProps = {
+  /** Se definido, mostra só pedidos pendentes deste contrato (vista no módulo do projeto). */
+  scopeProjectId?: string;
+};
+
+export function PendingMissingItemsApprovalsPanel({ scopeProjectId }: PanelProps) {
+  const { data: rawItems, isLoading, isError, refetch } = usePendingMissingItemApprovalsQuery();
   const decision = useMissingItemApprovalDecisionMutation();
+
+  const items = useMemo(() => {
+    if (!rawItems?.length) return rawItems;
+    if (!scopeProjectId) return rawItems;
+    return rawItems.filter((i) => i.projectId === scopeProjectId);
+  }, [rawItems, scopeProjectId]);
 
   async function setStatus(row: PendingMissingItemApproval, ownerApprovalStatus: 'APPROVED' | 'REJECTED') {
     try {
@@ -39,8 +51,17 @@ export function PendingMissingItemsApprovalsPanel() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Aprovações — itens faltantes</h1>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Solicitações registadas pelas supervisoras que aguardam aprovação. Aprove ou rejeite cada pedido; pode abrir o
-          contrato para ver anexos e contexto.
+          {scopeProjectId ? (
+            <>
+              Pedidos deste contrato que ainda aguardam a sua decisão. Pode abrir o relatório de itens faltantes para
+              ver anexos.
+            </>
+          ) : (
+            <>
+              Solicitações registadas pelas supervisoras que aguardam aprovação. Aprove ou rejeite cada pedido; pode abrir o
+              contrato para ver anexos e contexto.
+            </>
+          )}
         </p>
       </div>
 
@@ -70,7 +91,11 @@ export function PendingMissingItemsApprovalsPanel() {
             </p>
           ) : !items?.length ? (
             <EmptyState
-              description="Quando uma supervisora registar um pedido, ele aparecerá aqui até ser aprovado ou rejeitado."
+              description={
+                scopeProjectId
+                  ? 'Não há pedidos pendentes de aprovação para este contrato.'
+                  : 'Quando uma supervisora registar um pedido, ele aparecerá aqui até ser aprovado ou rejeitado.'
+              }
               title="Nenhuma solicitação pendente"
             />
           ) : (

@@ -5,7 +5,7 @@ import { listProjectDocumentFolders, listProjectDocuments } from '@/services/doc
 import { getProjectDashboard } from '@/services/dashboard-service';
 import { listProjectPurchases } from '@/services/purchases-service';
 import { listProjectQuotes } from '@/services/quotes-service';
-import { listMissingItemReports } from '@/services/missing-item-reports-service';
+import { listMissingItemReports, listPendingMissingItemApprovals } from '@/services/missing-item-reports-service';
 import { listProjectReplenishments } from '@/services/replenishments-service';
 import { listSuppliers } from '@/services/suppliers-service';
 
@@ -79,6 +79,13 @@ export function prefetchProjectModuleQueries(queryClient: QueryClient, projectId
         queryClient.prefetchQuery({
           queryKey: ['missing-item-reports', projectId],
           queryFn: () => listMissingItemReports(projectId),
+        }),
+      );
+    case '/approval':
+      return run(
+        queryClient.prefetchQuery({
+          queryKey: ['missing-item-reports', 'pending-approval'],
+          queryFn: () => listPendingMissingItemApprovals(),
         }),
       );
     case '/documents':

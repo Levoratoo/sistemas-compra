@@ -20,6 +20,11 @@ export function canAccessTopLevelNav(role: UserRole | null | undefined, href: st
   return href === '/projects';
 }
 
+/** Separador «Aprovação» no nav do contrato: só aprovador e admin. */
+export function canAccessProjectApprovalTab(role: UserRole | null | undefined) {
+  return role === 'APPROVER' || role === 'ADMIN';
+}
+
 export function canAccessProjectTab(role: UserRole | null | undefined, href: string) {
   if (!isSupervisorRole(role)) {
     return true;

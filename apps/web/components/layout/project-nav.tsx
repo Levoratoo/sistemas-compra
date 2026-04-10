@@ -5,11 +5,11 @@ import { usePathname } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { useAuth } from '@/components/auth/auth-context';
-import { canAccessProjectTab } from '@/lib/role-access';
+import { canAccessProjectApprovalTab, canAccessProjectTab } from '@/lib/role-access';
 import { cn } from '@/lib/utils';
 import { prefetchProjectModuleQueries } from '@/lib/prefetch-project-module-queries';
 
-const tabs = [
+const tabs: Array<{ href: string; label: string; approversOnly?: boolean }> = [
   { href: '', label: 'Visão Geral' },
   { href: '/documents', label: 'Documentos' },
   { href: '/purchase-control', label: 'Controle de compras' },
@@ -17,13 +17,18 @@ const tabs = [
   { href: '/quotes', label: 'Orçamento' },
   { href: '/replenishments', label: 'Reposições' },
   { href: '/missing-items', label: 'Relatório de Itens Faltantes' },
+  { href: '/approval', label: 'Aprovação', approversOnly: true },
 ];
 
 export function ProjectNav({ projectId }: { projectId: string }) {
   const pathname = usePathname();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const visibleTabs = tabs.filter((tab) => canAccessProjectTab(user?.role, tab.href));
+  const visibleTabs = tabs.filter((tab) => {
+    if (!canAccessProjectTab(user?.role, tab.href)) return false;
+    if (tab.approversOnly && !canAccessProjectApprovalTab(user?.role)) return false;
+    return true;
+  });
 
   return (
     <div className="-mx-1 border-t border-border/80 pt-6">
