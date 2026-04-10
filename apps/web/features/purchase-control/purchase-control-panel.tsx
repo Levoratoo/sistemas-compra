@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Dices } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -158,6 +158,14 @@ function isReplenishmentAttentionUi(effectiveIso: string): boolean {
   const windowStart = new Date(eff);
   windowStart.setUTCDate(windowStart.getUTCDate() - 30);
   return today.getTime() >= windowStart.getTime();
+}
+
+/** Mesma regra do alerta amarelo / “confirmar ciclo”: janela de 30 dias antes até confirmar. */
+function isPendingReplenishmentRow(item: BudgetItem): boolean {
+  if (item.contextOnly) return false;
+  if (item.replenishmentCycleConfirmedAt) return false;
+  const eff = effectiveNextReplenishmentIso(item);
+  return eff != null && isReplenishmentAttentionUi(eff);
 }
 
 const RANDOM_CATEGORIES: BudgetItem['itemCategory'][] = ['UNIFORM', 'EPI', 'EQUIPMENT', 'CONSUMABLE', 'OTHER'];
@@ -356,6 +364,13 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
   );
 
   const [randomFillBusy, setRandomFillBusy] = useState(false);
+  const [onlyPendingReplenishment, setOnlyPendingReplenishment] = useState(false);
+
+  const items = itemsQuery.data ?? [];
+  const visibleItems = useMemo(
+    () => (onlyPendingReplenishment ? items.filter(isPendingReplenishmentRow) : items),
+    [items, onlyPendingReplenishment],
+  );
 
   async function patch(id: string, payload: Partial<BudgetItemPayload>) {
     try {
@@ -412,7 +427,6 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
   }
 
   const project = projectQuery.data;
-  const items = itemsQuery.data ?? [];
 
   return (
     <div className="page-sections space-y-6">
@@ -459,18 +473,31 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
                     >
                       <div className="flex flex-col items-stretch justify-center gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                         <span className="min-w-0 shrink">Fase 1 — Referência do edital</span>
-                        <Button
-                          className="h-auto min-h-7 max-w-[min(100%,16rem)] shrink-0 gap-1.5 whitespace-normal px-2 py-1 text-center text-[10px] font-semibold leading-tight normal-case"
-                          disabled={randomFillBusy}
-                          onClick={() => void fillRandomPurchaseControlData()}
-                          size="sm"
-                          title="Preenche todas as colunas editáveis (classificação, textos, tamanhos, números, datas, fornecedor, GLPI, taxa, observação, etc.) com dados aleatórios para testes."
-                          type="button"
-                          variant="secondary"
-                        >
-                          <Dices className="size-3.5 shrink-0" />
-                          Gerar informações aleatórias
-                        </Button>
+                        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
+                          <label className="flex cursor-pointer items-center gap-2 text-left text-[10px] font-semibold normal-case leading-tight text-primary">
+                            <input
+                              checked={onlyPendingReplenishment}
+                              className="size-3.5 shrink-0 rounded border-border accent-primary"
+                              onChange={(e) => setOnlyPendingReplenishment(e.target.checked)}
+                              type="checkbox"
+                            />
+                            <span className="min-w-0">
+                              Exibir apenas itens pendentes de reposição (janela de 30 dias antes da data até confirmar)
+                            </span>
+                          </label>
+                          <Button
+                            className="h-auto min-h-7 max-w-[min(100%,16rem)] shrink-0 gap-1.5 whitespace-normal px-2 py-1 text-center text-[10px] font-semibold leading-tight normal-case"
+                            disabled={randomFillBusy}
+                            onClick={() => void fillRandomPurchaseControlData()}
+                            size="sm"
+                            title="Preenche todas as colunas editáveis (classificação, textos, tamanhos, números, datas, fornecedor, GLPI, taxa, observação, etc.) com dados aleatórios para testes."
+                            type="button"
+                            variant="secondary"
+                          >
+                            <Dices className="size-3.5 shrink-0" />
+                            Gerar informações aleatórias
+                          </Button>
+                        </div>
                       </div>
                     </th>
                     <th
@@ -496,30 +523,42 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((row) => (
-                    <PurchaseControlRow
-                      key={`${row.id}-${row.updatedAt}-${String(row.plannedQuantity)}-${String(row.rubricMaxValue)}`}
-                      confirmBusy={
-                        confirmReplenishmentCycle.isPending &&
-                        confirmReplenishmentCycle.variables === row.id
-                      }
-                      item={row}
-                      onConfirmCycle={async () => {
-                        await confirmReplenishmentCycle.mutateAsync(row.id);
-                      }}
-                      onPatch={patch}
-                      onUnconfirmCycle={async () => {
-                        await unconfirmReplenishmentCycle.mutateAsync(row.id);
-                      }}
-                      orgName={project.organizationName}
-                      contractNumber={project.contractNumber}
-                      plannedSignatureDate={project.plannedSignatureDate}
-                      unconfirmBusy={
-                        unconfirmReplenishmentCycle.isPending &&
-                        unconfirmReplenishmentCycle.variables === row.id
-                      }
-                    />
-                  ))}
+                  {visibleItems.length === 0 && onlyPendingReplenishment && items.length > 0 ? (
+                    <tr>
+                      <td
+                        className="border-b border-border bg-muted/30 px-4 py-10 text-center text-[11px] text-muted-foreground"
+                        colSpan={PURCHASE_CONTROL_COL_COUNT}
+                      >
+                        Nenhum item pendente de reposição neste momento. Desmarque o filtro acima para ver todos os
+                        itens.
+                      </td>
+                    </tr>
+                  ) : (
+                    visibleItems.map((row) => (
+                      <PurchaseControlRow
+                        key={`${row.id}-${row.updatedAt}-${String(row.plannedQuantity)}-${String(row.rubricMaxValue)}`}
+                        confirmBusy={
+                          confirmReplenishmentCycle.isPending &&
+                          confirmReplenishmentCycle.variables === row.id
+                        }
+                        item={row}
+                        onConfirmCycle={async () => {
+                          await confirmReplenishmentCycle.mutateAsync(row.id);
+                        }}
+                        onPatch={patch}
+                        onUnconfirmCycle={async () => {
+                          await unconfirmReplenishmentCycle.mutateAsync(row.id);
+                        }}
+                        orgName={project.organizationName}
+                        contractNumber={project.contractNumber}
+                        plannedSignatureDate={project.plannedSignatureDate}
+                        unconfirmBusy={
+                          unconfirmReplenishmentCycle.isPending &&
+                          unconfirmReplenishmentCycle.variables === row.id
+                        }
+                      />
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -562,11 +601,7 @@ function PurchaseControlRow({
         ? item.realTotalValue
         : null;
   const dataReposicaoPrevista = effectiveNextReplenishmentIso(item);
-  const replenishmentAttention =
-    dataReposicaoPrevista != null &&
-    !ctx &&
-    !item.replenishmentCycleConfirmedAt &&
-    isReplenishmentAttentionUi(dataReposicaoPrevista);
+  const replenishmentAttention = isPendingReplenishmentRow(item);
   const canConfirmCycle = Boolean(
     dataReposicaoPrevista && !item.replenishmentCycleConfirmedAt && !ctx && replenishmentAttention,
   );
