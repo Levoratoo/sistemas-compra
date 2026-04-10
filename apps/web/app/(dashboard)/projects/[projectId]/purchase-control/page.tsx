@@ -1,4 +1,5 @@
 import dynamic from 'next/dynamic';
+import { Suspense } from 'react';
 
 import { ProjectModuleSkeleton } from '@/components/common/project-module-skeleton';
 import { STATIC_EXPORT_PROJECT_ID } from '@/lib/static-export-placeholders';
@@ -21,5 +22,9 @@ type PageProps = {
 
 export default async function PurchaseControlPage({ params }: PageProps) {
   const { projectId } = await params;
-  return <PurchaseControlPanel projectId={projectId} />;
+  return (
+    <Suspense fallback={<ProjectModuleSkeleton />}>
+      <PurchaseControlPanel projectId={projectId} />
+    </Suspense>
+  );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Bell, CalendarDays, LogOut, PanelLeft } from 'lucide-react';
@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { useNotificationMutations, useNotificationsQuery, useUnreadNotificationCountQuery } from '@/hooks/use-notifications';
 import { getUserRoleLabel } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { AppPurchaseControlReplenishmentFilter } from '@/features/purchase-control/purchase-control-replenishment-filter';
 
 const pageTitles: Record<string, { title: string; description: string }> = {
   '/': {
@@ -116,6 +117,18 @@ export function AppHeader() {
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
+            {pathname.includes('/purchase-control') ? (
+              <Suspense
+                fallback={
+                  <div
+                    aria-hidden
+                    className="h-9 min-w-[7.5rem] shrink-0 rounded-full border border-border/60 bg-muted/40"
+                  />
+                }
+              >
+                <AppPurchaseControlReplenishmentFilter />
+              </Suspense>
+            ) : null}
             <ThemeToggle />
             {user ? (
               <>
