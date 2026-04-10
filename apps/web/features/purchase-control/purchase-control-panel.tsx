@@ -579,8 +579,11 @@ function PurchaseControlRow({
       className={cn(
         'hover:bg-muted/40',
         item.supplierQuoteExtraItem && !isGreenRow && !warn30 && 'bg-amber-50/80 hover:bg-amber-100/70',
-        isGreenRow && 'bg-emerald-50/90 hover:bg-emerald-100/80 dark:bg-emerald-950/25',
-        !isGreenRow && warn30 && 'bg-yellow-50/90 hover:bg-yellow-100/80 dark:bg-yellow-950/20',
+        isGreenRow &&
+          'bg-emerald-300/95 hover:bg-emerald-400/95 dark:bg-emerald-800/85 dark:hover:bg-emerald-700/90 ring-1 ring-inset ring-emerald-600/80 dark:ring-emerald-500/70',
+        !isGreenRow &&
+          warn30 &&
+          'bg-amber-300/95 hover:bg-amber-400/95 dark:bg-amber-800/85 dark:hover:bg-amber-700/90 ring-1 ring-inset ring-amber-600/80 dark:ring-amber-500/70',
       )}
     >
       <td className={cn(cell, 'bg-muted/50 px-1.5 py-2 text-[11px] text-muted-foreground')}>{orgName}</td>
@@ -809,7 +812,7 @@ function PurchaseControlRow({
           <span className="text-muted-foreground">—</span>
         ) : isGreenRow ? (
           <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-semibold text-emerald-800 dark:text-emerald-200">Confirmado</span>
+            <span className="text-[10px] font-bold text-emerald-950 dark:text-emerald-50">Confirmado</span>
             <Button
               className="h-7 min-h-7 px-1.5 text-[10px]"
               disabled={unconfirmBusy}
