@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import {
+  ChevronDown,
   ClipboardList,
   Dices,
   Download,
@@ -41,6 +42,7 @@ import {
   ownerApprovalStatusOptions,
 } from '@/lib/constants';
 import { formatDate, formatDateTime, formatFileSize } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { projectDocumentPublicFileUrl } from '@/lib/project-document-url';
 import { useMissingItemReportsMutations, useMissingItemReportsQuery } from '@/hooks/use-missing-item-reports';
 import type { MissingItemReportPayload, MissingItemReportUpdatePayload } from '@/services/missing-item-reports-service';
@@ -523,6 +525,17 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
   const [editing, setEditing] = useState<MissingItemReport | null>(null);
   const [approvalFilter, setApprovalFilter] = useState<ApprovalFilter>('all');
   const [randomFillBusy, setRandomFillBusy] = useState(false);
+  /** IDs das solicitações com detalhes expandidos. */
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+
+  function toggleExpanded(id: string) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   const filteredReports = useMemo(() => {
     if (!reports?.length) return [];
@@ -646,7 +659,7 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
                 Itens solicitados
               </CardTitle>
               <CardDescription className="mt-1.5">
-                Cada cartão é uma solicitação vinculada a este projeto. Anexos ficam listados abaixo do texto.
+                Clique numa linha para ver quantidade, motivo e anexos; clique de novo para recolher.
               </CardDescription>
             </div>
             <div className="flex w-full shrink-0 flex-col gap-1.5 sm:w-[min(100%,280px)]">
@@ -679,9 +692,10 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-40 w-full rounded-2xl" />
+            <div className="space-y-2">
+              <Skeleton className="h-14 w-full rounded-lg" />
+              <Skeleton className="h-14 w-full rounded-lg" />
+              <Skeleton className="h-14 w-full rounded-lg" />
             </div>
           ) : isError ? (
             <p className="text-sm text-destructive">Não foi possível carregar o relatório.</p>
@@ -699,33 +713,60 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
               </p>
             </div>
           ) : (
-            <div className="grid gap-4 sm:gap-4 lg:grid-cols-2 xl:gap-5">
-              {filteredReports.map((row) => (
-                <article
-                  key={row.id}
-                  className="group flex flex-col rounded-xl border border-border/60 bg-card shadow-sm ring-1 ring-black/[0.03] transition-[box-shadow,ring-color] hover:border-border hover:shadow-md dark:ring-white/[0.06]"
-                >
+            <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
+              {filteredReports.map((row) => {
+                const open = expandedIds.has(row.id);
+                return (
                   <div
-                    aria-hidden
-                    className="h-0.5 w-full shrink-0 bg-gradient-to-r from-primary/90 via-primary/50 to-primary/20"
-                  />
-                  <div className="flex flex-1 flex-col px-4 pb-3 pt-3.5 sm:px-5">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[11px] text-muted-foreground">
-                          <span className="font-medium text-foreground/80">
-                            {row.requestDate ? formatDate(row.requestDate) : '—'}
-                          </span>
-                          <span className="text-muted-foreground/80"> · </span>
-                          {row.requesterName}
-                        </p>
-                        <h2 className="mt-1.5 text-base font-semibold leading-snug tracking-tight text-foreground">
-                          {row.itemToAcquire}
-                        </h2>
-                      </div>
-                      <div className="flex shrink-0 gap-0.5">
+                    key={row.id}
+                    className="border-b border-border/60 last:border-b-0"
+                  >
+                    <div className="flex w-full items-stretch">
+                      <button
+                        aria-expanded={open}
+                        aria-label={`${open ? 'Recolher' : 'Expandir'} detalhes: ${row.itemToAcquire}`}
+                        className={cn(
+                          'flex min-w-0 flex-1 items-start gap-2 px-3 py-2.5 text-left transition-colors sm:gap-3 sm:px-4 sm:py-3',
+                          'hover:bg-muted/50',
+                          open && 'bg-muted/30',
+                        )}
+                        type="button"
+                        onClick={() => toggleExpanded(row.id)}
+                      >
+                        <ChevronDown
+                          aria-hidden
+                          className={cn(
+                            'mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform duration-200',
+                            open && 'rotate-180',
+                          )}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] text-muted-foreground">
+                            <span className="font-medium text-foreground/90">
+                              {row.requestDate ? formatDate(row.requestDate) : '—'}
+                            </span>
+                            <span> · </span>
+                            {row.requesterName}
+                          </p>
+                          <p className="truncate text-sm font-semibold text-foreground sm:text-[15px]">
+                            {row.itemToAcquire}
+                          </p>
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            <Badge className="text-[10px] font-normal" variant={urgencyBadgeVariant(row.urgencyLevel)}>
+                              {getMissingItemUrgencyLabel(row.urgencyLevel)}
+                            </Badge>
+                            <Badge
+                              className="text-[10px] font-normal"
+                              variant={approvalBadgeVariant(row.ownerApprovalStatus)}
+                            >
+                              {getOwnerApprovalStatusLabel(row.ownerApprovalStatus)}
+                            </Badge>
+                          </div>
+                        </div>
+                      </button>
+                      <div className="flex shrink-0 items-start gap-0.5 border-l border-border/40 py-1.5 pr-2 sm:pr-3">
                         <Button
-                          aria-label="Editar"
+                          aria-label="Editar solicitação"
                           className="size-8 text-muted-foreground"
                           onClick={() => openEdit(row)}
                           size="icon"
@@ -735,7 +776,7 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
                           <Pencil className="size-3.5" />
                         </Button>
                         <Button
-                          aria-label="Excluir"
+                          aria-label="Excluir solicitação"
                           className="size-8 text-destructive hover:text-destructive"
                           disabled={deleteReport.isPending}
                           onClick={() => void handleDelete(row)}
@@ -748,85 +789,78 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
                       </div>
                     </div>
 
-                    <div className="mt-2.5 flex flex-wrap gap-1.5">
-                      <Badge className="font-normal" variant={urgencyBadgeVariant(row.urgencyLevel)}>
-                        {getMissingItemUrgencyLabel(row.urgencyLevel)}
-                      </Badge>
-                      <Badge className="font-normal" variant={approvalBadgeVariant(row.ownerApprovalStatus)}>
-                        {getOwnerApprovalStatusLabel(row.ownerApprovalStatus)}
-                      </Badge>
-                    </div>
-
-                    <div className="mt-3 border-t border-border/50 pt-3">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-5">
-                        <div className="shrink-0 sm:max-w-[7.5rem]">
-                          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                            Qtd. estimada
-                          </p>
-                          <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
-                            {row.estimatedQuantity}
-                          </p>
+                    {open ? (
+                      <div className="border-t border-border/50 bg-muted/20 px-3 py-3 pl-9 sm:px-5 sm:py-4 sm:pl-12">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-8">
+                          <div className="shrink-0 sm:w-28">
+                            <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                              Qtd. estimada
+                            </p>
+                            <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
+                              {row.estimatedQuantity}
+                            </p>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                              Motivo / necessidade
+                            </p>
+                            <p className="mt-0.5 text-sm leading-relaxed text-foreground">{row.necessityReason}</p>
+                          </div>
                         </div>
-                        <div className="min-w-0 flex-1 sm:border-l sm:border-border/40 sm:pl-5">
-                          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                            Motivo
+                        {row.ownerApprovedAt ? (
+                          <p className="mt-3 text-[11px] text-muted-foreground">
+                            Resposta do dono: {formatDateTime(row.ownerApprovedAt)}
                           </p>
-                          <p className="mt-0.5 text-sm leading-relaxed text-foreground">{row.necessityReason}</p>
+                        ) : null}
+
+                        <div className="mt-4 border-t border-border/40 pt-3">
+                          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                            <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                              <Paperclip className="size-3.5 text-primary/90" aria-hidden />
+                              Anexos
+                              <span className="rounded-md bg-background px-1.5 py-px text-[11px] font-semibold text-muted-foreground ring-1 ring-border/60">
+                                {row.attachments?.length ?? 0}
+                              </span>
+                            </span>
+                            <input
+                              className="sr-only"
+                              id={`card-attach-${row.id}`}
+                              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip"
+                              onChange={(e) => {
+                                void handleCardAddFile(row.id, e.target.files);
+                                e.target.value = '';
+                              }}
+                              type="file"
+                            />
+                            <Button
+                              className="h-7 gap-1 text-[11px]"
+                              disabled={uploadAttachment.isPending}
+                              onClick={() => document.getElementById(`card-attach-${row.id}`)?.click()}
+                              size="sm"
+                              type="button"
+                              variant="outline"
+                            >
+                              <Plus className="size-3" />
+                              Adicionar
+                            </Button>
+                          </div>
+                          {row.attachments?.length ? (
+                            <AttachmentList
+                              attachments={row.attachments}
+                              disabled={deleteAttachment.isPending}
+                              onRemove={handleCardRemoveAttachment}
+                            />
+                          ) : (
+                            <p className="text-[11px] leading-snug text-muted-foreground">
+                              Nenhum anexo — use Adicionar para enviar fotos, PDFs ou planilhas.
+                            </p>
+                          )}
                         </div>
                       </div>
-                      {row.ownerApprovedAt ? (
-                        <p className="mt-2.5 text-[11px] text-muted-foreground">
-                          Resposta do dono: {formatDateTime(row.ownerApprovedAt)}
-                        </p>
-                      ) : null}
-                    </div>
-
-                    <div className="mt-3 border-t border-border/40 pt-2.5">
-                      <div className="mb-2 flex items-center justify-between gap-2">
-                        <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-                          <Paperclip className="size-3.5 text-primary/90" aria-hidden />
-                          Anexos
-                          <span className="rounded-md bg-muted px-1.5 py-px text-[11px] font-semibold text-muted-foreground">
-                            {row.attachments?.length ?? 0}
-                          </span>
-                        </span>
-                        <input
-                          className="sr-only"
-                          id={`card-attach-${row.id}`}
-                          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip"
-                          onChange={(e) => {
-                            void handleCardAddFile(row.id, e.target.files);
-                            e.target.value = '';
-                          }}
-                          type="file"
-                        />
-                        <Button
-                          className="h-7 gap-1 text-[11px]"
-                          disabled={uploadAttachment.isPending}
-                          onClick={() => document.getElementById(`card-attach-${row.id}`)?.click()}
-                          size="sm"
-                          type="button"
-                          variant="outline"
-                        >
-                          <Plus className="size-3" />
-                          Adicionar
-                        </Button>
-                      </div>
-                      {row.attachments?.length ? (
-                        <AttachmentList
-                          attachments={row.attachments}
-                          disabled={deleteAttachment.isPending}
-                          onRemove={handleCardRemoveAttachment}
-                        />
-                      ) : (
-                        <p className="text-center text-[11px] leading-snug text-muted-foreground">
-                          Nenhum anexo — fotos, PDFs ou planilhas.
-                        </p>
-                      )}
-                    </div>
+                    ) : null}
                   </div>
-                </article>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
