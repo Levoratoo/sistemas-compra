@@ -51,6 +51,13 @@ protectedApiRoutes.use(authProtectedRouter);
 protectedApiRoutes.use(userAdminRouter);
 protectedApiRoutes.use(ocrRouter);
 protectedApiRoutes.use(projectRouter);
+/**
+ * Deve ficar **antes** de routers com `router.use(requireRole(...OPERATIONAL_USER_ROLES))`
+ * (ex.: orçamentos, documentos). Esse middleware corre para todos os caminhos desse router;
+ * se o missing-item vier depois, GET/POST de relatório de itens faltantes nunca chegam ao
+ * handler e a supervisora recebe 403 «Sem permissão para este recurso.».
+ */
+protectedApiRoutes.use(missingItemReportRouter);
 protectedApiRoutes.use(quoteRouter);
 protectedApiRoutes.use(extractionApplyRouter);
 protectedApiRoutes.use(documentRouter);
@@ -59,7 +66,6 @@ protectedApiRoutes.use(budgetItemRouter);
 protectedApiRoutes.use(supplierRouter);
 protectedApiRoutes.use(purchaseRouter);
 protectedApiRoutes.use(replenishmentRouter);
-protectedApiRoutes.use(missingItemReportRouter);
 protectedApiRoutes.use(dashboardRouter);
 
 apiRouter.use(publicApiRoutes);
