@@ -225,6 +225,37 @@ function ConfirmDestructiveDialog({
   pending?: boolean;
   onConfirm: () => void | Promise<void>;
 }) {
+  const onConfirmRef = useRef(onConfirm);
+  onConfirmRef.current = onConfirm;
+
+  useEffect(() => {
+    if (!open || pending) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' && e.key !== 'NumpadEnter') return;
+      if (e.repeat) return;
+
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      if (target.tagName === 'TEXTAREA') return;
+      if (target.tagName === 'INPUT') {
+        const t = (target as HTMLInputElement).type;
+        if (t === 'text' || t === 'search' || t === 'email' || t === 'url' || t === 'tel' || t === 'password') return;
+      }
+
+      if (target.closest('[data-dialog-dismiss]')) return;
+      if (target.closest('[data-dialog-cancel]')) return;
+      if (target.closest('[data-dialog-confirm]')) return;
+
+      e.preventDefault();
+      void onConfirmRef.current();
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open, pending]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -233,10 +264,17 @@ function ConfirmDestructiveDialog({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter className="gap-2 sm:justify-end">
-          <Button disabled={pending} onClick={() => onOpenChange(false)} type="button" variant="ghost">
+          <Button
+            data-dialog-cancel
+            disabled={pending}
+            onClick={() => onOpenChange(false)}
+            type="button"
+            variant="ghost"
+          >
             Cancelar
           </Button>
           <Button
+            data-dialog-confirm
             disabled={pending}
             onClick={() => void onConfirm()}
             type="button"
