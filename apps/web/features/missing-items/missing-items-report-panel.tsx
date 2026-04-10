@@ -699,84 +699,94 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
               </p>
             </div>
           ) : (
-            <div className="grid max-w-4xl gap-5">
+            <div className="grid gap-4 sm:gap-4 lg:grid-cols-2 xl:gap-5">
               {filteredReports.map((row) => (
                 <article
                   key={row.id}
-                  className="group relative overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-br from-card to-card/80 shadow-sm ring-1 ring-border/40 transition-shadow hover:shadow-md"
+                  className="group flex flex-col rounded-xl border border-border/60 bg-card shadow-sm ring-1 ring-black/[0.03] transition-[box-shadow,ring-color] hover:border-border hover:shadow-md dark:ring-white/[0.06]"
                 >
                   <div
                     aria-hidden
-                    className="absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-primary via-primary/70 to-primary/30"
+                    className="h-0.5 w-full shrink-0 bg-gradient-to-r from-primary/90 via-primary/50 to-primary/20"
                   />
-                  <div className="relative pl-5 pr-4 pt-5 pb-4 sm:pl-6 sm:pr-5">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0 space-y-1">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          {row.requestDate ? formatDate(row.requestDate) : '—'} · {row.requesterName}
+                  <div className="flex flex-1 flex-col px-4 pb-3 pt-3.5 sm:px-5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] text-muted-foreground">
+                          <span className="font-medium text-foreground/80">
+                            {row.requestDate ? formatDate(row.requestDate) : '—'}
+                          </span>
+                          <span className="text-muted-foreground/80"> · </span>
+                          {row.requesterName}
                         </p>
-                        <h2 className="text-lg font-semibold leading-snug text-foreground">{row.itemToAcquire}</h2>
-                        <div className="flex flex-wrap gap-2 pt-1">
-                          <Badge variant={urgencyBadgeVariant(row.urgencyLevel)}>
-                            {getMissingItemUrgencyLabel(row.urgencyLevel)}
-                          </Badge>
-                          <Badge variant={approvalBadgeVariant(row.ownerApprovalStatus)}>
-                            {getOwnerApprovalStatusLabel(row.ownerApprovalStatus)}
-                          </Badge>
-                        </div>
+                        <h2 className="mt-1.5 text-base font-semibold leading-snug tracking-tight text-foreground">
+                          {row.itemToAcquire}
+                        </h2>
                       </div>
-                      <div className="flex shrink-0 gap-1 sm:pt-0">
+                      <div className="flex shrink-0 gap-0.5">
                         <Button
                           aria-label="Editar"
-                          className="size-9"
+                          className="size-8 text-muted-foreground"
                           onClick={() => openEdit(row)}
                           size="icon"
                           type="button"
                           variant="ghost"
                         >
-                          <Pencil className="size-4" />
+                          <Pencil className="size-3.5" />
                         </Button>
                         <Button
                           aria-label="Excluir"
-                          className="size-9 text-destructive hover:text-destructive"
+                          className="size-8 text-destructive hover:text-destructive"
                           disabled={deleteReport.isPending}
                           onClick={() => void handleDelete(row)}
                           size="icon"
                           type="button"
                           variant="ghost"
                         >
-                          <Trash2 className="size-4" />
+                          <Trash2 className="size-3.5" />
                         </Button>
                       </div>
                     </div>
 
-                    <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-xl bg-muted/50 px-3 py-2.5">
-                        <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                          Quantidade estimada
-                        </dt>
-                        <dd className="mt-0.5 text-sm font-medium text-foreground">{row.estimatedQuantity}</dd>
-                      </div>
-                      <div className="rounded-xl bg-muted/50 px-3 py-2.5 sm:col-span-2">
-                        <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                          Motivo / necessidade
-                        </dt>
-                        <dd className="mt-0.5 text-sm leading-relaxed text-foreground/95">{row.necessityReason}</dd>
-                      </div>
-                    </dl>
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      <Badge className="font-normal" variant={urgencyBadgeVariant(row.urgencyLevel)}>
+                        {getMissingItemUrgencyLabel(row.urgencyLevel)}
+                      </Badge>
+                      <Badge className="font-normal" variant={approvalBadgeVariant(row.ownerApprovalStatus)}>
+                        {getOwnerApprovalStatusLabel(row.ownerApprovalStatus)}
+                      </Badge>
+                    </div>
 
-                    {row.ownerApprovedAt ? (
-                      <p className="mt-3 text-xs text-muted-foreground">
-                        Resposta do dono registrada em {formatDateTime(row.ownerApprovedAt)}.
-                      </p>
-                    ) : null}
+                    <div className="mt-3 border-t border-border/50 pt-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-5">
+                        <div className="shrink-0 sm:max-w-[7.5rem]">
+                          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                            Qtd. estimada
+                          </p>
+                          <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
+                            {row.estimatedQuantity}
+                          </p>
+                        </div>
+                        <div className="min-w-0 flex-1 sm:border-l sm:border-border/40 sm:pl-5">
+                          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                            Motivo
+                          </p>
+                          <p className="mt-0.5 text-sm leading-relaxed text-foreground">{row.necessityReason}</p>
+                        </div>
+                      </div>
+                      {row.ownerApprovedAt ? (
+                        <p className="mt-2.5 text-[11px] text-muted-foreground">
+                          Resposta do dono: {formatDateTime(row.ownerApprovedAt)}
+                        </p>
+                      ) : null}
+                    </div>
 
-                    <div className="mt-5 border-t border-border/50 pt-4">
-                      <div className="mb-3 flex items-center justify-between gap-2">
-                        <span className="flex items-center gap-2 text-sm font-medium text-foreground">
-                          <Paperclip className="size-4 text-primary" aria-hidden />
+                    <div className="mt-3 border-t border-border/40 pt-2.5">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                          <Paperclip className="size-3.5 text-primary/90" aria-hidden />
                           Anexos
-                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                          <span className="rounded-md bg-muted px-1.5 py-px text-[11px] font-semibold text-muted-foreground">
                             {row.attachments?.length ?? 0}
                           </span>
                         </span>
@@ -791,14 +801,14 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
                           type="file"
                         />
                         <Button
-                          className="h-8 gap-1.5 text-xs"
+                          className="h-7 gap-1 text-[11px]"
                           disabled={uploadAttachment.isPending}
                           onClick={() => document.getElementById(`card-attach-${row.id}`)?.click()}
                           size="sm"
                           type="button"
-                          variant="secondary"
+                          variant="outline"
                         >
-                          <Plus className="size-3.5" />
+                          <Plus className="size-3" />
                           Adicionar
                         </Button>
                       </div>
@@ -809,8 +819,8 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
                           onRemove={handleCardRemoveAttachment}
                         />
                       ) : (
-                        <p className="rounded-lg border border-dashed border-border/60 bg-muted/15 px-3 py-3 text-center text-sm text-muted-foreground">
-                          Nenhum anexo. Use “Adicionar” para enviar fotos, PDFs ou planilhas.
+                        <p className="text-center text-[11px] leading-snug text-muted-foreground">
+                          Nenhum anexo — fotos, PDFs ou planilhas.
                         </p>
                       )}
                     </div>
