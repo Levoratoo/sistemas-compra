@@ -19,8 +19,13 @@ import type { BudgetItemPayload } from '@/services/budget-items-service';
 
 const cell =
   'max-w-0 overflow-hidden border-b border-r border-border p-0 align-top dark:border-border';
+/** Sem overflow-y hidden — `overflow-hidden` nas células cortava textarea (Especificação, etc.). */
+const cellText =
+  'max-w-0 align-top overflow-x-hidden overflow-y-visible border-b border-r border-border p-0 dark:border-border';
 const inp =
   'box-border min-h-8 w-full min-w-0 border-0 bg-transparent px-1.5 py-1.5 text-[11px] leading-tight text-foreground outline-none focus:bg-muted focus:ring-1 focus:ring-inset focus:ring-primary/25';
+const textareaInp =
+  'min-h-[3rem] resize-y whitespace-pre-wrap [field-sizing:content] [overflow-wrap:anywhere]';
 const th =
   'relative border-b border-r border-border bg-muted px-1.5 py-2 text-left text-[9px] font-semibold uppercase tracking-wide text-muted-foreground';
 
@@ -595,10 +600,10 @@ function PurchaseControlRow({
           ))}
         </select>
       </td>
-      <td className={cell}>
+      <td className={cellText}>
         <textarea
           key={`${rk}-name`}
-          className={cn(inp, 'min-h-[2.5rem] resize-y')}
+          className={cn(inp, textareaInp)}
           defaultValue={item.name}
           rows={2}
           onBlur={(e) => onPatch(item.id, { name: e.target.value.trim() || item.name })}
@@ -609,21 +614,22 @@ function PurchaseControlRow({
           </div>
         ) : null}
       </td>
-      <td className={cell}>
+      <td className={cellText}>
         <textarea
           key={`${rk}-spec`}
-          className={cn(inp, 'min-h-[2.5rem] resize-y')}
+          className={cn(inp, textareaInp)}
           defaultValue={item.specification ?? ''}
-          rows={2}
+          rows={3}
+          spellCheck={false}
           onBlur={(e) => onPatch(item.id, { specification: e.target.value || null })}
         />
       </td>
-      <td className={cell}>
+      <td className={cellText}>
         <textarea
           key={`${rk}-size`}
           className={cn(
             inp,
-            'min-h-[4.5rem] resize-y whitespace-pre-wrap text-center leading-snug [field-sizing:content]',
+            'min-h-[4.5rem] resize-y whitespace-pre-wrap text-center leading-snug [field-sizing:content] [overflow-wrap:anywhere]',
           )}
           defaultValue={item.sizeLabel ?? ''}
           rows={4}
@@ -900,10 +906,10 @@ function PurchaseControlRow({
           onBlur={(e) => onPatch(item.id, { administrativeFeePercent: numOrNull(e.target.value) })}
         />
       </td>
-      <td className={cell}>
+      <td className={cellText}>
         <textarea
           key={`${rk}-f2-notes`}
-          className={cn(inp, 'min-h-[2.5rem] resize-y')}
+          className={cn(inp, textareaInp)}
           defaultValue={item.notes ?? ''}
           rows={2}
           onBlur={(e) => onPatch(item.id, { notes: e.target.value || null })}
