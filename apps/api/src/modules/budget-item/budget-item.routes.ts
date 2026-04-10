@@ -16,6 +16,18 @@ export const budgetItemRouter = Router();
 budgetItemRouter.use(requireRole(...OPERATIONAL_USER_ROLES));
 
 budgetItemRouter.post(
+  '/budget-items/:id/replenishment-cycle/confirm',
+  validateRequest({ params: budgetItemIdParamsSchema }),
+  asyncHandler((request, response) => budgetItemController.confirmReplenishmentCycle(request, response)),
+);
+
+budgetItemRouter.post(
+  '/budget-items/:id/replenishment-cycle/unconfirm',
+  validateRequest({ params: budgetItemIdParamsSchema }),
+  asyncHandler((request, response) => budgetItemController.unconfirmReplenishmentCycle(request, response)),
+);
+
+budgetItemRouter.post(
   '/projects/:id/budget-items',
   validateRequest({ params: budgetItemProjectParamsSchema, body: createBudgetItemSchema }),
   asyncHandler((request, response) => budgetItemController.create(request, response)),

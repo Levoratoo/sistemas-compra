@@ -134,6 +134,7 @@ export function serializeBudgetItem(item: BudgetItem) {
     opExpectedDeliveryAt: toIsoString(item.opExpectedDeliveryAt),
     opDeliveredAt: toIsoString(item.opDeliveredAt),
     nextReplenishmentExpectedAt: toIsoString(item.nextReplenishmentExpectedAt),
+    replenishmentCycleConfirmedAt: toIsoString(item.replenishmentCycleConfirmedAt),
     createdAt: toIsoString(item.createdAt),
     updatedAt: toIsoString(item.updatedAt),
   };

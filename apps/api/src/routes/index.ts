@@ -9,6 +9,7 @@ import { loginSchema } from '../modules/auth/auth.schemas.js';
 import { budgetItemRouter } from '../modules/budget-item/budget-item.routes.js';
 import { dashboardRouter } from '../modules/dashboard/dashboard.routes.js';
 import { missingItemReportRouter } from '../modules/missing-item-report/missing-item-report.routes.js';
+import { notificationRouter } from '../modules/notification/notification.routes.js';
 import { documentRouter } from '../modules/document/document.routes.js';
 import { extractionApplyRouter } from '../modules/extraction-apply/extraction-apply.routes.js';
 import { ocrRouter } from '../modules/ocr/ocr.routes.js';
@@ -45,6 +46,7 @@ const protectedApiRoutes = Router();
 
 protectedApiRoutes.use(asyncHandler(authenticate));
 
+protectedApiRoutes.use(notificationRouter);
 protectedApiRoutes.use(authProtectedRouter);
 protectedApiRoutes.use(userAdminRouter);
 protectedApiRoutes.use(ocrRouter);

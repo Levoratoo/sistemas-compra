@@ -49,9 +49,7 @@ export const projectDetailInclude = {
         },
       },
     },
-    orderBy: {
-      createdAt: 'asc',
-    },
+    orderBy: [{ purchaseControlSortRank: 'asc' }, { createdAt: 'asc' }],
   },
   purchaseOrders: {
     include: {

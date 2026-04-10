@@ -1,14 +1,19 @@
 'use client';
 
-import { CalendarDays, LogOut, PanelLeft } from 'lucide-react';
+import { useState } from 'react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Bell, CalendarDays, LogOut, PanelLeft } from 'lucide-react';
 
 import { useAuth } from '@/components/auth/auth-context';
 import { useSidebar } from '@/components/layout/sidebar-context';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useNotificationMutations, useNotificationsQuery, useUnreadNotificationCountQuery } from '@/hooks/use-notifications';
 import { getUserRoleLabel } from '@/lib/constants';
+import { cn } from '@/lib/utils';
 
 const pageTitles: Record<string, { title: string; description: string }> = {
   '/': {
@@ -85,6 +90,10 @@ export function AppHeader() {
   const copy = derivePageCopy(pathname);
   const { user, logout } = useAuth();
   const { open: sidebarOpen, setOpen: setSidebarOpen } = useSidebar();
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const notificationsQuery = useNotificationsQuery(Boolean(user));
+  const unreadQuery = useUnreadNotificationCountQuery(Boolean(user));
+  const { markRead, markAllRead } = useNotificationMutations();
 
   return (
     <>
@@ -109,7 +118,80 @@ export function AppHeader() {
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
             <ThemeToggle />
             {user ? (
-              <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/90 bg-card px-3 py-2 text-sm shadow-sm sm:gap-3 sm:px-4 sm:py-2.5">
+              <>
+                <Button
+                  className="relative shrink-0 gap-1.5"
+                  onClick={() => {
+                    setNotificationsOpen(true);
+                    void notificationsQuery.refetch();
+                    void unreadQuery.refetch();
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                  aria-label="Notificações"
+                >
+                  <Bell className="size-4" aria-hidden />
+                  {unreadQuery.data != null && unreadQuery.data.count > 0 ? (
+                    <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                      {unreadQuery.data.count > 9 ? '9+' : unreadQuery.data.count}
+                    </span>
+                  ) : null}
+                </Button>
+                <Dialog onOpenChange={setNotificationsOpen} open={notificationsOpen}>
+                  <DialogContent className="max-h-[min(90dvh,560px)] max-w-lg gap-0 overflow-hidden p-0">
+                    <DialogHeader className="border-b border-border px-4 py-3">
+                      <DialogTitle>Notificações</DialogTitle>
+                    </DialogHeader>
+                    <div className="max-h-[min(60dvh,420px)] overflow-y-auto px-2 py-2">
+                      {notificationsQuery.isLoading ? (
+                        <p className="px-2 py-6 text-center text-sm text-muted-foreground">A carregar…</p>
+                      ) : notificationsQuery.isError ? (
+                        <p className="px-2 py-6 text-center text-sm text-destructive">Não foi possível carregar.</p>
+                      ) : !notificationsQuery.data?.length ? (
+                        <p className="px-2 py-6 text-center text-sm text-muted-foreground">Sem notificações.</p>
+                      ) : (
+                        <ul className="space-y-1">
+                          {notificationsQuery.data.map((n) => (
+                            <li key={n.id}>
+                              <Link
+                                className={cn(
+                                  'block rounded-lg border border-transparent px-3 py-2.5 text-left transition hover:bg-muted',
+                                  !n.readAt && 'border-primary/25 bg-primary/5',
+                                )}
+                                href={`/projects/${n.projectId}/purchase-control`}
+                                onClick={() => {
+                                  if (!n.readAt) {
+                                    void markRead.mutateAsync(n.id);
+                                  }
+                                  setNotificationsOpen(false);
+                                }}
+                              >
+                                <span className="block text-sm font-medium text-foreground">{n.title}</span>
+                                <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{n.body}</span>
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <DialogFooter className="border-t border-border px-4 py-3 sm:justify-between">
+                      <Button
+                        disabled={markAllRead.isPending || !notificationsQuery.data?.some((n) => !n.readAt)}
+                        onClick={() => void markAllRead.mutateAsync()}
+                        size="sm"
+                        type="button"
+                        variant="secondary"
+                      >
+                        Marcar todas como lidas
+                      </Button>
+                      <Button onClick={() => setNotificationsOpen(false)} size="sm" type="button" variant="ghost">
+                        Fechar
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/90 bg-card px-3 py-2 text-sm shadow-sm sm:gap-3 sm:px-4 sm:py-2.5">
                 <div className="min-w-0 text-left">
                   <p className="truncate font-medium text-foreground">{user.name}</p>
                   <p className="truncate text-xs text-muted-foreground">{user.email}</p>
@@ -128,6 +210,7 @@ export function AppHeader() {
                   Sair
                 </Button>
               </div>
+              </>
             ) : null}
             <div className="flex items-center gap-3 rounded-2xl border border-border/90 bg-card px-4 py-2.5 text-sm text-muted-foreground shadow-sm">
               <CalendarDays className="size-4 text-primary" aria-hidden />

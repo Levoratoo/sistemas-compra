@@ -32,6 +32,16 @@ class BudgetItemController {
     await budgetItemService.deleteBudgetItem(String(request.params.id));
     response.status(204).send();
   }
+
+  async confirmReplenishmentCycle(request: Request, response: Response) {
+    const result = await budgetItemService.confirmReplenishmentCycle(String(request.params.id));
+    response.status(200).json(result);
+  }
+
+  async unconfirmReplenishmentCycle(request: Request, response: Response) {
+    const result = await budgetItemService.unconfirmReplenishmentCycle(String(request.params.id));
+    response.status(200).json(result);
+  }
 }
 
 export const budgetItemController = new BudgetItemController();

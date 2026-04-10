@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 
 import { prisma } from '../config/prisma.js';
 
-const budgetItemInclude = {
+export const budgetItemInclude = {
   sourceDocument: true,
   purchaseOrderItems: {
     include: {
@@ -47,9 +47,7 @@ class BudgetItemRepository {
     return prisma.budgetItem.findMany({
       where: { projectId },
       include: budgetItemInclude,
-      orderBy: {
-        createdAt: 'asc',
-      },
+      orderBy: [{ purchaseControlSortRank: 'asc' }, { createdAt: 'asc' }],
     });
   }
 

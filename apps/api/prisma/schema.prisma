@@ -153,17 +153,22 @@ enum UserRole {
   SUPERVISOR
 }
 
+enum NotificationType {
+  REPLENISHMENT_DUE_SOON
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
   passwordHash String
   name         String
-  role         UserRole  @default(USER)
+  role         UserRole @default(USER)
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   releasedProjects UserProjectRelease[]
+  notifications    Notification[]
 
   @@index([role])
   @@index([isActive])
@@ -192,16 +197,17 @@ model Project {
   createdAt                DateTime             @default(now())
   updatedAt                DateTime             @updatedAt
 
-  documents             ProjectDocument[]
-  documentFolders       ProjectDocumentFolder[]
-  roles                 ProjectRole[]
-  budgetItems           BudgetItem[]
-  quotes                ProjectQuote[]
-  quotePurchases        ProjectQuotePurchase[]
-  purchaseOrders        PurchaseOrder[]
-  implementationTasks   ImplementationTask[]
-  missingItemReports    MissingItemReport[]
-  releasedToUsers       UserProjectRelease[]
+  documents           ProjectDocument[]
+  documentFolders     ProjectDocumentFolder[]
+  roles               ProjectRole[]
+  budgetItems         BudgetItem[]
+  quotes              ProjectQuote[]
+  quotePurchases      ProjectQuotePurchase[]
+  purchaseOrders      PurchaseOrder[]
+  implementationTasks ImplementationTask[]
+  missingItemReports  MissingItemReport[]
+  releasedToUsers     UserProjectRelease[]
+  notifications       Notification[]
 
   @@unique([organizationName, procurementProcessNumber])
   @@unique([organizationName, contractNumber])
@@ -227,25 +233,25 @@ model UserProjectRelease {
 }
 
 model ProjectDocumentFolder {
-  id        String   @id @default(cuid())
-  projectId String
-  parentId  String?
-  name      String
-  sortOrder Int      @default(0)
+  id           String             @id @default(cuid())
+  projectId    String
+  parentId     String?
+  name         String
+  sortOrder    Int                @default(0)
   /// Cor do ícone/borda (#RRGGBB)
-  colorHex  String   @default("#14b8a6")
+  colorHex     String             @default("#14b8a6")
   /// Segunda cor do degradê / radial (#RRGGBB)
-  colorHex2 String   @default("#0ea5e9")
+  colorHex2    String             @default("#0ea5e9")
   /// Emoji opcional como “favicon” da pasta
-  iconEmoji String?
+  iconEmoji    String?
   /// Aparência do cartão: sólido, degradê linear ou degradê radial
   surfaceStyle FolderSurfaceStyle @default(GRADIENT)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
 
-  project   Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  parent    ProjectDocumentFolder?    @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  children  ProjectDocumentFolder[]   @relation("FolderHierarchy")
+  project   Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  parent    ProjectDocumentFolder?  @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  children  ProjectDocumentFolder[] @relation("FolderHierarchy")
   documents ProjectDocument[]
 
   @@index([projectId])
@@ -253,38 +259,38 @@ model ProjectDocumentFolder {
 }
 
 model ProjectDocument {
-  id               String                   @id @default(cuid())
-  projectId        String
-  folderId         String?
-  purchaseOrderId  String?
+  id                      String                   @id @default(cuid())
+  projectId               String
+  folderId                String?
+  purchaseOrderId         String?
   /// Vínculo opcional: cópia na documentação do projeto de um anexo CND global do fornecedor.
   supplierCndAttachmentId String?
-  documentType     DocumentType
-  originalFileName String
-  storagePath      String                   @unique
-  mimeType         String?
-  fileSizeBytes    Int?
-  checksum         String?
-  documentDate     DateTime?
-  searchText       String?
-  previewJson      Json?
-  processingStatus DocumentProcessingStatus @default(PENDING)
-  reviewStatus     DocumentReviewStatus     @default(PENDING_REVIEW)
-  processingError  String?
-  notes            String?
-  createdAt        DateTime                 @default(now())
-  updatedAt        DateTime                 @updatedAt
+  documentType            DocumentType
+  originalFileName        String
+  storagePath             String                   @unique
+  mimeType                String?
+  fileSizeBytes           Int?
+  checksum                String?
+  documentDate            DateTime?
+  searchText              String?
+  previewJson             Json?
+  processingStatus        DocumentProcessingStatus @default(PENDING)
+  reviewStatus            DocumentReviewStatus     @default(PENDING_REVIEW)
+  processingError         String?
+  notes                   String?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
 
-  project           Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  folder            ProjectDocumentFolder?  @relation(fields: [folderId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  supplierCndAttachment SupplierCndAttachment? @relation(fields: [supplierCndAttachmentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  purchaseOrder     PurchaseOrder?          @relation("PurchaseOrderDocuments", fields: [purchaseOrderId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  generatedForPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderGeneratedDocument")
-  latestImportedForQuotes    ProjectQuote[]   @relation("ProjectQuoteLatestImportedDocument")
-  extractedFields   ExtractedField[]
-  sourceRoles              ProjectRole[]         @relation("RoleSourceDocument")
-  sourceBudgetItems        BudgetItem[]          @relation("BudgetItemSourceDocument")
-  sourceImplementationTasks ImplementationTask[] @relation("TaskSourceDocument")
+  project                    Project                @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  folder                     ProjectDocumentFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  supplierCndAttachment      SupplierCndAttachment? @relation(fields: [supplierCndAttachmentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  purchaseOrder              PurchaseOrder?         @relation("PurchaseOrderDocuments", fields: [purchaseOrderId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  generatedForPurchaseOrders PurchaseOrder[]        @relation("PurchaseOrderGeneratedDocument")
+  latestImportedForQuotes    ProjectQuote[]         @relation("ProjectQuoteLatestImportedDocument")
+  extractedFields            ExtractedField[]
+  sourceRoles                ProjectRole[]          @relation("RoleSourceDocument")
+  sourceBudgetItems          BudgetItem[]           @relation("BudgetItemSourceDocument")
+  sourceImplementationTasks  ImplementationTask[]   @relation("TaskSourceDocument")
 
   @@index([supplierCndAttachmentId])
   @@index([projectId])
@@ -355,44 +361,58 @@ model ProjectRole {
 }
 
 model BudgetItem {
-  id               String         @id @default(cuid())
-  projectId        String
-  itemCategory     ItemCategory
-  subcategory      String?
-  name             String
-  description      String?
-  specification    String?
-  unit             String?
-  sizeLabel        String?
-  requiresCa       Boolean?
-  roleReference    String?
-  allocationSector String?
-  plannedQuantity  Decimal?
-  bidUnitValue     Decimal?
-  /** Valor máximo permitido pela rubrica do edital (teto de compra por item). */
-  rubricMaxValue   Decimal?
-  /** Valor efetivamente gasto / comprado (controle operacional). */
-  purchasedValue   Decimal?
-  hasBidReference  Boolean        @default(true)
-  /** Trecho do edital só para leitura (ex.: cláusulas 8.7.x); sem previsão de compra/valores. */
-  contextOnly      Boolean        @default(false)
-  supplierQuoteExtraItem Boolean  @default(false)
-  sourceType       DataOriginType @default(MANUAL)
-  sourceDocumentId String?
-  sourceSheetName  String?
-  sourceCellRef    String?
-  sourcePage       Int?
-  sourceExcerpt    String?
-  notes            String?
+  id                     String         @id @default(cuid())
+  projectId              String
+  itemCategory           ItemCategory
+  subcategory            String?
+  name                   String
+  description            String?
+  specification          String?
+  unit                   String?
+  sizeLabel              String?
+  requiresCa             Boolean?
+  roleReference          String?
+  allocationSector       String?
+  plannedQuantity        Decimal?
+  bidUnitValue           Decimal?
+  /**
+   * Valor máximo permitido pela rubrica do edital (teto de compra por item).
+   */
+  rubricMaxValue         Decimal?
+  /**
+   * Valor efetivamente gasto / comprado (controle operacional).
+   */
+  purchasedValue         Decimal?
+  hasBidReference        Boolean        @default(true)
+  /**
+   * Trecho do edital só para leitura (ex.: cláusulas 8.7.x); sem previsão de compra/valores.
+   */
+  contextOnly            Boolean        @default(false)
+  supplierQuoteExtraItem Boolean        @default(false)
+  sourceType             DataOriginType @default(MANUAL)
+  sourceDocumentId       String?
+  sourceSheetName        String?
+  sourceCellRef          String?
+  sourcePage             Int?
+  sourceExcerpt          String?
+  notes                  String?
 
-  /** --- Fase 2: controle operacional (planilha "Projetos - Controles") --- */
+  /**
+   * --- Fase 2: controle operacional (planilha "Projetos - Controles") ---
+   */
   priority                      String?
   peopleCount                   Int?
-  /** Status Compras (rótulos da planilha: orçamento, entrega, etc.) */
+  /**
+   * Status Compras (rótulos da planilha: orçamento, entrega, etc.)
+   */
   operationalPurchaseStatus     String?
-  /** Prazo edital para entrega (dias), quando aplicável */
+  /**
+   * Prazo edital para entrega (dias), quando aplicável
+   */
   editalDeliveryDeadlineDays    Int?
-  /** Prazo de reposição previsto no edital (dias) */
+  /**
+   * Prazo de reposição previsto no edital (dias)
+   */
   replenishmentPeriodDaysEdital Int?
   approvedSupplierName          String?
   glpiTicketNumber              String?
@@ -404,40 +424,80 @@ model BudgetItem {
   replenishmentStateLabel       String?
   competenceLabel               String?
   administrativeFeePercent      Decimal?
-  /** Valor unitário real (mercado / compra), distinto da rubrica do edital */
+  /**
+   * Valor unitário real (mercado / compra), distinto da rubrica do edital
+   */
   actualUnitValue               Decimal?
 
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  /**
+   * Ordenação na grelha de controle de compras (menor = mais acima).
+   */
+  purchaseControlSortRank        Int         @default(0)
+  /**
+   * Ciclo de reposição marcado como concluído (linha verde até desfazer).
+   */
+  replenishmentCycleConfirmedAt  DateTime?
+  /**
+   * Linha antiga aponta para o clone do ciclo seguinte (único por destino).
+   */
+  replenishmentContinuesAsItemId String?     @unique
+  continuesAsItem                BudgetItem? @relation("ReplenishmentCycleNext", fields: [replenishmentContinuesAsItemId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  continuedFromCycle             BudgetItem? @relation("ReplenishmentCycleNext")
 
-  project            Project             @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  sourceDocument     ProjectDocument?    @relation("BudgetItemSourceDocument", fields: [sourceDocumentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project            Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sourceDocument     ProjectDocument?           @relation("BudgetItemSourceDocument", fields: [sourceDocumentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   purchaseOrderItems PurchaseOrderItem[]
   quoteItems         ProjectQuoteItem[]
   quotePurchaseItems ProjectQuotePurchaseItem[]
   replenishmentRule  ReplenishmentRule?
+  notifications      Notification[]
 
   @@index([projectId])
   @@index([projectId, name])
   @@index([projectId, itemCategory])
+  @@index([projectId, purchaseControlSortRank])
   @@index([itemCategory])
   @@index([hasBidReference])
   @@index([sourceDocumentId])
 }
 
+model Notification {
+  id           String           @id @default(cuid())
+  userId       String
+  type         NotificationType
+  title        String
+  body         String
+  readAt       DateTime?
+  projectId    String
+  budgetItemId String
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  project    Project    @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  budgetItem BudgetItem @relation(fields: [budgetItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([userId, type, budgetItemId])
+  @@index([userId, readAt, createdAt])
+  @@index([projectId])
+}
+
 model ImplementationTask {
-  id               String         @id @default(cuid())
+  id               String       @id @default(cuid())
   projectId        String
   title            String
   category         TaskCategory
   description      String?
-  status           TaskStatus     @default(NOT_STARTED)
+  status           TaskStatus   @default(NOT_STARTED)
   dueDate          DateTime?
   sourceDocumentId String?
   sourcePage       Int?
   notes            String?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
   project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   sourceDocument ProjectDocument? @relation("TaskSourceDocument", fields: [sourceDocumentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
@@ -449,25 +509,25 @@ model ImplementationTask {
 }
 
 model Supplier {
-  id             String   @id @default(cuid())
-  legalName      String
-  tradeName      String?
-  documentNumber String?  @unique
-  contactName    String?
-  address        String?
-  phone          String?
-  email          String?
-  cnd            String?
-  cndIssuedAt    DateTime?
-  cndValidUntil  DateTime?
-  cndControlCode String?
+  id                String    @id @default(cuid())
+  legalName         String
+  tradeName         String?
+  documentNumber    String?   @unique
+  contactName       String?
+  address           String?
+  phone             String?
+  email             String?
+  cnd               String?
+  cndIssuedAt       DateTime?
+  cndValidUntil     DateTime?
+  cndControlCode    String?
   cndSourceFileName String?
-  notes          String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   purchaseOrders PurchaseOrder[]
-  projectQuotes   ProjectQuote[]
+  projectQuotes  ProjectQuote[]
   cndAttachments SupplierCndAttachment[]
 
   @@index([legalName])
@@ -483,27 +543,27 @@ model SupplierCndAttachment {
   fileSizeBytes     Int?
   createdAt         DateTime @default(now())
 
-  supplier          Supplier           @relation(fields: [supplierId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  projectDocuments  ProjectDocument[]
+  supplier         Supplier          @relation(fields: [supplierId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  projectDocuments ProjectDocument[]
 
   @@index([supplierId])
 }
 
 model ProjectQuote {
-  id                     String   @id @default(cuid())
-  projectId              String
-  projectQuotePurchaseId String?
-  slotNumber             Int
-  supplierId             String?
+  id                       String   @id @default(cuid())
+  projectId                String
+  projectQuotePurchaseId   String?
+  slotNumber               Int
+  supplierId               String?
   latestImportedDocumentId String?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
-  project              Project          @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  projectQuotePurchase ProjectQuotePurchase? @relation(fields: [projectQuotePurchaseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  supplier             Supplier?        @relation(fields: [supplierId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  latestImportedDocument ProjectDocument? @relation("ProjectQuoteLatestImportedDocument", fields: [latestImportedDocumentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  items                ProjectQuoteItem[]
+  project                Project               @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  projectQuotePurchase   ProjectQuotePurchase? @relation(fields: [projectQuotePurchaseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  supplier               Supplier?             @relation(fields: [supplierId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  latestImportedDocument ProjectDocument?      @relation("ProjectQuoteLatestImportedDocument", fields: [latestImportedDocumentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  items                  ProjectQuoteItem[]
 
   @@unique([projectQuotePurchaseId, slotNumber])
   @@index([projectId])
@@ -514,16 +574,16 @@ model ProjectQuote {
 
 model ProjectQuotePurchase {
   id        String   @id @default(cuid())
-  projectId  String
+  projectId String
   title     String
   notes     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  project        Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  project        Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   items          ProjectQuotePurchaseItem[]
   quotes         ProjectQuote[]
-  purchaseOrders PurchaseOrder[]          @relation("PurchaseOrderSourceQuotePurchase")
+  purchaseOrders PurchaseOrder[]            @relation("PurchaseOrderSourceQuotePurchase")
 
   @@index([projectId])
   @@index([projectId, createdAt])
@@ -561,32 +621,32 @@ model ProjectQuoteItem {
 }
 
 model PurchaseOrder {
-  id                String         @id @default(cuid())
-  projectId         String
+  id                    String         @id @default(cuid())
+  projectId             String
   sourceQuotePurchaseId String?
-  supplierId        String?
-  purchaseStatus    PurchaseStatus @default(TO_START)
-  purchaseDate      DateTime?
-  internalReference String?
-  glpiNumber        String?
-  deliveryAddress   String?
-  freightType       String?
-  paymentTerms      String?
-  responsibleName   String?
-  responsiblePhone  String?
-  expectedDeliveryDate DateTime?
-  generatedDocumentId String?      @unique
-  paymentSentAt     DateTime?
-  notes             String?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  supplierId            String?
+  purchaseStatus        PurchaseStatus @default(TO_START)
+  purchaseDate          DateTime?
+  internalReference     String?
+  glpiNumber            String?
+  deliveryAddress       String?
+  freightType           String?
+  paymentTerms          String?
+  responsibleName       String?
+  responsiblePhone      String?
+  expectedDeliveryDate  DateTime?
+  generatedDocumentId   String?        @unique
+  paymentSentAt         DateTime?
+  notes                 String?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
 
-  project           Project             @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  project             Project               @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   sourceQuotePurchase ProjectQuotePurchase? @relation("PurchaseOrderSourceQuotePurchase", fields: [sourceQuotePurchaseId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  supplier          Supplier?           @relation(fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  generatedDocument ProjectDocument?    @relation("PurchaseOrderGeneratedDocument", fields: [generatedDocumentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  documents         ProjectDocument[]   @relation("PurchaseOrderDocuments")
-  items             PurchaseOrderItem[]
+  supplier            Supplier?             @relation(fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  generatedDocument   ProjectDocument?      @relation("PurchaseOrderGeneratedDocument", fields: [generatedDocumentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  documents           ProjectDocument[]     @relation("PurchaseOrderDocuments")
+  items               PurchaseOrderItem[]
 
   @@unique([sourceQuotePurchaseId, supplierId, glpiNumber])
   @@index([projectId])
@@ -663,20 +723,20 @@ model ReplenishmentEvent {
 }
 
 model MissingItemReport {
-  id                    String               @id @default(cuid())
-  projectId             String
-  requesterName         String
-  requestDate           DateTime
-  itemToAcquire         String
-  estimatedQuantity     String
-  necessityReason       String
-  urgencyLevel          MissingItemUrgency
-  ownerApprovalStatus   OwnerApprovalStatus  @default(PENDING)
-  ownerApprovedAt       DateTime?
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
+  id                  String              @id @default(cuid())
+  projectId           String
+  requesterName       String
+  requestDate         DateTime
+  itemToAcquire       String
+  estimatedQuantity   String
+  necessityReason     String
+  urgencyLevel        MissingItemUrgency
+  ownerApprovalStatus OwnerApprovalStatus @default(PENDING)
+  ownerApprovedAt     DateTime?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 
-  project      Project                       @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  project     Project                       @relation(fields: [projectId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   attachments MissingItemReportAttachment[]
 
   @@index([projectId])

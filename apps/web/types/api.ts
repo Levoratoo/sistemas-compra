@@ -115,6 +115,21 @@ export interface EntityTimestamps {
 
 export type UserRole = 'ADMIN' | 'USER' | 'APPROVER' | 'SUPERVISOR';
 
+export type NotificationType = 'REPLENISHMENT_DUE_SOON';
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  readAt: string | null;
+  projectId: string;
+  budgetItemId: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
 export interface ReleasedProjectSummary {
   id: string;
   code: string;
@@ -533,6 +548,10 @@ export interface BudgetItem extends EntityTimestamps {
   competenceLabel: string | null;
   administrativeFeePercent: number | null;
   actualUnitValue: number | null;
+  /** Ordenação na grelha de controle de compras (menor = mais acima). */
+  purchaseControlSortRank?: number;
+  replenishmentCycleConfirmedAt: string | null;
+  replenishmentContinuesAsItemId: string | null;
   bidTotalValue: number | null;
   realTotalValue: number;
   savingsValue: number | null;

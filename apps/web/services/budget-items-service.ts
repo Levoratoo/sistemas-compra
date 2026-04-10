@@ -67,3 +67,20 @@ export function deleteBudgetItem(itemId: string) {
     method: 'DELETE',
   });
 }
+
+export type ReplenishmentCycleConfirmResponse = {
+  closedItem: BudgetItem;
+  newCycleItem: BudgetItem;
+};
+
+export function confirmReplenishmentCycle(itemId: string) {
+  return apiRequest<ReplenishmentCycleConfirmResponse>(`budget-items/${itemId}/replenishment-cycle/confirm`, {
+    method: 'POST',
+  });
+}
+
+export function unconfirmReplenishmentCycle(itemId: string) {
+  return apiRequest<BudgetItem>(`budget-items/${itemId}/replenishment-cycle/unconfirm`, {
+    method: 'POST',
+  });
+}

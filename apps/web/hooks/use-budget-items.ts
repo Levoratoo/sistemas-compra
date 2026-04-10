@@ -3,10 +3,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
+  confirmReplenishmentCycle,
   createBudgetItem,
   deleteBudgetItem,
   listBudgetItems,
   type BudgetItemPayload,
+  unconfirmReplenishmentCycle,
   updateBudgetItem,
 } from '@/services/budget-items-service';
 import type { BudgetItem, ProjectDetail } from '@/types/api';
@@ -90,6 +92,22 @@ export function useBudgetItemsMutations(projectId: string) {
     deleteItem: useMutation({
       mutationFn: (id: string) => deleteBudgetItem(id),
       onSuccess: invalidate,
+    }),
+    confirmReplenishmentCycle: useMutation({
+      mutationFn: (itemId: string) => confirmReplenishmentCycle(itemId),
+      onSuccess: async () => {
+        await invalidate();
+        await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        await queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
+      },
+    }),
+    unconfirmReplenishmentCycle: useMutation({
+      mutationFn: (itemId: string) => unconfirmReplenishmentCycle(itemId),
+      onSuccess: async () => {
+        await invalidate();
+        await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        await queryClient.invalidateQueries({ queryKey: ['notifications-unread'] });
+      },
     }),
   };
 }

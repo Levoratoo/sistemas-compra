@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { EmptyState } from '@/components/common/empty-state';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getItemCategoryLabel } from '@/lib/constants';
 import { formatCurrency, formatDate } from '@/lib/format';
@@ -28,13 +29,13 @@ const th =
  * Fase 2 = colunas operacionais (ordem fixa do modelo “Projetos - Controles”).
  */
 const FASE1_COL_COUNT = 6;
-const FASE2_COL_COUNT = 22;
+const FASE2_COL_COUNT = 23;
 const PURCHASE_CONTROL_COL_COUNT = FASE1_COL_COUNT + FASE2_COL_COUNT;
 
 /** Default column widths (px); must match column order in thead / tbody. Tam. é mais larga para textos multilinha. */
 const DEFAULT_COL_WIDTHS: number[] = [
   168, 84, 148, 120, 104, 72,
-  132, 64, 72, 96, 100, 96, 72, 72, 88, 88, 120, 88, 88, 88, 88, 88, 88, 88, 88, 88, 88, 140,
+  132, 64, 72, 96, 100, 96, 72, 72, 88, 88, 120, 88, 88, 88, 88, 88, 88, 72, 88, 88, 88, 88, 140,
 ];
 
 const FASE1_HEADERS: string[] = ['Órgão', 'Classif.', 'Descrição', 'Especificação', 'Tam.', 'Req. CA'];
@@ -58,6 +59,7 @@ const FASE2_HEADERS: string[] = [
   'Data da entrega na unidade',
   'Status demais etapas',
   'Data Prevista de Reposição',
+  'Conf. ciclo',
   'Status de Reposição',
   'Competência',
   'Número do contrato',
@@ -67,7 +69,7 @@ const FASE2_HEADERS: string[] = [
 
 const PURCHASE_CONTROL_HEADERS: string[] = [...FASE1_HEADERS, ...FASE2_HEADERS];
 
-const COL_WIDTH_STORAGE_KEY = (projectId: string) => `purchase-control-col-widths:v5:${projectId}`;
+const COL_WIDTH_STORAGE_KEY = (projectId: string) => `purchase-control-col-widths:v6:${projectId}`;
 const COL_MIN = 48;
 const COL_MAX = 560;
 
@@ -132,6 +134,31 @@ function nextReplenishmentIsoFromDelivered(opDeliveredAtIso: string): string | n
   const base = opDeliveredAtIso.slice(0, 10);
   if (!base) return null;
   return addCalendarMonthsToDateInputIso(base, 6);
+}
+
+function effectiveNextReplenishmentIso(item: BudgetItem): string | null {
+  if (item.nextReplenishmentExpectedAt) return item.nextReplenishmentExpectedAt;
+  if (item.opDeliveredAt) return nextReplenishmentIsoFromDelivered(item.opDeliveredAt);
+  return null;
+}
+
+function utcDayStart(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
+function isReplenishmentOverdueUi(effectiveIso: string): boolean {
+  const eff = utcDayStart(new Date(effectiveIso));
+  const today = utcDayStart(new Date());
+  return eff.getTime() < today.getTime();
+}
+
+/** Entre amanhã e hoje+30 dias (comparação por dia UTC). */
+function isWithin30DayWarningUi(effectiveIso: string): boolean {
+  const eff = utcDayStart(new Date(effectiveIso));
+  const today = utcDayStart(new Date());
+  const horizon = new Date(today);
+  horizon.setUTCDate(horizon.getUTCDate() + 30);
+  return eff > today && eff <= horizon;
 }
 
 const RANDOM_CATEGORIES: BudgetItem['itemCategory'][] = ['UNIFORM', 'EPI', 'EQUIPMENT', 'CONSUMABLE', 'OTHER'];
@@ -282,7 +309,8 @@ function commitDeliveryAndReposicao(
 export function PurchaseControlPanel({ projectId }: { projectId: string }) {
   const projectQuery = useProjectQuery(projectId);
   const itemsQuery = useBudgetItemsQuery(projectId);
-  const { updateItem } = useBudgetItemsMutations(projectId);
+  const { updateItem, confirmReplenishmentCycle, unconfirmReplenishmentCycle } =
+    useBudgetItemsMutations(projectId);
 
   const [colWidths, setColWidths] = useState<number[]>(() => loadStoredWidths(projectId) ?? [...DEFAULT_COL_WIDTHS]);
   const colWidthsRef = useRef(colWidths);
@@ -393,7 +421,7 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
         <CardHeader>
           <CardTitle>Controle de compras</CardTitle>
           <CardDescription>
-            Fase 1: texto do edital (6 colunas — Req. CA único; sem duplicar na Fase 2). Fase 2: operação (22 colunas).
+            Fase 1: texto do edital (6 colunas — Req. CA único; sem duplicar na Fase 2). Fase 2: operação (23 colunas).
             Alterações ao sair de cada campo. Em <strong className="font-medium text-foreground">Tam.</strong>,{' '}
             <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">Shift</kbd>
             {' + '}
@@ -472,11 +500,25 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
                   {items.map((row) => (
                     <PurchaseControlRow
                       key={`${row.id}-${row.updatedAt}-${String(row.plannedQuantity)}-${String(row.rubricMaxValue)}`}
+                      confirmBusy={
+                        confirmReplenishmentCycle.isPending &&
+                        confirmReplenishmentCycle.variables === row.id
+                      }
                       item={row}
+                      onConfirmCycle={async () => {
+                        await confirmReplenishmentCycle.mutateAsync(row.id);
+                      }}
                       onPatch={patch}
+                      onUnconfirmCycle={async () => {
+                        await unconfirmReplenishmentCycle.mutateAsync(row.id);
+                      }}
                       orgName={project.organizationName}
                       contractNumber={project.contractNumber}
                       plannedSignatureDate={project.plannedSignatureDate}
+                      unconfirmBusy={
+                        unconfirmReplenishmentCycle.isPending &&
+                        unconfirmReplenishmentCycle.variables === row.id
+                      }
                     />
                   ))}
                 </tbody>
@@ -492,17 +534,26 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
 function PurchaseControlRow({
   item,
   onPatch,
+  onConfirmCycle,
+  onUnconfirmCycle,
+  confirmBusy,
+  unconfirmBusy,
   orgName,
   contractNumber,
   plannedSignatureDate,
 }: {
   item: BudgetItem;
   onPatch: (id: string, p: Partial<BudgetItemPayload>) => void;
+  onConfirmCycle: () => Promise<void>;
+  onUnconfirmCycle: () => Promise<void>;
+  confirmBusy: boolean;
+  unconfirmBusy: boolean;
   orgName: string;
   contractNumber: string | null;
   plannedSignatureDate: string | null;
 }) {
   const ctx = item.contextOnly ?? false;
+  const [confirmOpen, setConfirmOpen] = useState(false);
   /** Inclui campos que a API atualiza sem garantir `updatedAt` novo — evita inputs com defaultValue presos ao valor antigo. */
   const rk = `${item.id}-${item.updatedAt}-pq${String(item.plannedQuantity)}-rub${String(item.rubricMaxValue)}`;
   const valorTotalFase2 =
@@ -511,11 +562,25 @@ function PurchaseControlRow({
       : item.realTotalValue != null
         ? item.realTotalValue
         : null;
-  const dataReposicaoPrevista =
-    item.opDeliveredAt != null ? nextReplenishmentIsoFromDelivered(item.opDeliveredAt) : null;
+  const dataReposicaoPrevista = effectiveNextReplenishmentIso(item);
+  const overdue =
+    dataReposicaoPrevista != null && !ctx ? isReplenishmentOverdueUi(dataReposicaoPrevista) : false;
+  const warn30 =
+    dataReposicaoPrevista != null && !ctx && !item.replenishmentCycleConfirmedAt
+      ? isWithin30DayWarningUi(dataReposicaoPrevista)
+      : false;
+  const canConfirmCycle = Boolean(dataReposicaoPrevista && overdue && !item.replenishmentCycleConfirmedAt && !ctx);
+  const isGreenRow = Boolean(item.replenishmentCycleConfirmedAt);
 
   return (
-    <tr className={cn('hover:bg-muted/40', item.supplierQuoteExtraItem && 'bg-amber-50/80 hover:bg-amber-100/70')}>
+    <tr
+      className={cn(
+        'hover:bg-muted/40',
+        item.supplierQuoteExtraItem && !isGreenRow && !warn30 && 'bg-amber-50/80 hover:bg-amber-100/70',
+        isGreenRow && 'bg-emerald-50/90 hover:bg-emerald-100/80 dark:bg-emerald-950/25',
+        !isGreenRow && warn30 && 'bg-yellow-50/90 hover:bg-yellow-100/80 dark:bg-yellow-950/20',
+      )}
+    >
       <td className={cn(cell, 'bg-muted/50 px-1.5 py-2 text-[11px] text-muted-foreground')}>{orgName}</td>
       <td className={cell}>
         <select
@@ -731,11 +796,75 @@ function PurchaseControlRow({
       </td>
       <td
         className={cn(cell, 'bg-muted/50 px-1.5 py-2')}
-        title="Calculada automaticamente: data de entrega na unidade + 6 meses."
+        title="Campo gravado na API ou entrega na unidade + 6 meses."
       >
         <span className="block min-h-8 tabular-nums text-[11px] leading-tight text-foreground">
           {dataReposicaoPrevista ? formatDate(dataReposicaoPrevista) : '—'}
         </span>
+      </td>
+      <td className={cn(cell, 'px-1 py-1 align-middle')}>
+        {ctx ? (
+          <span className="text-muted-foreground">—</span>
+        ) : isGreenRow ? (
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-semibold text-emerald-800 dark:text-emerald-200">Confirmado</span>
+            <Button
+              className="h-7 min-h-7 px-1.5 text-[10px]"
+              disabled={unconfirmBusy}
+              onClick={() => void onUnconfirmCycle().catch(() => toast.error('Não foi possível desfazer.'))}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              {unconfirmBusy ? '…' : 'Desfazer'}
+            </Button>
+          </div>
+        ) : canConfirmCycle ? (
+          <>
+            <Button
+              className="h-7 min-h-7 px-1.5 text-[10px]"
+              disabled={confirmBusy}
+              onClick={() => setConfirmOpen(true)}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              Confirmar…
+            </Button>
+            <Dialog onOpenChange={setConfirmOpen} open={confirmOpen}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Confirmar reposição</DialogTitle>
+                </DialogHeader>
+                <p className="text-sm text-muted-foreground">
+                  O item foi realmente reposto? Será criada uma nova linha no topo para o próximo ciclo e esta linha
+                  ficará registada como concluída.
+                </p>
+                <DialogFooter>
+                  <Button onClick={() => setConfirmOpen(false)} type="button" variant="ghost">
+                    Cancelar
+                  </Button>
+                  <Button
+                    disabled={confirmBusy}
+                    onClick={() => {
+                      void onConfirmCycle()
+                        .then(() => {
+                          setConfirmOpen(false);
+                          toast.success('Ciclo de reposição confirmado.');
+                        })
+                        .catch(() => toast.error('Não foi possível confirmar.'));
+                    }}
+                    type="button"
+                  >
+                    Sim, foi reposto
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
       </td>
       <td className={cell}>
         <input
