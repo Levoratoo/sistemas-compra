@@ -354,7 +354,7 @@ class BudgetItemService {
 
     if (!canConfirmReplenishmentCycle(effective, 30)) {
       throw new AppError(
-        'Só é possível confirmar nos 30 dias antes da data prevista de reposição, ou depois dessa data (em atraso).',
+        'Só é possível confirmar a partir de 30 dias antes da data prevista de reposição (até confirmar, incluindo em atraso).',
         400,
       );
     }

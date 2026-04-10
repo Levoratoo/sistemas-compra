@@ -4,8 +4,10 @@ import { describe, it } from 'node:test';
 import {
   canConfirmReplenishmentCycle,
   effectiveNextReplenishmentDate,
+  isReplenishmentAttentionActive,
   isReplenishmentOverdue,
   isWithinDaysBeforeReplenishment,
+  utcDayStart,
 } from './replenishment-dates.js';
 
 describe('replenishment-dates', () => {
@@ -29,13 +31,18 @@ describe('replenishment-dates', () => {
     assert.equal(isWithinDaysBeforeReplenishment(d, 30), true);
   });
 
-  it('canConfirmReplenishmentCycle: dentro de 30 dias ou em atraso', () => {
-    const today = new Date();
-    const in20 = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + 20));
+  it('atenção ativa a partir de 30 dias antes até confirmar (inclui em atraso)', () => {
+    const today = utcDayStart(new Date());
+    const effIn15 = new Date(today);
+    effIn15.setUTCDate(effIn15.getUTCDate() + 15);
+    assert.equal(isReplenishmentAttentionActive(effIn15, 30), true);
+
+    const effIn60 = new Date(today);
+    effIn60.setUTCDate(effIn60.getUTCDate() + 60);
+    assert.equal(isReplenishmentAttentionActive(effIn60, 30), false);
+
     const past = new Date('2019-06-01T12:00:00.000Z');
-    const far = new Date(Date.UTC(today.getUTCFullYear() + 2, 0, 1));
-    assert.equal(canConfirmReplenishmentCycle(in20, 30), true);
+    assert.equal(isReplenishmentAttentionActive(past, 30), true);
     assert.equal(canConfirmReplenishmentCycle(past, 30), true);
-    assert.equal(canConfirmReplenishmentCycle(far, 30), false);
   });
 });

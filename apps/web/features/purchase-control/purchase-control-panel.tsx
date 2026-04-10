@@ -146,19 +146,13 @@ function utcDayStart(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
-function isReplenishmentOverdueUi(effectiveIso: string): boolean {
+/** A partir de 30 dias antes da data prevista (UTC), até confirmar — inclui após a data se ainda não confirmou. */
+function isReplenishmentAttentionUi(effectiveIso: string): boolean {
   const eff = utcDayStart(new Date(effectiveIso));
   const today = utcDayStart(new Date());
-  return eff.getTime() < today.getTime();
-}
-
-/** Entre amanhã e hoje+30 dias (comparação por dia UTC). */
-function isWithin30DayWarningUi(effectiveIso: string): boolean {
-  const eff = utcDayStart(new Date(effectiveIso));
-  const today = utcDayStart(new Date());
-  const horizon = new Date(today);
-  horizon.setUTCDate(horizon.getUTCDate() + 30);
-  return eff > today && eff <= horizon;
+  const windowStart = new Date(eff);
+  windowStart.setUTCDate(windowStart.getUTCDate() - 30);
+  return today.getTime() >= windowStart.getTime();
 }
 
 const RANDOM_CATEGORIES: BudgetItem['itemCategory'][] = ['UNIFORM', 'EPI', 'EQUIPMENT', 'CONSUMABLE', 'OTHER'];
@@ -563,14 +557,13 @@ function PurchaseControlRow({
         ? item.realTotalValue
         : null;
   const dataReposicaoPrevista = effectiveNextReplenishmentIso(item);
-  const overdue =
-    dataReposicaoPrevista != null && !ctx ? isReplenishmentOverdueUi(dataReposicaoPrevista) : false;
-  const warn30 =
-    dataReposicaoPrevista != null && !ctx && !item.replenishmentCycleConfirmedAt
-      ? isWithin30DayWarningUi(dataReposicaoPrevista)
-      : false;
+  const replenishmentAttention =
+    dataReposicaoPrevista != null &&
+    !ctx &&
+    !item.replenishmentCycleConfirmedAt &&
+    isReplenishmentAttentionUi(dataReposicaoPrevista);
   const canConfirmCycle = Boolean(
-    dataReposicaoPrevista && !item.replenishmentCycleConfirmedAt && !ctx && (overdue || warn30),
+    dataReposicaoPrevista && !item.replenishmentCycleConfirmedAt && !ctx && replenishmentAttention,
   );
   const isGreenRow = Boolean(item.replenishmentCycleConfirmedAt);
 
@@ -578,11 +571,11 @@ function PurchaseControlRow({
     <tr
       className={cn(
         'hover:bg-muted/40',
-        item.supplierQuoteExtraItem && !isGreenRow && !warn30 && 'bg-amber-50/80 hover:bg-amber-100/70',
+        item.supplierQuoteExtraItem && !isGreenRow && !replenishmentAttention && 'bg-amber-50/80 hover:bg-amber-100/70',
         isGreenRow &&
           'bg-emerald-300/95 hover:bg-emerald-400/95 dark:bg-emerald-800/85 dark:hover:bg-emerald-700/90 ring-1 ring-inset ring-emerald-600/80 dark:ring-emerald-500/70',
         !isGreenRow &&
-          warn30 &&
+          replenishmentAttention &&
           'bg-amber-300/95 hover:bg-amber-400/95 dark:bg-amber-800/85 dark:hover:bg-amber-700/90 ring-1 ring-inset ring-amber-600/80 dark:ring-amber-500/70',
       )}
     >
@@ -843,7 +836,7 @@ function PurchaseControlRow({
                 </DialogHeader>
                 <p className="text-sm text-muted-foreground">
                   O item foi realmente reposto? Será criada uma nova linha no topo para o próximo ciclo e esta linha
-                  ficará registada como concluída. (Disponível nos 30 dias antes da data prevista ou depois dela.)
+                  ficará registada como concluída. (A partir de 30 dias antes da data prevista até confirmar.)
                 </p>
                 <DialogFooter>
                   <Button onClick={() => setConfirmOpen(false)} type="button" variant="ghost">
@@ -870,7 +863,7 @@ function PurchaseControlRow({
         ) : dataReposicaoPrevista && !ctx ? (
           <span
             className="block px-0.5 text-[10px] leading-tight text-muted-foreground"
-            title="A confirmação fica disponível nos 30 dias antes da data prevista de reposição, ou depois dessa data (em atraso)."
+            title="A confirmação fica disponível a partir de 30 dias antes da data prevista e mantém-se até confirmar (incluindo em atraso)."
           >
             —
           </span>

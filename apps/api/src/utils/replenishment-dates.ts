@@ -33,7 +33,19 @@ export function isWithinDaysBeforeReplenishment(effective: Date, days: number): 
   return eff > today && eff <= horizon;
 }
 
-/** Pode confirmar ciclo: em atraso ou dentro da janela de N dias antes da reposição (alinhado ao alerta amarelo). */
+/**
+ * A partir de N dias antes da data prevista (inclusive), até o utilizador confirmar o ciclo.
+ * Continua verdadeiro após a data se ainda não confirmou (amarelo mantém-se).
+ */
+export function isReplenishmentAttentionActive(effective: Date, windowDays = 30): boolean {
+  const today = utcDayStart(new Date());
+  const eff = utcDayStart(effective);
+  const windowStart = new Date(eff);
+  windowStart.setUTCDate(windowStart.getUTCDate() - windowDays);
+  return today.getTime() >= windowStart.getTime();
+}
+
+/** Pode confirmar ciclo: mesma janela do alerta amarelo (30 dias antes até confirmar). */
 export function canConfirmReplenishmentCycle(effective: Date, windowDays = 30): boolean {
-  return isReplenishmentOverdue(effective) || isWithinDaysBeforeReplenishment(effective, windowDays);
+  return isReplenishmentAttentionActive(effective, windowDays);
 }

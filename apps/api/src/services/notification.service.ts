@@ -4,7 +4,7 @@ import { prisma } from '../config/prisma.js';
 import { userRepository } from '../repositories/user.repository.js';
 import { AppError } from '../utils/app-error.js';
 import { toIsoString } from '../utils/date.js';
-import { effectiveNextReplenishmentDate, isWithinDaysBeforeReplenishment } from '../utils/replenishment-dates.js';
+import { effectiveNextReplenishmentDate, isReplenishmentAttentionActive } from '../utils/replenishment-dates.js';
 
 function serializeNotification(n: Notification) {
   return {
@@ -55,10 +55,10 @@ async function syncReplenishmentDueSoon(userId: string, role: UserRole) {
 
   for (const it of items) {
     const eff = effectiveNextReplenishmentDate(it);
-    if (eff && isWithinDaysBeforeReplenishment(eff, 30)) {
+    if (eff && isReplenishmentAttentionActive(eff, 30)) {
       inWindowIds.add(it.id);
-      const title = 'Reposição prevista em breve';
-      const body = `${it.name} — ${it.project.name}. A data de reposição está a menos de 30 dias.`;
+      const title = 'Atenção: reposição';
+      const body = `${it.name} — ${it.project.name}. Já entrou na janela de reposição (30 dias antes até confirmar).`;
 
       await prisma.notification.upsert({
         where: {
