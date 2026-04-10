@@ -47,7 +47,7 @@ import { projectDocumentPublicFileUrl } from '@/lib/project-document-url';
 import { useMissingItemReportsMutations, useMissingItemReportsQuery } from '@/hooks/use-missing-item-reports';
 import { ApiError } from '@/services/api-client';
 import type { MissingItemReportPayload, MissingItemReportUpdatePayload } from '@/services/missing-item-reports-service';
-import type { MissingItemReport, MissingItemReportAttachment, MissingItemUrgency, OwnerApprovalStatus } from '@/types/api';
+import type { MissingItemReport, MissingItemReportAttachment, MissingItemUrgency } from '@/types/api';
 
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
@@ -63,8 +63,6 @@ const RANDOM_MISSING_ITEM_NAMES = [
   'Bolsa coletora para resíduos infectantes',
   'Termômetro infravermelho clínico',
 ];
-
-const RANDOM_APPROVAL_ROTATION: OwnerApprovalStatus[] = ['PENDING', 'APPROVED', 'REJECTED'];
 
 function randomInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1));
@@ -609,8 +607,7 @@ function formatMutationErrorMessage(error: unknown, fallback: string) {
 
 export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
   const { data: reports, isLoading, isError } = useMissingItemReportsQuery(projectId);
-  const { createReport, updateReport, deleteReport, uploadAttachment, deleteAttachment } =
-    useMissingItemReportsMutations(projectId);
+  const { createReport, deleteReport, uploadAttachment, deleteAttachment } = useMissingItemReportsMutations(projectId);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<MissingItemReport | null>(null);
   const [approvalFilter, setApprovalFilter] = useState<ApprovalFilter>('all');
@@ -702,14 +699,7 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
       for (let index = 0; index < RANDOM_FILL_COUNT; index++) {
         try {
           const payload = buildRandomMissingItemPayload(index);
-          const created = await createReport.mutateAsync(payload);
-          const status = RANDOM_APPROVAL_ROTATION[index % RANDOM_APPROVAL_ROTATION.length]!;
-          if (status !== 'PENDING') {
-            await updateReport.mutateAsync({
-              id: created.id,
-              payload: { ownerApprovalStatus: status },
-            });
-          }
+          await createReport.mutateAsync(payload);
           ok++;
         } catch (error) {
           if (!firstError) {
@@ -728,7 +718,7 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
         );
       } else {
         toast.success(
-          `${RANDOM_FILL_COUNT} solicitações de teste criadas (urgências e status de aprovação variados).`,
+          `${RANDOM_FILL_COUNT} solicitações de teste criadas — todas aguardando aprovação (urgências variadas).`,
         );
       }
     } catch (error) {
@@ -753,7 +743,7 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
             className="gap-2"
             disabled={randomFillBusy}
             onClick={() => void fillRandomMissingItemReports()}
-            title="Cria várias solicitações fictícias com urgências e status de aprovação variados — apenas para testes."
+            title="Cria solicitações fictícias só para testes; todas ficam pendentes de aprovação do aprovador."
             type="button"
             variant="secondary"
           >
