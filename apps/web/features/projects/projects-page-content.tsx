@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { formatCurrency, formatDate } from '@/lib/format';
 import { projectStatusOptions } from '@/lib/constants';
 import { useProjectMutations, useProjectsQuery } from '@/hooks/use-projects';
+import { ApiError } from '@/services/api-client';
 import type { ProjectListItem, ProjectStatus } from '@/types/api';
 
 import { NewProjectFlowDialog } from './new-project-flow-dialog';
@@ -31,10 +32,11 @@ export function ProjectsPageContent() {
   const [flowOpen, setFlowOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<ProjectListItem | null>(null);
-  const { data, isLoading, isError } = useProjectsQuery({
+  const { data, isLoading, isError, error } = useProjectsQuery({
     search: deferredSearch || undefined,
     projectStatus: status || undefined,
   });
+  const isPermissionError = error instanceof ApiError && error.status === 403;
   const { deleteProject } = useProjectMutations();
 
   const statusOptions = useMemo(() => projectStatusOptions, []);
@@ -111,8 +113,14 @@ export function ProjectsPageContent() {
         </Card>
       ) : isError ? (
         <EmptyState
-          description="Verifique se a API está rodando e tente novamente."
-          title="Não foi possível carregar os projetos"
+          description={
+            isPermissionError
+              ? 'A sua sessão pode estar desatualizada ou não tem permissão para esta área. Saia e entre novamente, ou contacte o administrador se o seu papel tiver sido alterado.'
+              : 'Verifique se a API está acessível e tente novamente.'
+          }
+          title={
+            isPermissionError ? 'Sem permissão para ver projetos' : 'Não foi possível carregar os projetos'
+          }
         />
       ) : projects.length === 0 ? (
         <EmptyState

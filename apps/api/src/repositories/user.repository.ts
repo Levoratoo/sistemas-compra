@@ -24,6 +24,22 @@ const releasedProjectsInclude = {
 } as const;
 
 class UserRepository {
+  /**
+   * Contexto mínimo para cada requisição autenticada (sem releasedProjects).
+   * O papel vem sempre daqui — nunca do payload do JWT.
+   */
+  findAuthContext(userId: string) {
+    return prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        isActive: true,
+      },
+    });
+  }
+
   findByEmail(email: string) {
     return prisma.user.findUnique({
       where: { email: normalizeEmail(email) },

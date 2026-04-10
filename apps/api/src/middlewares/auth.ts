@@ -4,13 +4,16 @@ import jwt from 'jsonwebtoken';
 import type { UserRole } from '@prisma/client';
 
 import { env } from '../config/env.js';
+import { userRepository } from '../repositories/user.repository.js';
 import { AppError } from '../utils/app-error.js';
 import { isPublicApiHealthRequest } from '../utils/public-api-paths.js';
+import { resolveAuthFromDbUser } from './auth-session.js';
 
+/** Payload do JWT: só `sub` (userId) é fonte de verdade; email/role no token são legados e ignorados. */
 type JwtPayload = {
   sub: string;
-  email: string;
-  role: UserRole;
+  email?: string;
+  role?: UserRole;
   iat?: number;
   exp?: number;
 };
@@ -43,17 +46,38 @@ export function authenticate(req: Request, _res: Response, next: NextFunction) {
     return;
   }
 
+  void authenticateWithDatabase(req, next, token).catch(next);
+}
+
+async function authenticateWithDatabase(req: Request, next: NextFunction, token: string) {
+  let userId: string;
+
   try {
     const decoded = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
-    req.auth = {
-      userId: decoded.sub,
-      email: decoded.email,
-      role: decoded.role,
-    };
-    next();
+    userId = decoded.sub;
+    if (!userId) {
+      next(new AppError('Token inválido.', 401));
+      return;
+    }
   } catch {
     next(new AppError('Token inválido ou expirado.', 401));
+    return;
   }
+
+  const user = await userRepository.findAuthContext(userId);
+  const resolved = resolveAuthFromDbUser(user);
+
+  if (!resolved.ok) {
+    if (resolved.reason === 'missing') {
+      next(new AppError('Sessão inválida: utilizador não encontrado.', 401));
+      return;
+    }
+    next(new AppError('Utilizador inativo.', 401));
+    return;
+  }
+
+  req.auth = resolved.auth;
+  next();
 }
 
 export function requireRole(...allowed: UserRole[]) {
