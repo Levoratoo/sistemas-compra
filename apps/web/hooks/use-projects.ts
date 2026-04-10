@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { useAuth } from '@/components/auth/auth-context';
 import {
   applyExtractionToProject,
   createProject,
@@ -16,8 +17,10 @@ import {
 import type { ProjectStatus } from '@/types/api';
 
 export function useProjectsQuery(filters?: { search?: string; projectStatus?: ProjectStatus }) {
+  const { user } = useAuth();
+
   return useQuery({
-    queryKey: ['projects', filters],
+    queryKey: ['projects', user?.id ?? 'anonymous', user?.role ?? 'anonymous', filters],
     queryFn: () => listProjects(filters),
   });
 }

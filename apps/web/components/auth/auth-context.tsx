@@ -1,5 +1,6 @@
 'use client';
 
+import { useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
@@ -21,6 +22,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -37,9 +39,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(me);
     } catch {
       logoutClient();
+      queryClient.clear();
       setUser(null);
     }
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch {
         if (!cancelled) {
           logoutClient();
+          queryClient.clear();
           setUser(null);
         }
       } finally {
@@ -73,18 +77,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [queryClient]);
 
   const login = useCallback(async (email: string, password: string) => {
     const { user: next } = await loginRequest(email, password);
+    queryClient.clear();
     setUser(next);
     return next;
-  }, []);
+  }, [queryClient]);
 
   const logout = useCallback(() => {
     logoutClient();
+    queryClient.clear();
     setUser(null);
-  }, []);
+  }, [queryClient]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
