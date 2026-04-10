@@ -12,18 +12,19 @@ import {
 
 export const userAdminRouter = Router();
 
-userAdminRouter.use(requireRole('ADMIN'));
-
-userAdminRouter.get('/users', asyncHandler((request, response) => userAdminController.list(request, response)));
+/** `Router.use(requireRole)` aplicaria ADMIN a *todas* as rotas montadas depois no router pai — bloqueava GET /projects para não-admins. */
+userAdminRouter.get('/users', requireRole('ADMIN'), asyncHandler((request, response) => userAdminController.list(request, response)));
 
 userAdminRouter.post(
   '/users',
+  requireRole('ADMIN'),
   validateRequest({ body: createUserSchema }),
   asyncHandler((request, response) => userAdminController.create(request, response)),
 );
 
 userAdminRouter.patch(
   '/users/:id',
+  requireRole('ADMIN'),
   validateRequest({ params: userIdParamsSchema, body: updateUserSchema }),
   asyncHandler((request, response) => userAdminController.update(request, response)),
 );
