@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Dices } from 'lucide-react';
 import { toast } from 'sonner';
@@ -17,7 +17,10 @@ import { useBudgetItemsMutations, useBudgetItemsQuery } from '@/hooks/use-budget
 import { useProjectQuery } from '@/hooks/use-projects';
 import type { BudgetItem } from '@/types/api';
 import type { BudgetItemPayload } from '@/services/budget-items-service';
-import { replenishmentFilterFromSearchParams } from '@/features/purchase-control/purchase-control-replenishment-filter';
+import {
+  AppPurchaseControlReplenishmentFilter,
+  replenishmentFilterFromSearchParams,
+} from '@/features/purchase-control/purchase-control-replenishment-filter';
 
 const cell =
   'max-w-0 overflow-hidden border-b border-r border-border p-0 align-top dark:border-border';
@@ -447,9 +450,22 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
           title="Nenhum item neste projeto"
         />
       ) : (
-        <Card className="min-w-0 overflow-hidden border-border/80 shadow-sm">
-          <CardContent className="min-w-0 p-0">
-            <div className="max-h-[min(78vh,920px)] w-full min-w-0 overflow-x-auto overflow-y-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+        <>
+          <div className="flex min-w-0 items-center justify-end gap-3 pb-3 pt-0.5">
+            <Suspense
+              fallback={
+                <div
+                  aria-hidden
+                  className="h-10 w-10 shrink-0 rounded-2xl border border-border/60 bg-muted/30"
+                />
+              }
+            >
+              <AppPurchaseControlReplenishmentFilter appearance="icon" />
+            </Suspense>
+          </div>
+          <Card className="min-w-0 overflow-hidden border-border/80 shadow-sm">
+            <CardContent className="min-w-0 p-0">
+              <div className="max-h-[min(78vh,920px)] w-full min-w-0 overflow-x-auto overflow-y-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
               <table
                 className="w-max min-w-full border-collapse text-[11px] antialiased"
                 style={{ tableLayout: 'fixed' }}
@@ -511,8 +527,8 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
                         colSpan={PURCHASE_CONTROL_COL_COUNT}
                       >
                         {replenishmentFilter === 'yellow'
-                          ? '                        Nenhum item em alerta de reposição (amarelo) neste momento. Use o filtro no canto superior desta página para mostrar todos ou as linhas verdes.'
-                          : 'Nenhum item com ciclo de reposição confirmado (verde) neste momento. Use o filtro no canto superior desta página para mostrar todos ou as linhas amarelas.'}
+                          ? 'Nenhum item em alerta de reposição (amarelo) neste momento. Use o ícone de filtro acima da tabela para mostrar todos ou as linhas verdes.'
+                          : 'Nenhum item com ciclo de reposição confirmado (verde) neste momento. Use o ícone de filtro acima da tabela para mostrar todos ou as linhas amarelas.'}
                       </td>
                     </tr>
                   ) : (
@@ -543,9 +559,10 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
                   )}
                 </tbody>
               </table>
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   );

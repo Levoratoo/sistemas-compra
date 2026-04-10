@@ -37,15 +37,21 @@ function setReplenishmentFilterInUrl(
   router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
 }
 
+export type ReplenishmentFilterAppearance = 'full' | 'icon';
+
 function PurchaseReplenishmentFilterUi({
   value,
   onChange,
+  appearance = 'full',
 }: {
   value: ReplenishmentRowFilter;
   onChange: (v: ReplenishmentRowFilter) => void;
+  /** `icon` = só o símbolo, para a barra acima da planilha. */
+  appearance?: ReplenishmentFilterAppearance;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const iconOnly = appearance === 'icon';
 
   useEffect(() => {
     if (!open) return;
@@ -71,26 +77,44 @@ function PurchaseReplenishmentFilterUi({
         : 'Filtrar por cor';
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className={cn('relative', iconOnly && 'flex justify-end')}>
       <Button
         aria-expanded={open}
         aria-haspopup="menu"
+        aria-label={label}
         className={cn(
-          'h-9 gap-2 rounded-full border border-border/80 bg-background/95 px-3 shadow-sm transition-all hover:bg-muted/70 hover:shadow-md',
-          value !== 'all' && 'border-primary/35 ring-1 ring-primary/20',
+          'relative overflow-hidden transition-all',
+          iconOnly
+            ? cn(
+                'flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-border/70 bg-gradient-to-b from-background to-muted/30 p-0 shadow-md ring-1 ring-black/[0.06] hover:-translate-y-px hover:to-muted/45 hover:shadow-lg dark:from-card dark:to-muted/20 dark:ring-white/10',
+                value !== 'all' && 'border-primary/40 ring-2 ring-primary/15',
+              )
+            : cn(
+                'h-9 gap-2 rounded-full border border-border/80 bg-background/95 px-3 shadow-sm hover:bg-muted/70 hover:shadow-md',
+                value !== 'all' && 'border-primary/35 ring-1 ring-primary/20',
+              ),
         )}
         onClick={() => setOpen((o) => !o)}
         size="sm"
-        title="Filtrar linhas por status de reposição (cores da planilha)"
+        title="Filtrar por linhas amarelas (alerta) ou verdes (ciclo confirmado)"
         type="button"
         variant="outline"
       >
-        <Filter className="size-4 shrink-0 text-muted-foreground" strokeWidth={2} />
-        <span className="hidden text-[11px] font-semibold tracking-tight text-foreground sm:inline">{label}</span>
+        <Filter
+          className={cn(
+            'shrink-0 text-primary',
+            iconOnly ? 'size-[1.15rem]' : 'size-4 text-muted-foreground',
+          )}
+          strokeWidth={iconOnly ? 2.25 : 2}
+        />
+        {!iconOnly ? (
+          <span className="hidden text-[11px] font-semibold tracking-tight text-foreground sm:inline">{label}</span>
+        ) : null}
         {value !== 'all' && (
           <span
             className={cn(
-              'size-2 shrink-0 rounded-full',
+              'rounded-full ring-2 ring-background',
+              iconOnly ? 'absolute right-1 top-1 size-2' : 'ml-0.5 size-2 shrink-0',
               value === 'yellow' ? 'bg-amber-500' : 'bg-emerald-600 dark:bg-emerald-400',
             )}
             aria-hidden
@@ -99,16 +123,19 @@ function PurchaseReplenishmentFilterUi({
       </Button>
       {open ? (
         <div
-          className="absolute right-0 top-[calc(100%+8px)] z-[100] w-[min(calc(100vw-2rem),18rem)] overflow-hidden rounded-2xl border border-border/80 bg-card py-1.5 text-card-foreground shadow-soft ring-1 ring-black/5 dark:ring-white/10"
+          className={cn(
+            'absolute right-0 top-[calc(100%+10px)] w-[min(calc(100vw-2rem),17.5rem)] overflow-hidden rounded-2xl border border-border/70 bg-card/95 py-1.5 text-card-foreground shadow-[0_16px_48px_-12px_rgba(15,23,42,0.25)] backdrop-blur-md dark:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.45)]',
+            'z-[200] ring-1 ring-black/5 dark:ring-white/10',
+          )}
           role="menu"
         >
-          <p className="px-3 pb-1.5 pt-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Status de reposição
+          <p className="px-3 pb-2 pt-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Reposição na planilha
           </p>
           <button
             className={cn(
-              'flex w-full items-start gap-3 px-3 py-2.5 text-left text-[11px] transition-colors hover:bg-muted/90',
-              value === 'yellow' && 'bg-amber-500/10',
+              'flex w-full items-start gap-3 rounded-lg px-2.5 py-2 text-left text-[11px] transition-colors hover:bg-muted/90',
+              value === 'yellow' && 'bg-amber-500/12',
             )}
             onClick={() => {
               onChange('yellow');
@@ -130,8 +157,8 @@ function PurchaseReplenishmentFilterUi({
           </button>
           <button
             className={cn(
-              'flex w-full items-start gap-3 px-3 py-2.5 text-left text-[11px] transition-colors hover:bg-muted/90',
-              value === 'green' && 'bg-emerald-500/10',
+              'flex w-full items-start gap-3 rounded-lg px-2.5 py-2 text-left text-[11px] transition-colors hover:bg-muted/90',
+              value === 'green' && 'bg-emerald-500/12',
             )}
             onClick={() => {
               onChange('green');
@@ -173,8 +200,12 @@ function PurchaseReplenishmentFilterUi({
   );
 }
 
-/** Filtro no cabeçalho global: sincroniza com `?rep=yellow|green`. */
-export function AppPurchaseControlReplenishmentFilter() {
+/** Sincroniza com `?rep=yellow|green` na URL (partilhado entre instâncias). */
+export function AppPurchaseControlReplenishmentFilter({
+  appearance = 'full',
+}: {
+  appearance?: ReplenishmentFilterAppearance;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -182,6 +213,7 @@ export function AppPurchaseControlReplenishmentFilter() {
 
   return (
     <PurchaseReplenishmentFilterUi
+      appearance={appearance}
       onChange={(next) => {
         setReplenishmentFilterInUrl(router, pathname, new URLSearchParams(searchParams.toString()), next);
       }}
