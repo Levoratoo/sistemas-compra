@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import {
   ClipboardList,
+  Dices,
   Download,
   FileText,
   Paperclip,
@@ -42,10 +43,51 @@ import {
 import { formatDate, formatDateTime, formatFileSize } from '@/lib/format';
 import { projectDocumentPublicFileUrl } from '@/lib/project-document-url';
 import { useMissingItemReportsMutations, useMissingItemReportsQuery } from '@/hooks/use-missing-item-reports';
-import type { MissingItemReportUpdatePayload } from '@/services/missing-item-reports-service';
-import type { MissingItemReport, MissingItemReportAttachment } from '@/types/api';
+import type { MissingItemReportPayload, MissingItemReportUpdatePayload } from '@/services/missing-item-reports-service';
+import type { MissingItemReport, MissingItemReportAttachment, MissingItemUrgency, OwnerApprovalStatus } from '@/types/api';
 
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+
+const RANDOM_MISSING_ITEM_NAMES = [
+  'Luvas nitrílica procedimento — tamanho M',
+  'Máscara PFF2 com válvula (caixa 50)',
+  'Óculos de proteção incolor — antiembaçante',
+  'Protetor auricular tipo concha 23 dB',
+  'Macacão de brim branco com fecho',
+  'Sapato de segurança biqueira composite nº 40',
+  'Avental descartável TNT — pacote 100',
+  'Álcool gel 70% frasco 500 ml',
+  'Bolsa coletora para resíduos infectantes',
+  'Termômetro infravermelho clínico',
+];
+
+const RANDOM_APPROVAL_ROTATION: OwnerApprovalStatus[] = ['PENDING', 'APPROVED', 'REJECTED'];
+
+function randomInt(min: number, max: number) {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+/** Data da solicitação entre hoje e 50 dias atrás (yyyy-mm-dd). */
+function randomRequestDateYmd(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - randomInt(0, 50));
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function buildRandomMissingItemPayload(index: number): MissingItemReportPayload {
+  const urgencyLevels: MissingItemUrgency[] = ['HIGH', 'MEDIUM', 'LOW'];
+  return {
+    requesterName: `Resp. teste ${randomInt(1, 99)} · Almox.`,
+    requestDate: randomRequestDateYmd(),
+    itemToAcquire: RANDOM_MISSING_ITEM_NAMES[randomInt(0, RANDOM_MISSING_ITEM_NAMES.length - 1)]!,
+    estimatedQuantity: `${randomInt(1, 80)} ${['un.', 'cx', 'pct.', 'par', 'kit'][randomInt(0, 4)]}`,
+    necessityReason: `Demanda automática de teste (#${index + 1}): reposição de uso contínuo / troca de lote ou novo colaborador na unidade.`,
+    urgencyLevel: urgencyLevels[index % 3]!,
+  };
+}
 
 type ApprovalFilter = 'all' | MissingItemReport['ownerApprovalStatus'];
 
@@ -471,12 +513,16 @@ function ReportDialog({
   );
 }
 
+const RANDOM_FILL_COUNT = 6;
+
 export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
   const { data: reports, isLoading, isError } = useMissingItemReportsQuery(projectId);
-  const { deleteReport, uploadAttachment, deleteAttachment } = useMissingItemReportsMutations(projectId);
+  const { createReport, updateReport, deleteReport, uploadAttachment, deleteAttachment } =
+    useMissingItemReportsMutations(projectId);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<MissingItemReport | null>(null);
   const [approvalFilter, setApprovalFilter] = useState<ApprovalFilter>('all');
+  const [randomFillBusy, setRandomFillBusy] = useState(false);
 
   const filteredReports = useMemo(() => {
     if (!reports?.length) return [];
@@ -531,6 +577,37 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
     }
   }
 
+  async function fillRandomMissingItemReports() {
+    setRandomFillBusy(true);
+    try {
+      const results = await Promise.allSettled(
+        Array.from({ length: RANDOM_FILL_COUNT }, async (_, index) => {
+          const payload = buildRandomMissingItemPayload(index);
+          const created = await createReport.mutateAsync(payload);
+          const status = RANDOM_APPROVAL_ROTATION[index % RANDOM_APPROVAL_ROTATION.length]!;
+          if (status !== 'PENDING') {
+            await updateReport.mutateAsync({
+              id: created.id,
+              payload: { ownerApprovalStatus: status },
+            });
+          }
+        }),
+      );
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      if (failed > 0) {
+        toast.error(`${failed} solicitação(ões) falharam. Verifique a rede ou tente de novo.`);
+      } else {
+        toast.success(
+          `${RANDOM_FILL_COUNT} solicitações de teste criadas (urgências e status de aprovação variados).`,
+        );
+      }
+    } catch {
+      toast.error('Falha ao gerar solicitações de teste.');
+    } finally {
+      setRandomFillBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -541,10 +618,23 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
             opcionais. Use o filtro para ver o que está pendente ou já foi aprovado.
           </p>
         </div>
-        <Button className="shrink-0 gap-2" onClick={openCreate} type="button">
-          <Plus className="size-4" aria-hidden />
-          Nova solicitação
-        </Button>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <Button
+            className="gap-2"
+            disabled={randomFillBusy}
+            onClick={() => void fillRandomMissingItemReports()}
+            title="Cria várias solicitações fictícias com urgências e status de aprovação variados — apenas para testes."
+            type="button"
+            variant="secondary"
+          >
+            <Dices className="size-4 shrink-0" aria-hidden />
+            Gerar solicitações aleatórias
+          </Button>
+          <Button className="gap-2" onClick={openCreate} type="button">
+            <Plus className="size-4" aria-hidden />
+            Nova solicitação
+          </Button>
+        </div>
       </div>
 
       <Card>
