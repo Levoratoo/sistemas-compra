@@ -101,6 +101,13 @@ const approvalFilterOptions: Array<{ value: ApprovalFilter; label: string }> = [
   { value: 'REJECTED', label: 'Rejeitadas' },
 ];
 
+type UrgencyFilter = 'all' | MissingItemUrgency;
+
+const urgencyFilterOptions: Array<{ value: UrgencyFilter; label: string }> = [
+  { value: 'all', label: 'Todas as urgências' },
+  ...missingItemUrgencyOptions.map((o) => ({ value: o.value, label: o.label })),
+];
+
 const formSchema = z.object({
   requesterName: z.string().trim().min(1, 'Informe o responsável.'),
   requestDate: z.string().min(1, 'Informe a data.'),
@@ -607,6 +614,7 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<MissingItemReport | null>(null);
   const [approvalFilter, setApprovalFilter] = useState<ApprovalFilter>('all');
+  const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('all');
   const [randomFillBusy, setRandomFillBusy] = useState(false);
   /** IDs das solicitações com detalhes expandidos. */
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
@@ -627,9 +635,15 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
 
   const filteredReports = useMemo(() => {
     if (!reports?.length) return [];
-    if (approvalFilter === 'all') return reports;
-    return reports.filter((r) => r.ownerApprovalStatus === approvalFilter);
-  }, [reports, approvalFilter]);
+    let list = reports;
+    if (approvalFilter !== 'all') {
+      list = list.filter((r) => r.ownerApprovalStatus === approvalFilter);
+    }
+    if (urgencyFilter !== 'all') {
+      list = list.filter((r) => r.urgencyLevel === urgencyFilter);
+    }
+    return list;
+  }, [reports, approvalFilter, urgencyFilter]);
 
   function openCreate() {
     setEditing(null);
@@ -731,7 +745,7 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
           <h1 className="text-2xl font-semibold tracking-tight">Relatório de Itens Faltantes</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Cadastro manual das solicitações de itens em falta neste contrato, com urgência, status de aprovação e anexos
-            opcionais. Use o filtro para ver o que está pendente ou já foi aprovado.
+            opcionais. Use os filtros abaixo para restringir por status e urgência.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
@@ -753,41 +767,71 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
         </div>
       </div>
 
+      <div
+        className="flex flex-col gap-4 rounded-2xl border border-border/70 bg-muted/20 p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-end sm:gap-6"
+        role="region"
+        aria-label="Filtros do relatório"
+      >
+        <div className="flex min-w-[min(100%,240px)] flex-1 flex-col gap-1.5 sm:max-w-sm">
+          <Label className="text-sm font-medium text-foreground" htmlFor="approval-filter">
+            Status de aprovação
+          </Label>
+          <Select
+            id="approval-filter"
+            onChange={(e) => setApprovalFilter(e.target.value as ApprovalFilter)}
+            value={approvalFilter}
+          >
+            {approvalFilterOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="flex min-w-[min(100%,240px)] flex-1 flex-col gap-1.5 sm:max-w-sm">
+          <Label className="text-sm font-medium text-foreground" htmlFor="urgency-filter">
+            Urgência
+          </Label>
+          <Select
+            id="urgency-filter"
+            onChange={(e) => setUrgencyFilter(e.target.value as UrgencyFilter)}
+            value={urgencyFilter}
+          >
+            {urgencyFilterOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </div>
+
       <Card>
         <CardHeader className="space-y-4 pb-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <ClipboardList className="size-5 text-primary" aria-hidden />
-                Itens solicitados
-              </CardTitle>
-              <CardDescription className="mt-1.5">
-                Clique numa linha para ver quantidade, motivo e anexos; clique de novo para recolher.
-              </CardDescription>
-            </div>
-            <div className="flex w-full shrink-0 flex-col gap-1.5 sm:w-[min(100%,280px)]">
-              <Label className="text-xs font-medium text-muted-foreground" htmlFor="approval-filter">
-                Filtrar por status de aprovação
-              </Label>
-              <Select
-                id="approval-filter"
-                onChange={(e) => setApprovalFilter(e.target.value as ApprovalFilter)}
-                value={approvalFilter}
-              >
-                {approvalFilterOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
+          <div>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <ClipboardList className="size-5 text-primary" aria-hidden />
+              Itens solicitados
+            </CardTitle>
+            <CardDescription className="mt-1.5">
+              Clique numa linha para ver quantidade, motivo e anexos; clique de novo para recolher.
+            </CardDescription>
           </div>
           {reports && reports.length > 0 ? (
             <p className="text-xs text-muted-foreground">
               Exibindo {filteredReports.length} de {reports.length}{' '}
               {reports.length === 1 ? 'solicitação' : 'solicitações'}
-              {approvalFilter !== 'all'
-                ? ` (${approvalFilterOptions.find((o) => o.value === approvalFilter)?.label})`
+              {approvalFilter !== 'all' || urgencyFilter !== 'all'
+                ? ` (${[
+                    approvalFilter !== 'all'
+                      ? approvalFilterOptions.find((o) => o.value === approvalFilter)?.label
+                      : null,
+                    urgencyFilter !== 'all'
+                      ? urgencyFilterOptions.find((o) => o.value === urgencyFilter)?.label
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')})`
                 : ''}
               .
             </p>
@@ -812,7 +856,7 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
             <div className="rounded-2xl border border-dashed border-border/80 bg-muted/20 px-6 py-10 text-center">
               <p className="text-sm font-medium text-foreground">Nenhuma solicitação com este status</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Altere o filtro acima ou cadastre novas solicitações com o status desejado.
+                Altere os filtros de status ou urgência ou cadastre novas solicitações.
               </p>
             </div>
           ) : (
