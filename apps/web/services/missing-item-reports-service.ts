@@ -8,8 +8,11 @@ import type {
 
 export type MissingItemReportPayload = {
   requesterName: string;
+  requesterRole?: string;
   requestDate: string;
   itemToAcquire: string;
+  itemSizeDescription?: string;
+  itemCategory?: string;
   estimatedQuantity: string;
   necessityReason: string;
   urgencyLevel: MissingItemUrgency;

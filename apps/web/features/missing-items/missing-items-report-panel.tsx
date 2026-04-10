@@ -13,6 +13,8 @@ import {
   Paperclip,
   Pencil,
   Plus,
+  Table2,
+  List,
   Trash2,
   Upload,
 } from 'lucide-react';
@@ -80,10 +82,14 @@ function randomRequestDateYmd(): string {
 
 function buildRandomMissingItemPayload(index: number): MissingItemReportPayload {
   const urgencyLevels: MissingItemUrgency[] = ['HIGH', 'MEDIUM', 'LOW'];
+  const roles = ['Supervisora Administrativa', 'Coord. de Enfermagem', 'Almoxarife'];
   return {
     requesterName: `Resp. teste ${randomInt(1, 99)} · Almox.`,
+    requesterRole: roles[index % roles.length],
     requestDate: randomRequestDateYmd(),
     itemToAcquire: RANDOM_MISSING_ITEM_NAMES[randomInt(0, RANDOM_MISSING_ITEM_NAMES.length - 1)]!,
+    itemSizeDescription: ['24 cm', '100 folhas', 'tamanho M', '—'][index % 4],
+    itemCategory: index % 2 === 0 ? 'Unissex' : 'Uso geral',
     estimatedQuantity: `${randomInt(1, 80)} ${['un.', 'cx', 'pct.', 'par', 'kit'][randomInt(0, 4)]}`,
     necessityReason: `Demanda automática de teste (#${index + 1}): reposição de uso contínuo / troca de lote ou novo colaborador na unidade.`,
     urgencyLevel: urgencyLevels[index % 3]!,
@@ -108,8 +114,11 @@ const urgencyFilterOptions: Array<{ value: UrgencyFilter; label: string }> = [
 
 const formSchema = z.object({
   requesterName: z.string().trim().min(1, 'Informe o responsável.'),
+  requesterRole: z.string().max(200).optional(),
   requestDate: z.string().min(1, 'Informe a data.'),
   itemToAcquire: z.string().trim().min(1, 'Descreva o item.'),
+  itemSizeDescription: z.string().max(500).optional(),
+  itemCategory: z.string().max(200).optional(),
   estimatedQuantity: z.string().trim().min(1, 'Informe a quantidade estimada.'),
   necessityReason: z.string().trim().min(1, 'Explique a necessidade.'),
   urgencyLevel: z.enum(['HIGH', 'MEDIUM', 'LOW']),
@@ -133,6 +142,11 @@ function approvalBadgeVariant(status: MissingItemReport['ownerApprovalStatus']) 
 
 function attachmentHref(storagePath: string) {
   return projectDocumentPublicFileUrl(storagePath);
+}
+
+function firstImageAttachment(attachments: MissingItemReportAttachment[] | undefined) {
+  if (!attachments?.length) return undefined;
+  return attachments.find((a) => (a.mimeType ?? '').toLowerCase().startsWith('image/'));
 }
 
 function addFilesFromList(files: FileList | null, onAdd: (files: File[]) => void) {
@@ -310,8 +324,11 @@ function ReportDialog({
     resolver: zodResolver(formSchema),
     defaultValues: {
       requesterName: '',
+      requesterRole: '',
       requestDate: '',
       itemToAcquire: '',
+      itemSizeDescription: '',
+      itemCategory: '',
       estimatedQuantity: '',
       necessityReason: '',
       urgencyLevel: 'MEDIUM',
@@ -329,8 +346,11 @@ function ReportDialog({
     if (!report) {
       form.reset({
         requesterName: '',
+        requesterRole: '',
         requestDate: '',
         itemToAcquire: '',
+        itemSizeDescription: '',
+        itemCategory: '',
         estimatedQuantity: '',
         necessityReason: '',
         urgencyLevel: 'MEDIUM',
@@ -341,8 +361,11 @@ function ReportDialog({
 
     form.reset({
       requesterName: report.requesterName,
+      requesterRole: report.requesterRole ?? '',
       requestDate: report.requestDate ? report.requestDate.slice(0, 10) : '',
       itemToAcquire: report.itemToAcquire,
+      itemSizeDescription: report.itemSizeDescription ?? '',
+      itemCategory: report.itemCategory ?? '',
       estimatedQuantity: report.estimatedQuantity,
       necessityReason: report.necessityReason,
       urgencyLevel: report.urgencyLevel,
@@ -357,8 +380,11 @@ function ReportDialog({
       if (isEdit && report) {
         const payload: MissingItemReportUpdatePayload = {
           requesterName: values.requesterName,
+          requesterRole: values.requesterRole?.trim() || '',
           requestDate: requestDateIso,
           itemToAcquire: values.itemToAcquire,
+          itemSizeDescription: values.itemSizeDescription?.trim() || '',
+          itemCategory: values.itemCategory?.trim() || '',
           estimatedQuantity: values.estimatedQuantity,
           necessityReason: values.necessityReason,
           urgencyLevel: values.urgencyLevel,
@@ -370,8 +396,15 @@ function ReportDialog({
       } else {
         const created = await createReport.mutateAsync({
           requesterName: values.requesterName,
+          ...(values.requesterRole?.trim()
+            ? { requesterRole: values.requesterRole.trim() }
+            : {}),
           requestDate: requestDateIso,
           itemToAcquire: values.itemToAcquire,
+          ...(values.itemSizeDescription?.trim()
+            ? { itemSizeDescription: values.itemSizeDescription.trim() }
+            : {}),
+          ...(values.itemCategory?.trim() ? { itemCategory: values.itemCategory.trim() } : {}),
           estimatedQuantity: values.estimatedQuantity,
           necessityReason: values.necessityReason,
           urgencyLevel: values.urgencyLevel,
@@ -476,6 +509,15 @@ function ReportDialog({
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="requesterRole">Cargo (opcional)</Label>
+              <Input
+                id="requesterRole"
+                {...form.register('requesterRole')}
+                placeholder="Ex.: Supervisora Administrativa"
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="requestDate">Data</Label>
               <Input id="requestDate" type="date" {...form.register('requestDate')} />
             </div>
@@ -486,8 +528,22 @@ function ReportDialog({
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="itemSizeDescription">Tamanho / especificação (opcional)</Label>
+              <Input
+                id="itemSizeDescription"
+                {...form.register('itemSizeDescription')}
+                placeholder="Ex.: 24 cm, 100 folhas, tamanho M"
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="estimatedQuantity">Quantidade estimada</Label>
               <Input id="estimatedQuantity" {...form.register('estimatedQuantity')} placeholder="Ex.: 10 unidades" />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="itemCategory">Categoria ou variante (opcional)</Label>
+              <Input id="itemCategory" {...form.register('itemCategory')} placeholder="Ex.: Unissex, cor azul" />
             </div>
 
             <div className="space-y-2">
@@ -661,6 +717,8 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
   const [approvalFilter, setApprovalFilter] = useState<ApprovalFilter>('all');
   const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('all');
   const [randomFillBusy, setRandomFillBusy] = useState(false);
+  /** Vista principal: planilha “Dados do Pedido” ou lista expansível. */
+  const [viewMode, setViewMode] = useState<'spreadsheet' | 'list'>('spreadsheet');
   /** IDs das solicitações com detalhes expandidos. */
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
   const [deleteReportTarget, setDeleteReportTarget] = useState<MissingItemReport | null>(null);
@@ -782,11 +840,38 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Relatório de Itens Faltantes</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Cadastro manual das solicitações de itens em falta neste contrato, com urgência, status de aprovação e anexos
-            opcionais. Use os filtros abaixo para restringir por status e urgência.
+            Cadastro no modelo <span className="font-medium text-foreground/90">Dados do Pedido</span> (órgão, solicitante,
+            cargo, item, tamanho, quantidade, justificativa e status). Inclua anexos com fotos ou referências. Filtre por
+            status e urgência abaixo.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <div
+            className="flex rounded-lg border border-border/80 bg-muted/30 p-0.5"
+            role="group"
+            aria-label="Modo de visualização"
+          >
+            <Button
+              className="h-9 gap-1.5 rounded-md px-3"
+              onClick={() => setViewMode('spreadsheet')}
+              size="sm"
+              type="button"
+              variant={viewMode === 'spreadsheet' ? 'secondary' : 'ghost'}
+            >
+              <Table2 className="size-4 shrink-0" aria-hidden />
+              Planilha
+            </Button>
+            <Button
+              className="h-9 gap-1.5 rounded-md px-3"
+              onClick={() => setViewMode('list')}
+              size="sm"
+              type="button"
+              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+            >
+              <List className="size-4 shrink-0" aria-hidden />
+              Lista
+            </Button>
+          </div>
           <Button
             className="gap-2"
             disabled={randomFillBusy}
@@ -852,7 +937,9 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
               Itens solicitados
             </CardTitle>
             <CardDescription className="mt-1.5">
-              Clique numa linha para ver quantidade, motivo e anexos; clique de novo para recolher.
+              {viewMode === 'spreadsheet'
+                ? 'Tabela alinhada ao relatório de itens faltantes (Dados do Pedido). Use a coluna descrição para miniatura do primeiro anexo em imagem.'
+                : 'Clique numa linha para ver quantidade, motivo e anexos; clique de novo para recolher.'}
             </CardDescription>
           </div>
           {reports && reports.length > 0 ? (
@@ -896,6 +983,128 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
               <p className="mt-1 text-sm text-muted-foreground">
                 Altere os filtros de status ou urgência ou cadastre novas solicitações.
               </p>
+            </div>
+          ) : viewMode === 'spreadsheet' ? (
+            <div className="space-y-3">
+              <p className="text-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Para o serviço executado pela supervisora
+              </p>
+              <div className="overflow-x-auto rounded-xl border border-border/70 bg-card shadow-sm">
+                <table className="w-full min-w-[1040px] border-collapse text-left text-sm">
+                  <caption className="caption-bottom px-3 py-2 text-left text-xs text-muted-foreground">
+                    Dados do Pedido — órgão conforme o contrato; status de aprovação do dono da empresa.
+                  </caption>
+                  <thead>
+                    <tr className="border-b border-border/80 bg-muted/40 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      <th className="px-2 py-2.5">#</th>
+                      <th className="min-w-[140px] px-2 py-2.5">Órgão</th>
+                      <th className="min-w-[120px] px-2 py-2.5">Nome do solicitante</th>
+                      <th className="min-w-[100px] px-2 py-2.5">Cargo</th>
+                      <th className="whitespace-nowrap px-2 py-2.5">Data da solicitação</th>
+                      <th className="min-w-[120px] px-2 py-2.5">Item faltante</th>
+                      <th className="w-[72px] px-2 py-2.5">Descrição</th>
+                      <th className="min-w-[88px] px-2 py-2.5">Tamanho</th>
+                      <th className="min-w-[88px] px-2 py-2.5">Quantidade</th>
+                      <th className="min-w-[80px] px-2 py-2.5">Categoria</th>
+                      <th className="min-w-[160px] px-2 py-2.5">Justificativas</th>
+                      <th className="whitespace-nowrap px-2 py-2.5">Status</th>
+                      <th className="w-[88px] px-2 py-2.5 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredReports.map((row, idx) => {
+                      const img = firstImageAttachment(row.attachments);
+                      const org = row.organizationName?.trim() || '—';
+                      const zebra = idx % 2 === 0 ? 'bg-sky-50/60 dark:bg-sky-950/20' : 'bg-emerald-50/50 dark:bg-emerald-950/15';
+                      return (
+                        <tr key={row.id} className={cn('border-b border-border/50 align-top', zebra)}>
+                          <td className="px-2 py-2 tabular-nums text-muted-foreground">{idx + 1}</td>
+                          <td className="max-w-[180px] px-2 py-2 text-xs leading-snug">{org}</td>
+                          <td className="max-w-[140px] px-2 py-2 text-xs">{row.requesterName}</td>
+                          <td className="max-w-[120px] px-2 py-2 text-xs text-muted-foreground">
+                            {row.requesterRole?.trim() || '—'}
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-2 text-xs tabular-nums">
+                            {row.requestDate ? formatDate(row.requestDate) : '—'}
+                          </td>
+                          <td className="max-w-[200px] px-2 py-2 text-xs font-medium text-foreground">
+                            {row.itemToAcquire}
+                          </td>
+                          <td className="px-2 py-1.5">
+                            {img ? (
+                              <a
+                                className="block overflow-hidden rounded-md border border-border/60 bg-background shadow-sm"
+                                href={attachmentHref(img.storagePath)}
+                                rel="noopener noreferrer"
+                                target="_blank"
+                                title={img.originalFileName}
+                              >
+                                <img
+                                  alt={img.originalFileName}
+                                  className="size-14 object-cover"
+                                  height={56}
+                                  src={attachmentHref(img.storagePath)}
+                                  width={56}
+                                />
+                              </a>
+                            ) : row.attachments?.length ? (
+                              <a
+                                className="inline-flex size-14 items-center justify-center rounded-md border border-dashed border-border/70 bg-muted/30 text-muted-foreground hover:bg-muted/50"
+                                href={attachmentHref(row.attachments[0]!.storagePath)}
+                                rel="noopener noreferrer"
+                                target="_blank"
+                                title={row.attachments[0]!.originalFileName}
+                              >
+                                <FileText className="size-6" aria-hidden />
+                              </a>
+                            ) : (
+                              <span className="inline-flex size-14 items-center justify-center rounded-md border border-dashed border-border/50 text-[10px] text-muted-foreground">
+                                —
+                              </span>
+                            )}
+                          </td>
+                          <td className="max-w-[100px] px-2 py-2 text-xs">{row.itemSizeDescription?.trim() || '—'}</td>
+                          <td className="max-w-[100px] px-2 py-2 text-xs">{row.estimatedQuantity}</td>
+                          <td className="max-w-[100px] px-2 py-2 text-xs">{row.itemCategory?.trim() || '—'}</td>
+                          <td className="max-w-[220px] px-2 py-2 text-xs leading-relaxed text-muted-foreground">
+                            {row.necessityReason}
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-2">
+                            <Badge className="text-[10px] font-normal" variant={approvalBadgeVariant(row.ownerApprovalStatus)}>
+                              {getOwnerApprovalStatusLabel(row.ownerApprovalStatus)}
+                            </Badge>
+                          </td>
+                          <td className="px-2 py-2 text-right">
+                            <div className="flex justify-end gap-0.5">
+                              <Button
+                                aria-label="Editar"
+                                className="h-8 w-8"
+                                onClick={() => openEdit(row)}
+                                size="icon"
+                                type="button"
+                                variant="ghost"
+                              >
+                                <Pencil className="size-4" />
+                              </Button>
+                              <Button
+                                aria-label="Excluir"
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                disabled={deleteReport.isPending}
+                                onClick={() => setDeleteReportTarget(row)}
+                                size="icon"
+                                type="button"
+                                variant="ghost"
+                              >
+                                <Trash2 className="size-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           ) : (
             <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">

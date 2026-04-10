@@ -17,7 +17,11 @@ import type {
 import { AppError } from '../utils/app-error.js';
 import { parseOptionalDate } from '../utils/date.js';
 import { ensureRelativeStoragePath, sanitizeFileName, toRelativeProjectPath } from '../utils/file.js';
-import { serializeMissingItemReport, serializePendingMissingItemReport } from '../utils/serializers.js';
+import {
+  serializeMissingItemReport,
+  serializeMissingItemReportForProjectList,
+  serializePendingMissingItemReport,
+} from '../utils/serializers.js';
 
 type ViewerAuth = {
   userId?: string;
@@ -113,8 +117,11 @@ class MissingItemReportService {
     const row = await missingItemReportRepository.create({
       projectId,
       requesterName: input.requesterName,
+      requesterRole: input.requesterRole ?? null,
       requestDate,
       itemToAcquire: input.itemToAcquire,
+      itemSizeDescription: input.itemSizeDescription ?? null,
+      itemCategory: input.itemCategory ?? null,
       estimatedQuantity: input.estimatedQuantity,
       necessityReason: input.necessityReason,
       urgencyLevel: input.urgencyLevel,
@@ -145,7 +152,7 @@ class MissingItemReportService {
     await ensureProjectExists(projectId);
     await assertSupervisorCanAccessProject(projectId, viewer);
     const rows = await missingItemReportRepository.findByProject(projectId);
-    return rows.map(serializeMissingItemReport);
+    return rows.map(serializeMissingItemReportForProjectList);
   }
 
   async listPendingApproval(viewer?: ViewerAuth) {
@@ -183,8 +190,23 @@ class MissingItemReportService {
 
     const row = await missingItemReportRepository.update(reportId, {
       ...(input.requesterName !== undefined ? { requesterName: input.requesterName } : {}),
+      ...(input.requesterRole !== undefined
+        ? {
+            requesterRole:
+              input.requesterRole.trim() === '' ? null : input.requesterRole.trim(),
+          }
+        : {}),
       ...(nextRequestDate !== undefined ? { requestDate: nextRequestDate } : {}),
       ...(input.itemToAcquire !== undefined ? { itemToAcquire: input.itemToAcquire } : {}),
+      ...(input.itemSizeDescription !== undefined
+        ? {
+            itemSizeDescription:
+              input.itemSizeDescription.trim() === '' ? null : input.itemSizeDescription.trim(),
+          }
+        : {}),
+      ...(input.itemCategory !== undefined
+        ? { itemCategory: input.itemCategory.trim() === '' ? null : input.itemCategory.trim() }
+        : {}),
       ...(input.estimatedQuantity !== undefined ? { estimatedQuantity: input.estimatedQuantity } : {}),
       ...(input.necessityReason !== undefined ? { necessityReason: input.necessityReason } : {}),
       ...(input.urgencyLevel !== undefined ? { urgencyLevel: input.urgencyLevel } : {}),

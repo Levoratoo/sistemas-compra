@@ -13,20 +13,35 @@ export const missingItemReportAttachmentIdParamsSchema = z.object({
   id: z.string().min(1),
 });
 
+const optionalTrimmed = (max: number) =>
+  z
+    .union([z.string().trim().max(max), z.literal('')])
+    .optional()
+    .transform((v) => (v === undefined || v === '' ? undefined : v));
+
 export const createMissingItemReportSchema = z.object({
   requesterName: z.string().trim().min(1),
+  requesterRole: optionalTrimmed(200),
   requestDate: z.string().min(1),
   itemToAcquire: z.string().trim().min(1),
+  itemSizeDescription: optionalTrimmed(500),
+  itemCategory: optionalTrimmed(200),
   estimatedQuantity: z.string().trim().min(1),
   necessityReason: z.string().trim().min(1),
   urgencyLevel: z.nativeEnum(MissingItemUrgency),
 });
 
+const optionalClearable = (max: number) =>
+  z.union([z.string().trim().max(max), z.literal('')]).optional();
+
 export const updateMissingItemReportSchema = z
   .object({
     requesterName: z.string().trim().min(1).optional(),
+    requesterRole: optionalClearable(200),
     requestDate: z.string().min(1).optional(),
     itemToAcquire: z.string().trim().min(1).optional(),
+    itemSizeDescription: optionalClearable(500),
+    itemCategory: optionalClearable(200),
     estimatedQuantity: z.string().trim().min(1).optional(),
     necessityReason: z.string().trim().min(1).optional(),
     urgencyLevel: z.nativeEnum(MissingItemUrgency).optional(),

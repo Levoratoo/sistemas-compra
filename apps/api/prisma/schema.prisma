@@ -726,8 +726,14 @@ model MissingItemReport {
   id                  String              @id @default(cuid())
   projectId           String
   requesterName       String
+  /** Cargo/função do solicitante (modelo relatório “Dados do Pedido”). */
+  requesterRole       String?
   requestDate         DateTime
   itemToAcquire       String
+  /** Especificação de tamanho/capacidade (ex.: 24 cm, 100 folhas). */
+  itemSizeDescription String?
+  /** Categoria ou variante do item (ex.: Unissex, cor, modelo). */
+  itemCategory        String?
   estimatedQuantity   String
   necessityReason     String
   urgencyLevel        MissingItemUrgency

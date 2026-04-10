@@ -8,6 +8,16 @@ const attachmentsInclude = {
   },
 } satisfies Prisma.MissingItemReportInclude;
 
+/** Lista por projeto: inclui órgão do contrato para o modelo “Dados do Pedido”. */
+const byProjectInclude = {
+  attachments: {
+    orderBy: { createdAt: 'asc' as const },
+  },
+  project: {
+    select: { organizationName: true },
+  },
+} satisfies Prisma.MissingItemReportInclude;
+
 const pendingApprovalInclude = {
   attachments: {
     orderBy: { createdAt: 'asc' as const },
@@ -29,7 +39,7 @@ class MissingItemReportRepository {
     return prisma.missingItemReport.findMany({
       where: { projectId },
       orderBy: { requestDate: 'desc' },
-      include: attachmentsInclude,
+      include: byProjectInclude,
     });
   }
 

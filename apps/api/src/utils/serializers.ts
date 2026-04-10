@@ -121,6 +121,19 @@ export function serializeMissingItemReport(report: MissingItemReportWithAttachme
   };
 }
 
+type MissingItemReportProjectListRow = MissingItemReportWithAttachments & {
+  project?: { organizationName: string };
+};
+
+/** Resposta de GET por projeto: inclui órgão (contrato) para a vista em planilha. */
+export function serializeMissingItemReportForProjectList(row: MissingItemReportProjectListRow) {
+  const { project, ...report } = row;
+  return {
+    ...serializeMissingItemReport(report),
+    organizationName: project?.organizationName ?? '',
+  };
+}
+
 type PendingMissingItemRow = MissingItemReportWithAttachments & {
   project: { id: string; code: string; name: string };
 };

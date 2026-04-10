@@ -65,8 +65,14 @@ export interface MissingItemReport extends EntityTimestamps {
   id: string;
   projectId: string;
   requesterName: string;
+  /** Cargo / função (modelo “Dados do Pedido”). */
+  requesterRole: string | null;
   requestDate: string | null;
   itemToAcquire: string;
+  /** Tamanho ou capacidade (ex.: 24 cm, 100 folhas). */
+  itemSizeDescription: string | null;
+  /** Categoria ou variante do item. */
+  itemCategory: string | null;
   estimatedQuantity: string;
   necessityReason: string;
   urgencyLevel: MissingItemUrgency;
@@ -75,6 +81,8 @@ export interface MissingItemReport extends EntityTimestamps {
   /** Preenchido pelo aprovador ao rejeitar (motivo). */
   ownerRejectionNote: string | null;
   attachments: MissingItemReportAttachment[];
+  /** Preenchido na listagem por contrato (órgão do edital/contrato). */
+  organizationName?: string;
 }
 
 /** Solicitação na fila global de aprovação (GET pending-approval), com dados do contrato. */
