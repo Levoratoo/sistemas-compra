@@ -8,7 +8,7 @@ import { projectRepository } from '../repositories/project.repository.js';
 import { AppError } from '../utils/app-error.js';
 import { parseOptionalDate } from '../utils/date.js';
 import { decimalToNumber, optionalToDecimal, toDecimal } from '../utils/decimal.js';
-import { effectiveNextReplenishmentDate, isReplenishmentOverdue } from '../utils/replenishment-dates.js';
+import { canConfirmReplenishmentCycle, effectiveNextReplenishmentDate } from '../utils/replenishment-dates.js';
 import {
   serializeBudgetItem,
   serializeProjectDocument,
@@ -330,7 +330,7 @@ class BudgetItemService {
   }
 
   /**
-   * Confirma que o item em atraso foi reposto: linha atual fica “fechada” (verde, em baixo) e cria-se o ciclo seguinte no topo.
+   * Confirma o ciclo de reposição (janela: 30 dias antes da data prevista ou após — em atraso): linha “fechada” em baixo e clone no topo.
    */
   async confirmReplenishmentCycle(itemId: string) {
     const existing = await budgetItemRepository.findById(itemId);
@@ -352,8 +352,11 @@ class BudgetItemService {
       throw new AppError('Defina a data de entrega na unidade ou a data prevista de reposição.', 400);
     }
 
-    if (!isReplenishmentOverdue(effective)) {
-      throw new AppError('A reposição ainda não está em atraso (só é possível confirmar após a data prevista).', 400);
+    if (!canConfirmReplenishmentCycle(effective, 30)) {
+      throw new AppError(
+        'Só é possível confirmar nos 30 dias antes da data prevista de reposição, ou depois dessa data (em atraso).',
+        400,
+      );
     }
 
     const projectId = existing.projectId;

@@ -569,7 +569,9 @@ function PurchaseControlRow({
     dataReposicaoPrevista != null && !ctx && !item.replenishmentCycleConfirmedAt
       ? isWithin30DayWarningUi(dataReposicaoPrevista)
       : false;
-  const canConfirmCycle = Boolean(dataReposicaoPrevista && overdue && !item.replenishmentCycleConfirmedAt && !ctx);
+  const canConfirmCycle = Boolean(
+    dataReposicaoPrevista && !item.replenishmentCycleConfirmedAt && !ctx && (overdue || warn30),
+  );
   const isGreenRow = Boolean(item.replenishmentCycleConfirmedAt);
 
   return (
@@ -838,7 +840,7 @@ function PurchaseControlRow({
                 </DialogHeader>
                 <p className="text-sm text-muted-foreground">
                   O item foi realmente reposto? Será criada uma nova linha no topo para o próximo ciclo e esta linha
-                  ficará registada como concluída.
+                  ficará registada como concluída. (Disponível nos 30 dias antes da data prevista ou depois dela.)
                 </p>
                 <DialogFooter>
                   <Button onClick={() => setConfirmOpen(false)} type="button" variant="ghost">
@@ -862,6 +864,13 @@ function PurchaseControlRow({
               </DialogContent>
             </Dialog>
           </>
+        ) : dataReposicaoPrevista && !ctx ? (
+          <span
+            className="block px-0.5 text-[10px] leading-tight text-muted-foreground"
+            title="A confirmação fica disponível nos 30 dias antes da data prevista de reposição, ou depois dessa data (em atraso)."
+          >
+            —
+          </span>
         ) : (
           <span className="text-muted-foreground">—</span>
         )}

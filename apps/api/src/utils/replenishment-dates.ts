@@ -32,3 +32,8 @@ export function isWithinDaysBeforeReplenishment(effective: Date, days: number): 
   horizon.setUTCDate(horizon.getUTCDate() + days);
   return eff > today && eff <= horizon;
 }
+
+/** Pode confirmar ciclo: em atraso ou dentro da janela de N dias antes da reposição (alinhado ao alerta amarelo). */
+export function canConfirmReplenishmentCycle(effective: Date, windowDays = 30): boolean {
+  return isReplenishmentOverdue(effective) || isWithinDaysBeforeReplenishment(effective, windowDays);
+}

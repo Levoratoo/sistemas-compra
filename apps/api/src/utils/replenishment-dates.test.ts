@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { effectiveNextReplenishmentDate, isReplenishmentOverdue, isWithinDaysBeforeReplenishment } from './replenishment-dates.js';
+import {
+  canConfirmReplenishmentCycle,
+  effectiveNextReplenishmentDate,
+  isReplenishmentOverdue,
+  isWithinDaysBeforeReplenishment,
+} from './replenishment-dates.js';
 
 describe('replenishment-dates', () => {
   it('prefere nextReplenishmentExpectedAt ao cálculo pela entrega', () => {
@@ -22,5 +27,15 @@ describe('replenishment-dates', () => {
     const today = new Date();
     const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + 10));
     assert.equal(isWithinDaysBeforeReplenishment(d, 30), true);
+  });
+
+  it('canConfirmReplenishmentCycle: dentro de 30 dias ou em atraso', () => {
+    const today = new Date();
+    const in20 = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + 20));
+    const past = new Date('2019-06-01T12:00:00.000Z');
+    const far = new Date(Date.UTC(today.getUTCFullYear() + 2, 0, 1));
+    assert.equal(canConfirmReplenishmentCycle(in20, 30), true);
+    assert.equal(canConfirmReplenishmentCycle(past, 30), true);
+    assert.equal(canConfirmReplenishmentCycle(far, 30), false);
   });
 });
