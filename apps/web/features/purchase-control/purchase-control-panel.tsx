@@ -441,7 +441,7 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
   const project = projectQuery.data;
 
   return (
-    <div className="page-sections space-y-6">
+    <div className="w-full min-w-0">
       {itemsQuery.isError ? (
         <EmptyState description="Tente novamente em instantes." title="Erro ao carregar itens" />
       ) : items.length === 0 ? (
@@ -450,8 +450,8 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
           title="Nenhum item neste projeto"
         />
       ) : (
-        <>
-          <div className="flex min-w-0 items-center justify-end gap-3 pb-3 pt-0.5">
+        <div className="flex min-w-0 flex-col gap-1">
+          <div className="flex h-10 min-h-10 shrink-0 items-center justify-end py-0">
             <Suspense
               fallback={
                 <div
@@ -562,7 +562,7 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
               </div>
             </CardContent>
           </Card>
-        </>
+        </div>
       )}
     </div>
   );
