@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 
 import { EmptyState } from '@/components/common/empty-state';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getItemCategoryLabel } from '@/lib/constants';
@@ -430,21 +430,6 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
 
   return (
     <div className="page-sections space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Controle de compras</CardTitle>
-          <CardDescription>
-            Fase 1: texto do edital (6 colunas — Req. CA único; sem duplicar na Fase 2). Fase 2: operação (23 colunas).
-            Alterações ao sair de cada campo. Em <strong className="font-medium text-foreground">Tam.</strong>,{' '}
-            <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">Shift</kbd>
-            {' + '}
-            <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">Enter</kbd>{' '}
-            insere nova linha; Enter confirma. Arraste a borda entre colunas para redimensionar. Em telas menores, role a
-            tabela na horizontal.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-
       {itemsQuery.isError ? (
         <EmptyState description="Tente novamente em instantes." title="Erro ao carregar itens" />
       ) : items.length === 0 ? (
