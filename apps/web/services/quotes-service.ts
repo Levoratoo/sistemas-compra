@@ -31,6 +31,8 @@ export type UpdateQuoteSupplierPayload = {
 export type UpdateQuoteItemPayload = {
   unitPrice?: number | null;
   quantity?: number | null;
+  /** Mesmo valor que quantity (API aceita alias PT-BR). */
+  quantidade?: number | null;
   notes?: string | null;
 };
 

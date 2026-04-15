@@ -151,7 +151,12 @@ function generateRandomQuoteUnitPrice() {
   return Number(rawValue.toFixed(2));
 }
 
-type QuoteLineSavePayload = { unitPrice?: number | null; notes?: string | null; quantity?: number | null };
+type QuoteLineSavePayload = {
+  unitPrice?: number | null;
+  notes?: string | null;
+  quantity?: number | null;
+  quantidade?: number | null;
+};
 
 function QuoteLineEditDialog({
   open,
@@ -206,6 +211,7 @@ function QuoteLineEditDialog({
     try {
       await onSave(row.budgetItemId, {
         quantity,
+        quantidade: quantity,
         unitPrice: unitParsed,
         notes: nextNotes,
       });

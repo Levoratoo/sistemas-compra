@@ -61,12 +61,21 @@ export const updateQuoteSupplierSchema = z.object({
   confirmReset: z.boolean().optional().default(false),
 });
 
-export const updateQuoteItemSchema = z.object({
-  unitPrice: z.coerce.number().nonnegative().optional().nullable(),
-  /** Quantidade deste item nesta compra (ProjectQuotePurchaseItem); afeta totais do mapa. */
-  quantity: z.coerce.number().nonnegative().optional().nullable(),
-  notes: optionalTrimmedString().nullable().optional(),
-});
+export const updateQuoteItemSchema = z
+  .object({
+    unitPrice: z.coerce.number().nonnegative().optional().nullable(),
+    /** Quantidade deste item nesta compra (ProjectQuotePurchaseItem); afeta totais do mapa. */
+    quantity: z.coerce.number().nonnegative().optional().nullable(),
+    /** Alias PT-BR (alguns clientes/proxies enviam este nome). */
+    quantidade: z.coerce.number().nonnegative().optional().nullable(),
+    notes: optionalTrimmedString().nullable().optional(),
+  })
+  .transform(({ unitPrice, quantity, quantidade, notes }) => ({
+    unitPrice,
+    /** `quantity` no payload tem precedência; senão usa `quantidade`. */
+    quantity: quantity !== undefined ? quantity : quantidade,
+    notes,
+  }));
 
 export const applyQuoteWinnerSchema = z.object({
   mode: z.enum(['OVERALL', 'PER_ITEM']),

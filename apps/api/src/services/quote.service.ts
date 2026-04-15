@@ -1501,7 +1501,7 @@ class QuoteService {
   ) {
     await ensureProjectExists(projectId);
 
-    const [quote] = await Promise.all([
+    const [quote, purchaseLink] = await Promise.all([
       findQuoteBySlot(projectId, purchaseId, slotNumber),
       findQuotePurchaseItem(projectId, purchaseId, budgetItemId),
     ]);
@@ -1510,38 +1510,35 @@ class QuoteService {
       throw new AppError('Selecione um fornecedor para este orcamento antes de preencher valores.', 409);
     }
 
-    await prisma.projectQuoteItem.upsert({
-      where: {
-        projectQuoteId_budgetItemId: {
-          projectQuoteId: quote.id,
-          budgetItemId,
-        },
-      },
-      create: {
-        projectQuoteId: quote.id,
-        budgetItemId,
-        unitPrice: toDecimal(input.unitPrice) ?? null,
-        notes: normalizeQuoteNotes(input.notes),
-      },
-      update: {
-        unitPrice: input.unitPrice !== undefined ? toDecimal(input.unitPrice) ?? null : undefined,
-        notes: input.notes !== undefined ? normalizeQuoteNotes(input.notes) : undefined,
-      },
-    });
-
-    if (input.quantity !== undefined) {
-      await prisma.projectQuotePurchaseItem.update({
+    await prisma.$transaction(async (tx) => {
+      await tx.projectQuoteItem.upsert({
         where: {
-          projectQuotePurchaseId_budgetItemId: {
-            projectQuotePurchaseId: purchaseId,
+          projectQuoteId_budgetItemId: {
+            projectQuoteId: quote.id,
             budgetItemId,
           },
         },
-        data: {
-          quantity: input.quantity === null ? null : toDecimal(input.quantity),
+        create: {
+          projectQuoteId: quote.id,
+          budgetItemId,
+          unitPrice: toDecimal(input.unitPrice) ?? null,
+          notes: normalizeQuoteNotes(input.notes),
+        },
+        update: {
+          unitPrice: input.unitPrice !== undefined ? toDecimal(input.unitPrice) ?? null : undefined,
+          notes: input.notes !== undefined ? normalizeQuoteNotes(input.notes) : undefined,
         },
       });
-    }
+
+      if (input.quantity !== undefined) {
+        await tx.projectQuotePurchaseItem.update({
+          where: { id: purchaseLink.id },
+          data: {
+            quantity: input.quantity === null ? null : toDecimal(input.quantity),
+          },
+        });
+      }
+    });
 
     return buildProjectQuotesModuleState(projectId);
   }
