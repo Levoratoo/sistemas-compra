@@ -151,6 +151,145 @@ function generateRandomQuoteUnitPrice() {
   return Number(rawValue.toFixed(2));
 }
 
+type QuoteLineSavePayload = { unitPrice?: number | null; notes?: string | null; quantity?: number | null };
+
+function QuoteLineEditDialog({
+  open,
+  onOpenChange,
+  row,
+  slotNumber,
+  disabled,
+  onSave,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  row: ProjectQuoteRow;
+  slotNumber: number;
+  disabled: boolean;
+  onSave: (budgetItemId: string, payload: QuoteLineSavePayload) => Promise<void>;
+}) {
+  const value = row.values.find((entry) => entry.slotNumber === slotNumber);
+  const [quantityText, setQuantityText] = useState('');
+  const [unitPriceText, setUnitPriceText] = useState('');
+  const [notes, setNotes] = useState('');
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    setQuantityText(row.quantity != null ? String(row.quantity) : '');
+    setUnitPriceText(value?.unitPrice != null ? String(value.unitPrice) : '');
+    setNotes(value?.notes ?? '');
+  }, [open, row.quantity, row.budgetItemId, value?.notes, value?.unitPrice]);
+
+  async function handleSubmit() {
+    const qtyNormalized = quantityText.trim().replace(',', '.');
+    if (!qtyNormalized) {
+      toast.error('Informe a quantidade do item nesta compra.');
+      return;
+    }
+    const quantity = Number(qtyNormalized);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      toast.error('Quantidade deve ser um numero maior que zero.');
+      return;
+    }
+
+    const unitNormalized = unitPriceText.trim().replace(',', '.');
+    const unitParsed = unitNormalized === '' ? null : Number(unitNormalized);
+    if (unitParsed !== null && (!Number.isFinite(unitParsed) || unitParsed < 0)) {
+      toast.error('Valor unitario invalido.');
+      return;
+    }
+
+    const nextNotes = notes.trim() || null;
+
+    try {
+      await onSave(row.budgetItemId, {
+        quantity,
+        unitPrice: unitParsed,
+        notes: nextNotes,
+      });
+      toast.success('Linha do orcamento atualizada.');
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel salvar as alteracoes.');
+    }
+  }
+
+  const importNoteTrimmed = value?.notes?.trim();
+  const importHint =
+    importNoteTrimmed && importNoteTrimmed.startsWith('Importado de') ? importNoteTrimmed : null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Editar linha do orcamento</DialogTitle>
+          <DialogDescription className="space-y-2">
+            <span>
+              Ajuste quantidade, valor unitario e observacoes. Os totais do mapa comparativo usam esses valores.
+            </span>
+            {importHint ? (
+              <Badge className="mt-1 max-w-full text-left font-normal" variant="neutral">
+                {importHint.length > 120 ? `${importHint.slice(0, 117)}…` : importHint}
+              </Badge>
+            ) : null}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-4">
+          <div className="space-y-2">
+            <Label htmlFor={`quote-edit-qty-${row.budgetItemId}`}>Quantidade (esta compra)</Label>
+            <Input
+              disabled={disabled}
+              id={`quote-edit-qty-${row.budgetItemId}`}
+              inputMode="decimal"
+              min={0}
+              step="any"
+              type="number"
+              value={quantityText}
+              onChange={(event) => setQuantityText(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`quote-edit-unit-${row.budgetItemId}`}>Valor unitario (R$)</Label>
+            <Input
+              disabled={disabled}
+              id={`quote-edit-unit-${row.budgetItemId}`}
+              inputMode="decimal"
+              min={0}
+              placeholder="0,00"
+              step="any"
+              type="number"
+              value={unitPriceText}
+              onChange={(event) => setUnitPriceText(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`quote-edit-notes-${row.budgetItemId}`}>Observacoes</Label>
+            <Textarea
+              disabled={disabled}
+              id={`quote-edit-notes-${row.budgetItemId}`}
+              rows={4}
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button disabled={disabled} type="button" onClick={() => void handleSubmit()}>
+            Salvar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function getQuoteFillProgress(filledItemCount: number, itemCount: number) {
   if (itemCount <= 0) {
     return 0;
@@ -178,9 +317,10 @@ function QuoteLineRow({
   row: ProjectQuoteRow;
   slotNumber: number;
   disabled: boolean;
-  onSave: (budgetItemId: string, payload: { unitPrice?: number | null; notes?: string | null }) => Promise<void>;
+  onSave: (budgetItemId: string, payload: QuoteLineSavePayload) => Promise<void>;
 }) {
   const value = row.values.find((entry) => entry.slotNumber === slotNumber);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [unitPriceText, setUnitPriceText] = useState(value?.unitPrice != null ? String(value.unitPrice) : '');
   const [notes, setNotes] = useState(value?.notes ?? '');
 
@@ -237,55 +377,77 @@ function QuoteLineRow({
   }
 
   return (
-    <tr
-      className={cn(
-        'border-b border-border/70 transition-colors hover:bg-muted/20',
-        row.supplierQuoteExtraItem && 'bg-amber-50/70 hover:bg-amber-100/70',
-      )}
-    >
-      <td className="px-3 py-3 align-top">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-medium text-foreground">{row.description}</p>
-            {row.supplierQuoteExtraItem ? (
-              <Badge className="border-amber-300/80 bg-amber-100 text-amber-950" variant="warning">
-                Item extra
-              </Badge>
-            ) : null}
+    <>
+      <tr
+        className={cn(
+          'border-b border-border/70 transition-colors hover:bg-muted/20',
+          row.supplierQuoteExtraItem && 'bg-amber-50/70 hover:bg-amber-100/70',
+        )}
+      >
+        <td className="px-3 py-3 align-top">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-medium text-foreground">{row.description}</p>
+              {row.supplierQuoteExtraItem ? (
+                <Badge className="border-amber-300/80 bg-amber-100 text-amber-950" variant="warning">
+                  Item extra
+                </Badge>
+              ) : null}
+            </div>
+            {row.specification ? <p className="text-xs leading-relaxed text-muted-foreground">{row.specification}</p> : null}
+            <p className="text-xs text-muted-foreground">{getItemCategoryLabel(row.itemCategory)}</p>
           </div>
-          {row.specification ? <p className="text-xs leading-relaxed text-muted-foreground">{row.specification}</p> : null}
-          <p className="text-xs text-muted-foreground">{getItemCategoryLabel(row.itemCategory)}</p>
-        </div>
-      </td>
-      <td className="px-3 py-3 text-center align-top tabular-nums text-foreground">{formatNumber(row.quantity)}</td>
-      <td className="px-3 py-3 align-top">
-        <Input
-          className="h-10 tabular-nums text-right"
-          disabled={disabled}
-          inputMode="decimal"
-          min={0}
-          placeholder="0,00"
-          step="any"
-          type="number"
-          value={unitPriceText}
-          onBlur={() => void commitUnitPrice()}
-          onChange={(event) => setUnitPriceText(event.target.value)}
-        />
-      </td>
-      <td className="px-3 py-3 align-top text-right tabular-nums font-semibold text-foreground">
-        {currencyOrDash(totalPreview)}
-      </td>
-      <td className="px-3 py-3 align-top">
-        <Input
-          className="h-10"
-          disabled={disabled}
-          placeholder="Observacoes do orcamento"
-          value={notes}
-          onBlur={() => void commitNotes()}
-          onChange={(event) => setNotes(event.target.value)}
-        />
-      </td>
-    </tr>
+        </td>
+        <td className="px-3 py-3 text-center align-top tabular-nums text-foreground">{formatNumber(row.quantity)}</td>
+        <td className="px-3 py-3 align-top">
+          <Input
+            className="h-10 tabular-nums text-right"
+            disabled={disabled}
+            inputMode="decimal"
+            min={0}
+            placeholder="0,00"
+            step="any"
+            type="number"
+            value={unitPriceText}
+            onBlur={() => void commitUnitPrice()}
+            onChange={(event) => setUnitPriceText(event.target.value)}
+          />
+        </td>
+        <td className="px-3 py-3 align-top text-right tabular-nums font-semibold text-foreground">
+          {currencyOrDash(totalPreview)}
+        </td>
+        <td className="px-3 py-3 align-top">
+          <Input
+            className="h-10"
+            disabled={disabled}
+            placeholder="Observacoes do orcamento"
+            value={notes}
+            onBlur={() => void commitNotes()}
+            onChange={(event) => setNotes(event.target.value)}
+          />
+        </td>
+        <td className="px-3 py-3 align-top text-center">
+          <Button
+            disabled={disabled}
+            size="sm"
+            type="button"
+            variant="outline"
+            onClick={() => setEditDialogOpen(true)}
+          >
+            <SquarePen className="size-4" aria-hidden />
+            <span className="sr-only sm:not-sr-only sm:ml-1.5">Editar</span>
+          </Button>
+        </td>
+      </tr>
+      <QuoteLineEditDialog
+        disabled={disabled}
+        open={editDialogOpen}
+        row={row}
+        slotNumber={slotNumber}
+        onOpenChange={setEditDialogOpen}
+        onSave={onSave}
+      />
+    </>
   );
 }
 
@@ -1652,7 +1814,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
   async function handleSaveRow(
     slotNumber: number,
     budgetItemId: string,
-    payload: { unitPrice?: number | null; notes?: string | null },
+    payload: QuoteLineSavePayload,
   ) {
     if (!activePurchase) {
       return;
@@ -2279,6 +2441,9 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                           </th>
                           <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">
                             Observacoes
+                          </th>
+                          <th className="border-b border-border/70 px-3 py-3 text-center font-semibold text-foreground">
+                            Editar
                           </th>
                         </tr>
                       </thead>

@@ -1529,6 +1529,20 @@ class QuoteService {
       },
     });
 
+    if (input.quantity !== undefined) {
+      await prisma.projectQuotePurchaseItem.update({
+        where: {
+          projectQuotePurchaseId_budgetItemId: {
+            projectQuotePurchaseId: purchaseId,
+            budgetItemId,
+          },
+        },
+        data: {
+          quantity: input.quantity === null ? null : toDecimal(input.quantity),
+        },
+      });
+    }
+
     return buildProjectQuotesModuleState(projectId);
   }
 

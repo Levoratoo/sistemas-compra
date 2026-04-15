@@ -63,6 +63,8 @@ export const updateQuoteSupplierSchema = z.object({
 
 export const updateQuoteItemSchema = z.object({
   unitPrice: z.coerce.number().nonnegative().optional().nullable(),
+  /** Quantidade deste item nesta compra (ProjectQuotePurchaseItem); afeta totais do mapa. */
+  quantity: z.coerce.number().nonnegative().optional().nullable(),
   notes: optionalTrimmedString().nullable().optional(),
 });
 

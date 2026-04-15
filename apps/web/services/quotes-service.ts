@@ -30,6 +30,7 @@ export type UpdateQuoteSupplierPayload = {
 
 export type UpdateQuoteItemPayload = {
   unitPrice?: number | null;
+  quantity?: number | null;
   notes?: string | null;
 };
 
