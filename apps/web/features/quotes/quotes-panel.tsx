@@ -1823,7 +1823,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
     payload: QuoteLineSavePayload,
   ) {
     if (!activePurchase) {
-      return;
+      throw new Error('Nenhuma compra ativa. Selecione uma compra e tente novamente.');
     }
 
     await quoteMutations.updateItem.mutateAsync({

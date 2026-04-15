@@ -1531,12 +1531,21 @@ class QuoteService {
       });
 
       if (input.quantity !== undefined) {
+        const qtyDecimal = input.quantity === null ? null : toDecimal(input.quantity);
         await tx.projectQuotePurchaseItem.update({
           where: { id: purchaseLink.id },
-          data: {
-            quantity: input.quantity === null ? null : toDecimal(input.quantity),
-          },
+          data: { quantity: qtyDecimal },
         });
+        /**
+         * Itens extras costumam ter `plannedQuantity` 0/null no projeto; a UI usa
+         * purchaseItem.quantity ?? budgetItem.plannedQuantity. Garantir ambos evita linha presa em "0".
+         */
+        if (purchaseLink.budgetItem.supplierQuoteExtraItem) {
+          await tx.budgetItem.update({
+            where: { id: budgetItemId },
+            data: { plannedQuantity: qtyDecimal },
+          });
+        }
       }
     });
 

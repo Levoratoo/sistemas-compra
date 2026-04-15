@@ -61,21 +61,25 @@ export const updateQuoteSupplierSchema = z.object({
   confirmReset: z.boolean().optional().default(false),
 });
 
-export const updateQuoteItemSchema = z
-  .object({
-    unitPrice: z.coerce.number().nonnegative().optional().nullable(),
-    /** Quantidade deste item nesta compra (ProjectQuotePurchaseItem); afeta totais do mapa. */
-    quantity: z.coerce.number().nonnegative().optional().nullable(),
-    /** Alias PT-BR (alguns clientes/proxies enviam este nome). */
-    quantidade: z.coerce.number().nonnegative().optional().nullable(),
-    notes: optionalTrimmedString().nullable().optional(),
-  })
-  .transform(({ unitPrice, quantity, quantidade, notes }) => ({
-    unitPrice,
-    /** `quantity` no payload tem precedência; senão usa `quantidade`. */
-    quantity: quantity !== undefined ? quantity : quantidade,
-    notes,
-  }));
+const updateQuoteItemBodySchema = z.object({
+  unitPrice: z.coerce.number().nonnegative().optional().nullable(),
+  /** Quantidade deste item nesta compra (ProjectQuotePurchaseItem); afeta totais do mapa. */
+  quantity: z.coerce.number().nonnegative().optional().nullable(),
+  notes: optionalTrimmedString().nullable().optional(),
+});
+
+/** Aceita `quantidade` como alias de `quantity` antes da validação (sem depender de .transform no output). */
+export const updateQuoteItemSchema = z.preprocess((raw: unknown) => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return raw;
+  }
+  const body = { ...(raw as Record<string, unknown>) };
+  if (!('quantity' in body) && 'quantidade' in body && body.quantidade !== undefined) {
+    body.quantity = body.quantidade;
+  }
+  delete body.quantidade;
+  return body;
+}, updateQuoteItemBodySchema);
 
 export const applyQuoteWinnerSchema = z.object({
   mode: z.enum(['OVERALL', 'PER_ITEM']),

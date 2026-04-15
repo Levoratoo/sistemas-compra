@@ -26,6 +26,10 @@ import {
 } from '@/services/quotes-service';
 import type { ProjectQuoteImportApplyPayload, ProjectQuotesState } from '@/types/api';
 
+function payloadIncludesQuantity(payload: UpdateQuoteItemPayload) {
+  return payload.quantity !== undefined || payload.quantidade !== undefined;
+}
+
 export function useProjectQuotesQuery(projectId: string) {
   return useQuery({
     queryKey: ['project-quotes', projectId],
@@ -108,7 +112,13 @@ export function useProjectQuotesMutations(projectId: string) {
         budgetItemId: string;
         payload: UpdateQuoteItemPayload;
       }) => updateProjectQuoteItem(projectId, purchaseId, slotNumber, budgetItemId, payload),
-      onSuccess: setQuotesState,
+      onSuccess: async (state, variables) => {
+        setQuotesState(state);
+        if (payloadIncludesQuantity(variables.payload)) {
+          await queryClient.invalidateQueries({ queryKey: ['budget-items', projectId] });
+          await queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+        }
+      },
     }),
     applyWinner: useMutation({
       mutationFn: ({ purchaseId, mode }: { purchaseId: string; mode: QuoteApplyMode }) =>
