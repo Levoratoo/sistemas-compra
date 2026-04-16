@@ -37,10 +37,10 @@ publicApiRoutes.post(
   asyncHandler((request, response) => authController.login(request, response)),
 );
 
-publicApiRoutes.get('/health', (_request, response) => sendHealthJson(response));
-publicApiRoutes.head('/health', (_request, response) => sendHealthHead(response));
-publicApiRoutes.get('/', (_request, response) => sendHealthJson(response));
-publicApiRoutes.head('/', (_request, response) => sendHealthHead(response));
+publicApiRoutes.get('/health', async (_request, response) => sendHealthJson(response));
+publicApiRoutes.head('/health', async (_request, response) => sendHealthHead(response));
+publicApiRoutes.get('/', async (_request, response) => sendHealthJson(response));
+publicApiRoutes.head('/', async (_request, response) => sendHealthHead(response));
 
 const protectedApiRoutes = Router();
 

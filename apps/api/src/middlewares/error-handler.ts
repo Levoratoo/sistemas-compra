@@ -4,6 +4,7 @@ import { ZodError } from 'zod';
 
 import { logger } from '../config/logger.js';
 import { AppError } from '../utils/app-error.js';
+import { isDatabaseConnectionError } from '../utils/database-health.js';
 
 export function errorHandler(
   error: unknown,
@@ -35,6 +36,13 @@ export function errorHandler(
   }
 
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === 'P1001') {
+      return response.status(503).json({
+        message: 'Database unavailable',
+        details: error.meta ?? null,
+      });
+    }
+
     if (error.code === 'P2002') {
       const meta = error.meta as { target?: string[] } | undefined;
       const target = meta?.target?.join(', ') ?? 'campos únicos';
@@ -56,6 +64,12 @@ export function errorHandler(
         message: 'Record not found',
       });
     }
+  }
+
+  if (isDatabaseConnectionError(error)) {
+    return response.status(503).json({
+      message: 'Database unavailable',
+    });
   }
 
   return response.status(500).json({
