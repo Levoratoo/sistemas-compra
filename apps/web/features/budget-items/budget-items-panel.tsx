@@ -57,7 +57,7 @@ function BudgetItemDialog({
   open: boolean;
   projectId: string;
 }) {
-  const { createItem, updateItem } = useBudgetItemsMutations(projectId);
+  const { createItem, updateItem, deleteItem } = useBudgetItemsMutations(projectId);
   const form = useForm<FormValues, undefined, FormSubmitValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -116,7 +116,30 @@ function BudgetItemDialog({
     }
   }
 
+  async function handleDelete() {
+    if (!item) {
+      return;
+    }
+
+    const confirmed = window.confirm('Deseja excluir este item orcado?');
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deleteItem.mutateAsync(item.id);
+      toast.success('Item orcado excluido.');
+      onOpenChange(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Nao foi possivel excluir o item.';
+      toast.error(message);
+    }
+  }
+
   const submitting = createItem.isPending || updateItem.isPending;
+  const deleting = deleteItem.isPending;
+  const footerDisabled = submitting || deleting;
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -211,13 +234,23 @@ function BudgetItemDialog({
             <Label htmlFor="notes">Observações</Label>
             <Textarea id="notes" {...form.register('notes')} />
           </div>
-          <DialogFooter>
-            <Button onClick={() => onOpenChange(false)} type="button" variant="ghost">
-              Cancelar
-            </Button>
-            <Button disabled={submitting} type="submit">
+          <DialogFooter className="gap-2 sm:justify-between">
+            {item ? (
+              <Button disabled={footerDisabled} type="button" variant="destructive" onClick={() => void handleDelete()}>
+                <Trash2 className="size-4" />
+                Excluir item
+              </Button>
+            ) : (
+              <div />
+            )}
+            <div className="flex gap-2">
+              <Button disabled={footerDisabled} onClick={() => onOpenChange(false)} type="button" variant="ghost">
+                Cancelar
+              </Button>
+              <Button disabled={footerDisabled} type="submit">
               {submitting ? 'Salvando...' : item ? 'Salvar alterações' : 'Criar item'}
-            </Button>
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

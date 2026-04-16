@@ -165,6 +165,7 @@ function QuoteLineEditDialog({
   slotNumber,
   disabled,
   onSave,
+  onRemove,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -172,11 +173,13 @@ function QuoteLineEditDialog({
   slotNumber: number;
   disabled: boolean;
   onSave: (budgetItemId: string, payload: QuoteLineSavePayload) => Promise<void>;
+  onRemove: (budgetItemId: string) => Promise<void>;
 }) {
   const value = row.values.find((entry) => entry.slotNumber === slotNumber);
   const [quantityText, setQuantityText] = useState('');
   const [unitPriceText, setUnitPriceText] = useState('');
   const [notes, setNotes] = useState('');
+  const [isRemoving, setIsRemoving] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -222,9 +225,34 @@ function QuoteLineEditDialog({
     }
   }
 
+  async function handleRemove() {
+    const hasFilledData = row.values.some((entry) => entry.unitPrice != null || Boolean(entry.notes?.trim()));
+    const confirmed = window.confirm(
+      hasFilledData
+        ? 'Remover esta linha apaga os valores ja lancados nos 3 orcamentos desta compra. Deseja continuar?'
+        : 'Deseja excluir esta linha desta compra?',
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsRemoving(true);
+    try {
+      await onRemove(row.budgetItemId);
+      toast.success('Linha removida da compra.');
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Nao foi possivel excluir a linha.');
+    } finally {
+      setIsRemoving(false);
+    }
+  }
+
   const importNoteTrimmed = value?.notes?.trim();
   const importHint =
     importNoteTrimmed && importNoteTrimmed.startsWith('Importado de') ? importNoteTrimmed : null;
+  const actionDisabled = disabled || isRemoving;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -247,7 +275,7 @@ function QuoteLineEditDialog({
           <div className="space-y-2">
             <Label htmlFor={`quote-edit-qty-${row.budgetItemId}`}>Quantidade (esta compra)</Label>
             <Input
-              disabled={disabled}
+              disabled={actionDisabled}
               id={`quote-edit-qty-${row.budgetItemId}`}
               inputMode="decimal"
               min={0}
@@ -260,7 +288,7 @@ function QuoteLineEditDialog({
           <div className="space-y-2">
             <Label htmlFor={`quote-edit-unit-${row.budgetItemId}`}>Valor unitario (R$)</Label>
             <Input
-              disabled={disabled}
+              disabled={actionDisabled}
               id={`quote-edit-unit-${row.budgetItemId}`}
               inputMode="decimal"
               min={0}
@@ -274,7 +302,7 @@ function QuoteLineEditDialog({
           <div className="space-y-2">
             <Label htmlFor={`quote-edit-notes-${row.budgetItemId}`}>Observacoes</Label>
             <Textarea
-              disabled={disabled}
+              disabled={actionDisabled}
               id={`quote-edit-notes-${row.budgetItemId}`}
               rows={4}
               value={notes}
@@ -283,13 +311,19 @@ function QuoteLineEditDialog({
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancelar
+        <DialogFooter className="gap-2 sm:justify-between">
+          <Button disabled={actionDisabled} type="button" variant="destructive" onClick={() => void handleRemove()}>
+            <Trash2 className="size-4" aria-hidden />
+            Excluir linha
           </Button>
-          <Button disabled={disabled} type="button" onClick={() => void handleSubmit()}>
-            Salvar
-          </Button>
+          <div className="flex gap-2">
+            <Button disabled={actionDisabled} type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button disabled={actionDisabled} type="button" onClick={() => void handleSubmit()}>
+              Salvar
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -319,11 +353,13 @@ function QuoteLineRow({
   slotNumber,
   disabled,
   onSave,
+  onRemove,
 }: {
   row: ProjectQuoteRow;
   slotNumber: number;
   disabled: boolean;
   onSave: (budgetItemId: string, payload: QuoteLineSavePayload) => Promise<void>;
+  onRemove: (budgetItemId: string) => Promise<void>;
 }) {
   const value = row.values.find((entry) => entry.slotNumber === slotNumber);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -451,6 +487,7 @@ function QuoteLineRow({
         row={row}
         slotNumber={slotNumber}
         onOpenChange={setEditDialogOpen}
+        onRemove={onRemove}
         onSave={onSave}
       />
     </>
@@ -1762,7 +1799,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
     }
   }
 
-  async function handleRemovePurchaseItem(budgetItemId: string) {
+  async function handleRemovePurchaseItem(budgetItemId: string, options?: { skipFilledDataConfirm?: boolean }) {
     if (!activePurchase) {
       return;
     }
@@ -1772,6 +1809,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
       row?.values.some((value) => value.unitPrice != null || Boolean(value.notes?.trim())) ?? false;
 
     if (
+      !options?.skipFilledDataConfirm &&
       hasFilledData &&
       !window.confirm('Remover este item apaga os valores ja lancados nos 3 orcamentos desta compra. Deseja continuar?')
     ) {
@@ -2460,6 +2498,9 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                             disabled={quoteMutations.updateItem.isPending}
                             row={row}
                             slotNumber={activeSlot.slotNumber}
+                            onRemove={(budgetItemId) =>
+                              handleRemovePurchaseItem(budgetItemId, { skipFilledDataConfirm: true })
+                            }
                             onSave={(budgetItemId, payload) => handleSaveRow(activeSlot.slotNumber, budgetItemId, payload)}
                           />
                         ))}
