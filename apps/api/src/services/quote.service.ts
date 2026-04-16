@@ -1413,7 +1413,7 @@ class QuoteService {
 
   async removeQuotePurchaseItem(projectId: string, purchaseId: string, budgetItemId: string) {
     await ensureProjectExists(projectId);
-    await findQuotePurchaseItem(projectId, purchaseId, budgetItemId);
+    const purchaseItem = await findQuotePurchaseItem(projectId, purchaseId, budgetItemId);
 
     const quoteIds = await prisma.projectQuote.findMany({
       where: { projectQuotePurchaseId: purchaseId },
@@ -1440,6 +1440,26 @@ class QuoteService {
           },
         },
       });
+
+      if (purchaseItem.budgetItem.supplierQuoteExtraItem) {
+        const [remainingPurchaseLinks, remainingQuoteValues, remainingPurchaseOrderItems] = await Promise.all([
+          tx.projectQuotePurchaseItem.count({
+            where: { budgetItemId },
+          }),
+          tx.projectQuoteItem.count({
+            where: { budgetItemId },
+          }),
+          tx.purchaseOrderItem.count({
+            where: { budgetItemId },
+          }),
+        ]);
+
+        if (remainingPurchaseLinks === 0 && remainingQuoteValues === 0 && remainingPurchaseOrderItems === 0) {
+          await tx.budgetItem.delete({
+            where: { id: budgetItemId },
+          });
+        }
+      }
     });
 
     return buildProjectQuotesModuleState(projectId);

@@ -86,7 +86,16 @@ export function useProjectQuotesMutations(projectId: string) {
     removePurchaseItem: useMutation({
       mutationFn: ({ purchaseId, budgetItemId }: { purchaseId: string; budgetItemId: string }) =>
         removeProjectQuotePurchaseItem(projectId, purchaseId, budgetItemId),
-      onSuccess: setQuotesState,
+      onSuccess: async (state) => {
+        setQuotesState(state);
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['budget-items', projectId] }),
+          queryClient.invalidateQueries({ queryKey: ['project', projectId] }),
+          queryClient.invalidateQueries({ queryKey: ['dashboard', 'project', projectId] }),
+          queryClient.invalidateQueries({ queryKey: ['project-replenishments', projectId] }),
+          queryClient.invalidateQueries({ queryKey: ['purchases', projectId] }),
+        ]);
+      },
     }),
     updateSupplier: useMutation({
       mutationFn: ({
