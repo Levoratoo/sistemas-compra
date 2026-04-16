@@ -43,7 +43,7 @@ function normalizedRequestPathname(request: Request): string {
 /**
  * Responde a `/health` e `/api/health` antes de qualquer Router (redundante com `apiRouter`).
  */
-async function publicHealthMiddleware(request: Request, response: Response, next: NextFunction) {
+function publicHealthMiddleware(request: Request, response: Response, next: NextFunction) {
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     next();
     return;
@@ -54,10 +54,10 @@ async function publicHealthMiddleware(request: Request, response: Response, next
     return;
   }
   if (request.method === 'HEAD') {
-    await sendHealthHead(response);
+    sendHealthHead(response);
     return;
   }
-  await sendHealthJson(response);
+  sendHealthJson(response);
 }
 
 /**
@@ -104,16 +104,16 @@ export function createApp() {
   app.use('/uploads', express.static(env.UPLOADS_DIR_ABSOLUTE));
 
   /** Evita 401 em `/` e `/favicon.ico` quando o browser ou monitor acede à raiz do serviço. */
-  app.get('/', async (_request, response) => sendHealthJson(response));
-  app.head('/', async (_request, response) => sendHealthHead(response));
+  app.get('/', (_request, response) => sendHealthJson(response));
+  app.head('/', (_request, response) => sendHealthHead(response));
   app.get('/favicon.ico', (_request, response) => response.status(204).end());
   app.head('/favicon.ico', (_request, response) => response.status(204).end());
 
   /** Rotas explícitas na app (a rota canónica em produção é `apiRouter.get('/health')`). */
-  app.get('/health', async (_request, response) => sendHealthJson(response));
-  app.get('/api/health', async (_request, response) => sendHealthJson(response));
-  app.head('/health', async (_request, response) => sendHealthHead(response));
-  app.head('/api/health', async (_request, response) => sendHealthHead(response));
+  app.get('/health', (_request, response) => sendHealthJson(response));
+  app.get('/api/health', (_request, response) => sendHealthJson(response));
+  app.head('/health', (_request, response) => sendHealthHead(response));
+  app.head('/api/health', (_request, response) => sendHealthHead(response));
 
   /**
    * Rotas REST sob `/api` (NEXT_PUBLIC_API_URL=…/api).

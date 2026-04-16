@@ -4,7 +4,6 @@ import { ZodError } from 'zod';
 
 import { logger } from '../config/logger.js';
 import { AppError } from '../utils/app-error.js';
-import { isDatabaseConnectionError } from '../utils/database-health.js';
 
 export function errorHandler(
   error: unknown,
@@ -64,12 +63,6 @@ export function errorHandler(
         message: 'Record not found',
       });
     }
-  }
-
-  if (isDatabaseConnectionError(error)) {
-    return response.status(503).json({
-      message: 'Database unavailable',
-    });
   }
 
   return response.status(500).json({

@@ -1,25 +1,14 @@
 import type { Response } from 'express';
 
-import { probeDatabase } from './database-health.js';
-
-export async function sendHealthJson(response: Response): Promise<void> {
-  const probe = await probeDatabase();
-  const statusCode = probe.ok ? 200 : 503;
-
+export function sendHealthJson(response: Response): void {
   response.setHeader('X-Sitecompras-Health', '1');
-  response.status(statusCode).json({
-    status: probe.ok ? 'ok' : 'degraded',
-    database: {
-      status: probe.ok ? 'ok' : 'unreachable',
-      latencyMs: probe.durationMs,
-    },
+  response.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
   });
 }
 
-export async function sendHealthHead(response: Response): Promise<void> {
-  const probe = await probeDatabase();
-
+export function sendHealthHead(response: Response): void {
   response.setHeader('X-Sitecompras-Health', '1');
-  response.status(probe.ok ? 200 : 503).end();
+  response.status(200).end();
 }
