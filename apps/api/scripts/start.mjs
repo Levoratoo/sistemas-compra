@@ -15,6 +15,7 @@ const prismaCli = path.join(appRoot, 'scripts/prisma-cli.mjs');
 const serverJs = path.join(appRoot, 'dist/server.js');
 
 const skipMigrate = process.env.SKIP_PRISMA_MIGRATE_ON_START === '1';
+const failOnMigrateError = process.env.FAIL_ON_PRISMA_MIGRATE_ERROR === '1';
 
 const server = spawn(process.execPath, [serverJs], {
   cwd: appRoot,
@@ -33,13 +34,34 @@ if (!skipMigrate) {
 
   migrateChild.on('exit', (code, signal) => {
     if (code !== 0) {
+      if (failOnMigrateError) {
+        try {
+          server.kill(signal ?? 'SIGTERM');
+        } catch {
+          // ignore
+        }
+        process.exit(code ?? 1);
+      }
+
+      console.warn(
+        `[WARN] prisma migrate deploy falhou no startup (codigo ${code ?? 'desconhecido'}). ` +
+          'A API continuara em execucao. Defina FAIL_ON_PRISMA_MIGRATE_ERROR=1 para tornar isso fatal.',
+      );
+    }
+  });
+
+  migrateChild.on('error', (error) => {
+    if (failOnMigrateError) {
+      console.error('[ERROR] Falha ao iniciar prisma migrate deploy.', error);
       try {
-        server.kill(signal ?? 'SIGTERM');
+        server.kill('SIGTERM');
       } catch {
         // ignore
       }
-      process.exit(code ?? 1);
+      process.exit(1);
     }
+
+    console.warn('[WARN] Falha ao iniciar prisma migrate deploy; a API continuara em execucao.', error);
   });
 }
 
