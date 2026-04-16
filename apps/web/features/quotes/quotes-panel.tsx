@@ -418,6 +418,21 @@ function QuoteLineRow({
     }
   }
 
+  async function handleRowRemove() {
+    const hasFilledData = row.values.some((entry) => entry.unitPrice != null || Boolean(entry.notes?.trim()));
+    const confirmed = window.confirm(
+      hasFilledData
+        ? 'Remover esta linha apaga os valores ja lancados nos 3 orcamentos desta compra. Deseja continuar?'
+        : 'Deseja excluir esta linha desta compra?',
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    await onRemove(row.budgetItemId);
+  }
+
   return (
     <>
       <tr
@@ -469,16 +484,28 @@ function QuoteLineRow({
           />
         </td>
         <td className="px-3 py-3 align-top text-center">
-          <Button
-            disabled={disabled}
-            size="sm"
-            type="button"
-            variant="outline"
-            onClick={() => setEditDialogOpen(true)}
-          >
-            <SquarePen className="size-4" aria-hidden />
-            <span className="sr-only sm:not-sr-only sm:ml-1.5">Editar</span>
-          </Button>
+          <div className="flex justify-center gap-2">
+            <Button
+              disabled={disabled}
+              size="sm"
+              type="button"
+              variant="outline"
+              onClick={() => setEditDialogOpen(true)}
+            >
+              <SquarePen className="size-4" aria-hidden />
+              <span className="sr-only sm:not-sr-only sm:ml-1.5">Editar</span>
+            </Button>
+            <Button
+              disabled={disabled}
+              size="sm"
+              type="button"
+              variant="destructive"
+              onClick={() => void handleRowRemove()}
+            >
+              <Trash2 className="size-4" aria-hidden />
+              <span className="sr-only sm:not-sr-only sm:ml-1.5">Excluir</span>
+            </Button>
+          </div>
         </td>
       </tr>
       <QuoteLineEditDialog
@@ -2487,7 +2514,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                             Observacoes
                           </th>
                           <th className="border-b border-border/70 px-3 py-3 text-center font-semibold text-foreground">
-                            Editar
+                            Acoes
                           </th>
                         </tr>
                       </thead>
