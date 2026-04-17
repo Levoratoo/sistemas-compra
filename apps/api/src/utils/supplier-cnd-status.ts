@@ -33,6 +33,59 @@ function dateToIsoDate(value: Date) {
   return value.toISOString().slice(0, 10);
 }
 
+const statusRank: Record<SupplierCndStatus, number> = {
+  MISSING: 1,
+  VALID: 2,
+  EXPIRING_SOON: 3,
+  EXPIRED: 4,
+};
+
+function pickWorseCndDerived(
+  a: { status: SupplierCndStatus; daysUntilExpiration: number | null },
+  b: { status: SupplierCndStatus; daysUntilExpiration: number | null },
+) {
+  if (statusRank[a.status] !== statusRank[b.status]) {
+    return statusRank[a.status] > statusRank[b.status] ? a : b;
+  }
+
+  if (a.daysUntilExpiration === null) {
+    return b;
+  }
+
+  if (b.daysUntilExpiration === null) {
+    return a;
+  }
+
+  return a.daysUntilExpiration <= b.daysUntilExpiration ? a : b;
+}
+
+/** Consolida Federal + estadual: expirada se qualquer uma expirada; próxima do vencimento se qualquer uma na janela; válida só se ambas válidas (ou só uma existir com validade e for válida). */
+export function deriveDualSupplierCndStatus(
+  federalValidUntil: Date | null | undefined,
+  stateValidUntil: Date | null | undefined,
+  referenceDate = new Date(),
+): {
+  status: SupplierCndStatus;
+  daysUntilExpiration: number | null;
+} {
+  const dFederal = deriveSupplierCndStatus(federalValidUntil ?? null, referenceDate);
+  const dState = deriveSupplierCndStatus(stateValidUntil ?? null, referenceDate);
+
+  if (!federalValidUntil && !stateValidUntil) {
+    return dFederal;
+  }
+
+  if (federalValidUntil && !stateValidUntil) {
+    return dFederal;
+  }
+
+  if (!federalValidUntil && stateValidUntil) {
+    return dState;
+  }
+
+  return pickWorseCndDerived(dFederal, dState);
+}
+
 export function deriveSupplierCndStatus(
   validUntil: Date | null | undefined,
   referenceDate = new Date(),

@@ -132,15 +132,27 @@ export function SuppliersPageContent() {
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant={supplierCndBadgeVariant(supplier)}>{supplierCndStatusLabel(supplier)}</Badge>
                           {supplier.cndValidUntil ? (
-                            <span className="text-xs font-medium text-foreground">ate {formatDate(supplier.cndValidUntil)}</span>
+                            <span className="text-xs font-medium text-foreground">
+                              restrita ate {formatDate(supplier.cndValidUntil)}
+                            </span>
                           ) : null}
                         </div>
                         <p className="text-xs leading-relaxed text-muted-foreground">{supplierCndStatusDescription(supplier)}</p>
+                        {supplier.cndFederal?.validUntil ? (
+                          <p className="text-xs text-muted-foreground">
+                            Federal ate {formatDate(supplier.cndFederal.validUntil)}
+                          </p>
+                        ) : null}
+                        {supplier.cndState?.validUntil ? (
+                          <p className="text-xs text-muted-foreground">
+                            Estadual ate {formatDate(supplier.cndState.validUntil)}
+                          </p>
+                        ) : null}
                         {supplier.cndIssuedAt ? (
-                          <p className="text-xs text-muted-foreground">Emitida em {formatDate(supplier.cndIssuedAt)}</p>
+                          <p className="text-xs text-muted-foreground">Emitida (ref.): {formatDate(supplier.cndIssuedAt)}</p>
                         ) : null}
                         {supplier.cndControlCode ? (
-                          <p className="text-xs text-muted-foreground">Controle: {supplier.cndControlCode}</p>
+                          <p className="text-xs text-muted-foreground">Controle (ref.): {supplier.cndControlCode}</p>
                         ) : null}
                         {supplier.cnd ? <p className="text-xs text-muted-foreground line-clamp-2">{supplier.cnd}</p> : null}
                       </div>

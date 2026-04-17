@@ -113,6 +113,8 @@ async function main() {
       first.originalFileName,
       buffer,
       first.mimeType ?? undefined,
+      'FEDERAL',
+      null,
       first.fileSizeBytes ?? buffer.length,
     );
     created += 1;
@@ -130,7 +132,7 @@ async function main() {
       if (projectIdsWithDoc.has(projectId)) {
         continue;
       }
-      await replicateSupplierCndAttachmentToProject(projectId, supplier.legalName, attachment, buffer);
+      await replicateSupplierCndAttachmentToProject(projectId, supplier.legalName, attachment, 'FEDERAL', buffer);
       replicated += 1;
     }
   }

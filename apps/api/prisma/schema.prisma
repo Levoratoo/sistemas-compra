@@ -157,6 +157,12 @@ enum NotificationType {
   REPLENISHMENT_DUE_SOON
 }
 
+/// Escopo da certidão anexada ao fornecedor (Federal vs estadual).
+enum SupplierCndScope {
+  FEDERAL
+  STATE
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -533,20 +539,25 @@ model Supplier {
   @@index([legalName])
 }
 
-/// Arquivo CND canônico por fornecedor (um por upload); replicado em todos os projetos.
+/// Arquivo CND canônico por fornecedor e escopo; no máximo um ativo por escopo após substituição no upload.
 model SupplierCndAttachment {
-  id                String   @id @default(cuid())
+  id                String            @id @default(cuid())
   supplierId        String
+  scope             SupplierCndScope  @default(FEDERAL)
   originalFileName  String
-  masterStoragePath String   @unique
+  masterStoragePath String            @unique
   mimeType          String?
   fileSizeBytes     Int?
-  createdAt         DateTime @default(now())
+  parsedIssuedAt    DateTime?
+  parsedValidUntil  DateTime?
+  parsedControlCode String?
+  createdAt         DateTime          @default(now())
 
   supplier         Supplier          @relation(fields: [supplierId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   projectDocuments ProjectDocument[]
 
   @@index([supplierId])
+  @@index([supplierId, scope])
 }
 
 model ProjectQuote {

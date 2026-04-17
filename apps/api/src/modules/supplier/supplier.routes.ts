@@ -19,7 +19,10 @@ const uploadCnd = multer({
 
 function maybeMultipartSupplier(request: Request, response: Response, next: NextFunction) {
   if (request.is('multipart/form-data')) {
-    return uploadCnd.array('cndFiles', 20)(request, response, next);
+    return uploadCnd.fields([
+      { name: 'cndFederal', maxCount: 1 },
+      { name: 'cndEstadual', maxCount: 1 },
+    ])(request, response, next);
   }
   next();
 }

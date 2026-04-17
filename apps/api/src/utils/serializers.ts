@@ -14,11 +14,12 @@ import type {
   ReplenishmentEvent,
   ReplenishmentRule,
   Supplier,
+  SupplierCndAttachment,
 } from '@prisma/client';
 
 import { decimalToNumber } from './decimal.js';
 import { toIsoString } from './date.js';
-import { deriveSupplierCndStatus } from './supplier-cnd-status.js';
+import { deriveDualSupplierCndStatus } from './supplier-cnd-status.js';
 
 type UserWithReleasedProjects = User & {
   releasedProjects?: Array<{
@@ -165,17 +166,67 @@ export function serializeBudgetItem(item: BudgetItem) {
   };
 }
 
-export function serializeSupplier(supplier: Supplier) {
-  const cndDerived = deriveSupplierCndStatus(supplier.cndValidUntil);
+type SupplierWithCndAttachments = Supplier & {
+  cndAttachments?: SupplierCndAttachment[];
+};
+
+function pickLatestScopedAttachment(
+  attachments: SupplierCndAttachment[] | undefined,
+  scope: 'FEDERAL' | 'STATE',
+): SupplierCndAttachment | undefined {
+  if (!attachments?.length) {
+    return undefined;
+  }
+
+  let best: SupplierCndAttachment | undefined;
+  for (const att of attachments) {
+    if (att.scope !== scope) {
+      continue;
+    }
+    if (!best || att.createdAt.getTime() > best.createdAt.getTime()) {
+      best = att;
+    }
+  }
+
+  return best;
+}
+
+function serializeSupplierCndScopeSnapshot(att: SupplierCndAttachment | undefined) {
+  if (!att?.parsedValidUntil) {
+    return null;
+  }
 
   return {
-    ...supplier,
-    cndIssuedAt: toIsoString(supplier.cndIssuedAt),
-    cndValidUntil: toIsoString(supplier.cndValidUntil),
-    createdAt: toIsoString(supplier.createdAt),
-    updatedAt: toIsoString(supplier.updatedAt),
+    issuedAt: toIsoString(att.parsedIssuedAt),
+    validUntil: toIsoString(att.parsedValidUntil),
+    controlCode: att.parsedControlCode,
+    originalFileName: att.originalFileName,
+  };
+}
+
+export function serializeSupplier(supplier: SupplierWithCndAttachments) {
+  const { cndAttachments, ...rest } = supplier;
+  const federalAtt = pickLatestScopedAttachment(cndAttachments, 'FEDERAL');
+  const stateAtt = pickLatestScopedAttachment(cndAttachments, 'STATE');
+
+  const cndFederal = serializeSupplierCndScopeSnapshot(federalAtt);
+  const cndState = serializeSupplierCndScopeSnapshot(stateAtt);
+
+  const cndDerived = deriveDualSupplierCndStatus(
+    federalAtt?.parsedValidUntil ?? null,
+    stateAtt?.parsedValidUntil ?? null,
+  );
+
+  return {
+    ...rest,
+    cndIssuedAt: toIsoString(rest.cndIssuedAt),
+    cndValidUntil: toIsoString(rest.cndValidUntil),
+    createdAt: toIsoString(rest.createdAt),
+    updatedAt: toIsoString(rest.updatedAt),
     cndStatus: cndDerived.status,
     cndDaysUntilExpiration: cndDerived.daysUntilExpiration,
+    cndFederal,
+    cndState,
   };
 }
 

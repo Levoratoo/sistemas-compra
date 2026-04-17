@@ -6,6 +6,7 @@ import { prisma } from '../config/prisma.js';
 import { env } from '../config/env.js';
 import { extractSupplierCndMetadataFromFile } from '../utils/supplier-cnd-parser.js';
 import { ensureRelativeStoragePath } from '../utils/file.js';
+import { refreshSupplierCndAggregateFields } from '../services/supplier-cnd-sync.service.js';
 
 async function readMasterBuffer(masterStoragePath: string): Promise<Buffer> {
   const relative = ensureRelativeStoragePath(masterStoragePath);
@@ -18,20 +19,11 @@ async function main() {
     orderBy: [{ supplierId: 'asc' }, { createdAt: 'desc' }],
   });
 
-  const attachmentsBySupplier = new Map<string, (typeof attachments)>();
-  for (const attachment of attachments) {
-    const current = attachmentsBySupplier.get(attachment.supplierId) ?? [];
-    current.push(attachment);
-    attachmentsBySupplier.set(attachment.supplierId, current);
-  }
-
-  let updated = 0;
+  let attachmentUpdated = 0;
   let skipped = 0;
 
-  for (const [supplierId, supplierAttachments] of attachmentsBySupplier.entries()) {
-    let applied = false;
-
-    for (const attachment of supplierAttachments) {
+  for (const attachment of attachments) {
+    try {
       const buffer = await readMasterBuffer(attachment.masterStoragePath);
       const parsed = await extractSupplierCndMetadataFromFile(
         buffer,
@@ -40,30 +32,33 @@ async function main() {
       );
 
       if (!parsed?.validUntil) {
+        skipped += 1;
         continue;
       }
 
-      await prisma.supplier.update({
-        where: { id: supplierId },
+      await prisma.supplierCndAttachment.update({
+        where: { id: attachment.id },
         data: {
-          cndIssuedAt: parsed.issuedAt,
-          cndValidUntil: parsed.validUntil,
-          cndControlCode: parsed.controlCode ?? null,
-          cndSourceFileName: attachment.originalFileName,
+          parsedIssuedAt: parsed.issuedAt ?? null,
+          parsedValidUntil: parsed.validUntil,
+          parsedControlCode: parsed.controlCode ?? null,
         },
       });
 
-      updated += 1;
-      applied = true;
-      break;
-    }
-
-    if (!applied) {
+      attachmentUpdated += 1;
+    } catch {
       skipped += 1;
     }
   }
 
-  console.log(`[backfill-cnd-metadata] fornecedores atualizados: ${updated}; sem leitura automatica: ${skipped}`);
+  const supplierIds = [...new Set(attachments.map((a) => a.supplierId))];
+  for (const supplierId of supplierIds) {
+    await refreshSupplierCndAggregateFields(supplierId);
+  }
+
+  console.log(
+    `[backfill-cnd-metadata] anexos com parsed preenchido: ${attachmentUpdated}; ignorados/sem validade: ${skipped}; fornecedores reagregados: ${supplierIds.length}`,
+  );
   await prisma.$disconnect();
 }
 

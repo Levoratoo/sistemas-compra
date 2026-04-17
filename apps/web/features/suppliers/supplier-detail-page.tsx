@@ -115,24 +115,40 @@ export function SupplierDetailPage({ supplierId }: { supplierId: string }) {
               <FileBadge2 className="size-4 text-primary" aria-hidden />
               CND e conformidade
             </CardTitle>
-            <CardDescription>Status automatico calculado a partir do PDF enviado.</CardDescription>
+            <CardDescription>Status calculado a partir das CND federal e estadual (pior cenario entre as duas).</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5 p-5">
             <div className="rounded-2xl border border-border/70 bg-muted/15 p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant={supplierCndBadgeVariant(supplier)}>{supplierCndStatusLabel(supplier)}</Badge>
                 {supplier.cndValidUntil ? (
-                  <span className="text-sm font-medium text-foreground">Valida ate {formatDate(supplier.cndValidUntil)}</span>
+                  <span className="text-sm font-medium text-foreground">
+                    Validade mais restrita: {formatDate(supplier.cndValidUntil)}
+                  </span>
                 ) : null}
               </div>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{supplierCndStatusDescription(supplier)}</p>
             </div>
 
             <dl>
-              <DetailRow label="Emissao">{supplier.cndIssuedAt ? formatDateTime(supplier.cndIssuedAt) : <span className="text-muted-foreground">-</span>}</DetailRow>
-              <DetailRow label="Validade">{supplier.cndValidUntil ? formatDate(supplier.cndValidUntil) : <span className="text-muted-foreground">-</span>}</DetailRow>
-              <DetailRow label="Codigo de controle">{displayOrDash(supplier.cndControlCode)}</DetailRow>
-              <DetailRow label="Arquivo lido">{displayOrDash(supplier.cndSourceFileName)}</DetailRow>
+              <DetailRow label="CND federal — validade">
+                {supplier.cndFederal?.validUntil ? formatDate(supplier.cndFederal.validUntil) : <span className="text-muted-foreground">-</span>}
+              </DetailRow>
+              <DetailRow label="CND federal — emissao">
+                {supplier.cndFederal?.issuedAt ? formatDateTime(supplier.cndFederal.issuedAt) : <span className="text-muted-foreground">-</span>}
+              </DetailRow>
+              <DetailRow label="CND federal — arquivo">{displayOrDash(supplier.cndFederal?.originalFileName)}</DetailRow>
+              <DetailRow label="CND estadual — validade">
+                {supplier.cndState?.validUntil ? formatDate(supplier.cndState.validUntil) : <span className="text-muted-foreground">-</span>}
+              </DetailRow>
+              <DetailRow label="CND estadual — emissao">
+                {supplier.cndState?.issuedAt ? formatDateTime(supplier.cndState.issuedAt) : <span className="text-muted-foreground">-</span>}
+              </DetailRow>
+              <DetailRow label="CND estadual — arquivo">{displayOrDash(supplier.cndState?.originalFileName)}</DetailRow>
+              <DetailRow label="Emissao (referencia agregada)">
+                {supplier.cndIssuedAt ? formatDateTime(supplier.cndIssuedAt) : <span className="text-muted-foreground">-</span>}
+              </DetailRow>
+              <DetailRow label="Codigo de controle (referencia agregada)">{displayOrDash(supplier.cndControlCode)}</DetailRow>
               <DetailRow label="Observacao manual">{displayOrDash(supplier.cnd)}</DetailRow>
               <DetailRow label="Ultima atualizacao">{supplier.updatedAt ? formatDateTime(supplier.updatedAt) : <span className="text-muted-foreground">-</span>}</DetailRow>
             </dl>

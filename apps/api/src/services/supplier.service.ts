@@ -1,13 +1,14 @@
-import type { Express } from 'express';
-
 import { supplierRepository } from '../repositories/supplier.repository.js';
-import { uploadSupplierCndFilesAndReplicateToAllProjects } from './supplier-cnd-sync.service.js';
+import {
+  type ScopedCndUpload,
+  uploadSupplierScopedCndFilesAndReplicateToAllProjects,
+} from './supplier-cnd-sync.service.js';
 import { AppError } from '../utils/app-error.js';
 import { serializeSupplier } from '../utils/serializers.js';
 import type { CreateSupplierInput, UpdateSupplierInput } from '../modules/supplier/supplier.schemas.js';
 
 class SupplierService {
-  async createSupplier(input: CreateSupplierInput, options?: { cndFiles?: Express.Multer.File[] }) {
+  async createSupplier(input: CreateSupplierInput, options?: { scopedCndFiles?: ScopedCndUpload[] }) {
     let supplier = await supplierRepository.create({
       legalName: input.legalName,
       tradeName: input.tradeName ?? null,
@@ -20,9 +21,9 @@ class SupplierService {
       notes: input.notes ?? null,
     });
 
-    const files = options?.cndFiles ?? [];
-    if (files.length > 0) {
-      await uploadSupplierCndFilesAndReplicateToAllProjects(supplier.id, supplier.legalName, files);
+    const scoped = options?.scopedCndFiles ?? [];
+    if (scoped.length > 0) {
+      await uploadSupplierScopedCndFilesAndReplicateToAllProjects(supplier.id, supplier.legalName, scoped);
       supplier = (await supplierRepository.findById(supplier.id)) ?? supplier;
     }
 
@@ -44,7 +45,7 @@ class SupplierService {
     return serializeSupplier(supplier);
   }
 
-  async updateSupplier(id: string, input: UpdateSupplierInput, options?: { cndFiles?: Express.Multer.File[] }) {
+  async updateSupplier(id: string, input: UpdateSupplierInput, options?: { scopedCndFiles?: ScopedCndUpload[] }) {
     const existingSupplier = await supplierRepository.findById(id);
 
     if (!existingSupplier) {
@@ -63,9 +64,9 @@ class SupplierService {
       notes: input.notes,
     });
 
-    const files = options?.cndFiles ?? [];
-    if (files.length > 0) {
-      await uploadSupplierCndFilesAndReplicateToAllProjects(supplier.id, supplier.legalName, files);
+    const scoped = options?.scopedCndFiles ?? [];
+    if (scoped.length > 0) {
+      await uploadSupplierScopedCndFilesAndReplicateToAllProjects(supplier.id, supplier.legalName, scoped);
       supplier = (await supplierRepository.findById(supplier.id)) ?? supplier;
     }
 

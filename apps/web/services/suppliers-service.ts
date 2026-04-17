@@ -29,13 +29,24 @@ export function getSupplier(supplierId: string) {
   return apiRequest<Supplier>(`suppliers/${supplierId}`);
 }
 
-export function createSupplier(payload: SupplierPayload, options?: { cndFiles?: File[] }) {
-  const files = options?.cndFiles?.filter(Boolean) ?? [];
-  if (files.length > 0) {
+export type SupplierCndUploadOptions = {
+  cndFederal?: File;
+  cndEstadual?: File;
+};
+
+function hasCndUploads(options?: SupplierCndUploadOptions) {
+  return Boolean(options?.cndFederal || options?.cndEstadual);
+}
+
+export function createSupplier(payload: SupplierPayload, options?: SupplierCndUploadOptions) {
+  if (hasCndUploads(options)) {
     const formData = new FormData();
     appendSupplierFormData(formData, payload);
-    for (const file of files) {
-      formData.append('cndFiles', file);
+    if (options?.cndFederal) {
+      formData.append('cndFederal', options.cndFederal);
+    }
+    if (options?.cndEstadual) {
+      formData.append('cndEstadual', options.cndEstadual);
     }
     return apiUploadJson<Supplier>('suppliers', formData);
   }
@@ -48,14 +59,16 @@ export function createSupplier(payload: SupplierPayload, options?: { cndFiles?: 
 export function updateSupplier(
   supplierId: string,
   payload: Partial<SupplierPayload>,
-  options?: { cndFiles?: File[] },
+  options?: SupplierCndUploadOptions,
 ) {
-  const files = options?.cndFiles?.filter(Boolean) ?? [];
-  if (files.length > 0) {
+  if (hasCndUploads(options)) {
     const formData = new FormData();
     appendSupplierFormData(formData, payload);
-    for (const file of files) {
-      formData.append('cndFiles', file);
+    if (options?.cndFederal) {
+      formData.append('cndFederal', options.cndFederal);
+    }
+    if (options?.cndEstadual) {
+      formData.append('cndEstadual', options.cndEstadual);
     }
     return apiUploadJson<Supplier>(`suppliers/${supplierId}`, formData, 'PUT');
   }

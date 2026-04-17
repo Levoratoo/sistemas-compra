@@ -50,10 +50,10 @@ export function supplierCndStatusDescription(supplier: Supplier) {
   }
 
   if (supplier.cndStatus === 'VALID') {
-    return 'Validade detectada automaticamente no PDF da CND.';
+    return 'Validade detectada automaticamente nas CND federal e/ou estadual em PDF.';
   }
 
   return supplier.cndSourceFileName
-    ? 'O arquivo foi enviado, mas a validade nao foi identificada automaticamente.'
-    : 'Envie a CND em PDF para que o sistema leia a validade automaticamente.';
+    ? 'O arquivo foi enviado, mas a validade nao foi identificada automaticamente em uma ou nas duas certidoes.'
+    : 'Envie as CND federal e estadual em PDF para que o sistema leia as validades automaticamente.';
 }

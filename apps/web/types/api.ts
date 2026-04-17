@@ -267,6 +267,14 @@ export interface ProjectRole extends EntityTimestamps {
   notes: string | null;
 }
 
+/** Metadados de uma CND (Federal ou estadual) a partir do PDF anexado. */
+export type SupplierCndScopeSnapshot = {
+  issuedAt: string | null;
+  validUntil: string | null;
+  controlCode: string | null;
+  originalFileName: string;
+} | null;
+
 export interface Supplier extends EntityTimestamps {
   id: string;
   legalName: string;
@@ -277,12 +285,15 @@ export interface Supplier extends EntityTimestamps {
   phone: string | null;
   email: string | null;
   cnd: string | null;
+  /** Espelho agregado (validade mais crítica entre as certidões com leitura automática). */
   cndIssuedAt: string | null;
   cndValidUntil: string | null;
   cndControlCode: string | null;
   cndSourceFileName: string | null;
   cndStatus: SupplierCndStatus;
   cndDaysUntilExpiration: number | null;
+  cndFederal: SupplierCndScopeSnapshot;
+  cndState: SupplierCndScopeSnapshot;
   notes: string | null;
 }
 

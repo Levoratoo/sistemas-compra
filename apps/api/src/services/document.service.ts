@@ -132,7 +132,7 @@ function serializeDocumentWithFolderPath(
   };
 }
 
-async function removeStoredFile(storagePath: string | null | undefined) {
+export async function removeStoredFile(storagePath: string | null | undefined) {
   if (!storagePath) {
     return;
   }

@@ -7,6 +7,7 @@ import {
   deleteSupplier,
   getSupplier,
   listSuppliers,
+  type SupplierCndUploadOptions,
   type SupplierPayload,
   updateSupplier,
 } from '@/services/suppliers-service';
@@ -35,13 +36,13 @@ export function useSuppliersMutations() {
 
   return {
     createSupplier: useMutation({
-      mutationFn: (input: { payload: SupplierPayload; cndFiles?: File[] }) =>
-        createSupplier(input.payload, { cndFiles: input.cndFiles }),
+      mutationFn: (input: { payload: SupplierPayload; cndUploads?: SupplierCndUploadOptions }) =>
+        createSupplier(input.payload, input.cndUploads),
       onSuccess: invalidate,
     }),
     updateSupplier: useMutation({
-      mutationFn: (input: { id: string; payload: Partial<SupplierPayload>; cndFiles?: File[] }) =>
-        updateSupplier(input.id, input.payload, { cndFiles: input.cndFiles }),
+      mutationFn: (input: { id: string; payload: Partial<SupplierPayload>; cndUploads?: SupplierCndUploadOptions }) =>
+        updateSupplier(input.id, input.payload, input.cndUploads),
       onSuccess: async (_data, variables) => {
         await invalidate();
         await queryClient.invalidateQueries({ queryKey: ['supplier', variables.id] });
