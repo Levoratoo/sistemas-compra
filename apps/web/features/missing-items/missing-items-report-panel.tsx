@@ -55,7 +55,7 @@ import type { MissingItemReport, MissingItemReportAttachment, MissingItemUrgency
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
 const RANDOM_MISSING_ITEM_NAMES = [
-  'Luvas nitrílica procedimento — tamanho M',
+  'Luvas nitrílicas de procedimento — tamanho M',
   'Máscara PFF2 com válvula (caixa 50)',
   'Óculos de proteção incolor — antiembaçante',
   'Protetor auricular tipo concha 23 dB',
@@ -148,7 +148,7 @@ function buildRandomMissingItemPayload(index: number): MissingItemReportPayload 
 type ApprovalFilter = 'all' | MissingItemReport['ownerApprovalStatus'];
 
 const approvalFilterOptions: Array<{ value: ApprovalFilter; label: string }> = [
-  { value: 'all', label: 'Todos os status' },
+  { value: 'all', label: 'Todas as situações de aprovação' },
   { value: 'PENDING', label: 'Aguardando aprovação' },
   { value: 'APPROVED', label: 'Aprovadas' },
   { value: 'REJECTED', label: 'Rejeitadas' },
@@ -632,7 +632,7 @@ function ReportDialog({
                     <p className="mt-1 text-sm leading-relaxed text-foreground">
                       {report.ownerRejectionNote?.trim()
                         ? report.ownerRejectionNote
-                        : 'Nenhuma observação registada.'}
+                        : 'Nenhuma observação registrada.'}
                     </p>
                   </div>
                 ) : null}
@@ -881,7 +881,7 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
         );
       }
     } catch (error) {
-      toast.error(`Falha ao gerar solicitações de teste: ${formatMutationErrorMessage(error, 'tente de novo.')}`);
+      toast.error(`Falha ao gerar solicitações de teste: ${formatMutationErrorMessage(error, 'tente novamente.')}`);
     } finally {
       setRandomFillBusy(false);
     }
@@ -894,9 +894,9 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
           <h1 className="text-2xl font-semibold tracking-tight">Relatório de Itens Faltantes</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Cadastro no modelo <span className="font-medium text-foreground/90">Dados do Pedido</span> (órgão, solicitante,
-            cargo, item, tamanho, quantidade, justificativa e status). Inclua anexos com fotos ou referências. Use a
-            pesquisa para achar uma solicitação pelo item, pessoa ou palavras na justificativa; filtre por status e
-            urgência abaixo.
+            cargo, item, tamanho, quantidade, justificativas e situação de aprovação). Inclua anexos com fotos ou
+            referências. Use a pesquisa para localizar uma solicitação pelo item, pela pessoa ou por palavras nas
+            justificativas; filtre por situação de aprovação e por urgência abaixo.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
@@ -930,7 +930,7 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
             className="gap-2"
             disabled={randomFillBusy}
             onClick={() => void fillRandomMissingItemReports()}
-            title="Cria solicitações fictícias só para testes; todas ficam pendentes de aprovação do aprovador."
+            title="Gera solicitações fictícias só para testes; todas ficam pendentes de aprovação do aprovador."
             type="button"
             variant="secondary"
           >
@@ -947,11 +947,11 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
       <div
         className="flex flex-col gap-4 rounded-2xl border border-border/70 bg-muted/20 p-4 shadow-sm sm:flex-row sm:flex-wrap sm:items-end sm:gap-6"
         role="region"
-        aria-label="Filtros do relatório"
+        aria-label="Filtros e pesquisa do relatório"
       >
         <div className="flex min-w-[min(100%,240px)] flex-1 flex-col gap-1.5 sm:max-w-sm">
           <Label className="text-sm font-medium text-foreground" htmlFor="approval-filter">
-            Status de aprovação
+            Situação de aprovação
           </Label>
           <Select
             id="approval-filter"
@@ -1012,7 +1012,7 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
             </CardTitle>
             <CardDescription className="mt-1.5">
               {viewMode === 'spreadsheet'
-                ? 'Tabela alinhada ao relatório de itens faltantes (Dados do Pedido). Use a coluna descrição para miniatura do primeiro anexo em imagem.'
+                ? 'Tabela alinhada ao relatório de itens faltantes (Dados do Pedido). Na coluna descrição, mostra-se a miniatura do primeiro anexo quando for imagem.'
                 : 'Clique numa linha para ver quantidade, motivo e anexos; clique de novo para recolher.'}
             </CardDescription>
           </div>
@@ -1054,9 +1054,9 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
             />
           ) : !filteredReports.length ? (
             <div className="rounded-2xl border border-dashed border-border/80 bg-muted/20 px-6 py-10 text-center">
-              <p className="text-sm font-medium text-foreground">Nenhuma solicitação com este status</p>
+              <p className="text-sm font-medium text-foreground">Nenhum resultado com os critérios atuais</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Altere os filtros de status ou urgência ou cadastre novas solicitações.
+                Ajuste a pesquisa ou os filtros (situação de aprovação e urgência) ou cadastre novas solicitações.
               </p>
             </div>
           ) : viewMode === 'spreadsheet' ? (
@@ -1067,12 +1067,12 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
               <div className="overflow-x-auto rounded-xl border border-border/70 bg-card shadow-sm">
                 <table className="w-full min-w-[1160px] border-collapse text-left text-sm">
                   <caption className="caption-bottom px-3 py-2 text-left text-xs text-muted-foreground">
-                    Dados do Pedido — órgão conforme o contrato; status de aprovação do dono da empresa.
+                    Dados do Pedido — órgão conforme o contrato; situação de aprovação pelo dono da empresa.
                   </caption>
                   <thead>
                     <tr className="border-b border-border/80 bg-muted/40 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       <th className="px-2 py-2.5">#</th>
-                      <th className="w-[84px] px-2 py-2.5" title="Sufixo único do sistema (id completo ao passar o rato na célula)">
+                      <th className="w-[84px] px-2 py-2.5" title="Sufixo único do sistema (id completo ao passar o cursor na célula)">
                         Ref.
                       </th>
                       <th className="min-w-[140px] px-2 py-2.5">Órgão</th>
@@ -1085,7 +1085,7 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
                       <th className="min-w-[88px] px-2 py-2.5">Quantidade</th>
                       <th className="min-w-[80px] px-2 py-2.5">Categoria</th>
                       <th className="min-w-[160px] px-2 py-2.5">Justificativas</th>
-                      <th className="whitespace-nowrap px-2 py-2.5">Status</th>
+                      <th className="whitespace-nowrap px-2 py-2.5">Situação</th>
                       <th className="min-w-[120px] px-2 py-2.5 text-right">Ações</th>
                     </tr>
                   </thead>
@@ -1311,7 +1311,7 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
                             <p className="mt-1.5 text-sm leading-relaxed text-foreground">
                               {row.ownerRejectionNote?.trim()
                                 ? row.ownerRejectionNote
-                                : 'Nenhuma observação registada pelo aprovador.'}
+                                : 'Nenhuma observação registrada pelo aprovador.'}
                             </p>
                           </div>
                         ) : null}
