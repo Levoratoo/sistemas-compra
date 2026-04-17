@@ -15,6 +15,7 @@ import {
   Plus,
   Table2,
   List,
+  Search,
   Trash2,
   Upload,
 } from 'lucide-react';
@@ -78,6 +79,54 @@ function randomRequestDateYmd(): string {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+function normalizeMissingItemSearchText(value: string | null | undefined): string {
+  return (value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function buildReportSearchHaystack(row: MissingItemReport): string {
+  const chunks = [
+    row.organizationName,
+    row.requesterName,
+    row.requesterRole,
+    row.itemToAcquire,
+    row.itemSizeDescription,
+    row.itemCategory,
+    row.estimatedQuantity,
+    row.necessityReason,
+    row.id,
+    getMissingItemUrgencyLabel(row.urgencyLevel),
+    getOwnerApprovalStatusLabel(row.ownerApprovalStatus),
+    ...(row.attachments ?? []).map((a) => a.originalFileName),
+  ];
+  return normalizeMissingItemSearchText(chunks.filter(Boolean).join(' '));
+}
+
+function matchesMissingItemSearch(row: MissingItemReport, rawQuery: string): boolean {
+  const trimmed = rawQuery.trim();
+  if (!trimmed) {
+    return true;
+  }
+
+  const haystack = buildReportSearchHaystack(row);
+  const tokens = normalizeMissingItemSearchText(trimmed)
+    .split(/\s+/)
+    .filter(Boolean);
+  if (tokens.length === 0) {
+    return true;
+  }
+
+  return tokens.every((t) => haystack.includes(t));
+}
+
+/** Sufixo do id (CUID) para referência verbal; o id completo está em `title` na UI. */
+function shortReportRefId(id: string) {
+  return id.length <= 8 ? id : id.slice(-8);
 }
 
 function buildRandomMissingItemPayload(index: number): MissingItemReportPayload {
@@ -716,6 +765,7 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
   const [editing, setEditing] = useState<MissingItemReport | null>(null);
   const [approvalFilter, setApprovalFilter] = useState<ApprovalFilter>('all');
   const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [randomFillBusy, setRandomFillBusy] = useState(false);
   /** Vista principal: planilha “Dados do Pedido” ou lista expansível. */
   const [viewMode, setViewMode] = useState<'spreadsheet' | 'list'>('spreadsheet');
@@ -745,8 +795,11 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
     if (urgencyFilter !== 'all') {
       list = list.filter((r) => r.urgencyLevel === urgencyFilter);
     }
+    if (searchQuery.trim()) {
+      list = list.filter((r) => matchesMissingItemSearch(r, searchQuery));
+    }
     return list;
-  }, [reports, approvalFilter, urgencyFilter]);
+  }, [reports, approvalFilter, urgencyFilter, searchQuery]);
 
   function openCreate() {
     setEditing(null);
@@ -841,8 +894,9 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
           <h1 className="text-2xl font-semibold tracking-tight">Relatório de Itens Faltantes</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Cadastro no modelo <span className="font-medium text-foreground/90">Dados do Pedido</span> (órgão, solicitante,
-            cargo, item, tamanho, quantidade, justificativa e status). Inclua anexos com fotos ou referências. Filtre por
-            status e urgência abaixo.
+            cargo, item, tamanho, quantidade, justificativa e status). Inclua anexos com fotos ou referências. Use a
+            pesquisa para achar uma solicitação pelo item, pessoa ou palavras na justificativa; filtre por status e
+            urgência abaixo.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
@@ -927,6 +981,26 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
             ))}
           </Select>
         </div>
+        <div className="flex min-w-[min(100%,280px)] w-full flex-1 flex-col gap-1.5 sm:min-w-[320px]">
+          <Label className="text-sm font-medium text-foreground" htmlFor="missing-items-search">
+            Pesquisar
+          </Label>
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              aria-label="Pesquisar solicitações"
+              className="pl-9"
+              id="missing-items-search"
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Item, solicitante, órgão, justificativa, anexo…"
+              type="search"
+              value={searchQuery}
+            />
+          </div>
+        </div>
       </div>
 
       <Card>
@@ -946,6 +1020,7 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
             <p className="text-xs text-muted-foreground">
               Exibindo {filteredReports.length} de {reports.length}{' '}
               {reports.length === 1 ? 'solicitação' : 'solicitações'}
+              {searchQuery.trim() ? ' com a pesquisa aplicada' : ''}
               {approvalFilter !== 'all' || urgencyFilter !== 'all'
                 ? ` (${[
                     approvalFilter !== 'all'
@@ -990,13 +1065,16 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
                 Para o serviço executado pela supervisora
               </p>
               <div className="overflow-x-auto rounded-xl border border-border/70 bg-card shadow-sm">
-                <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
+                <table className="w-full min-w-[1160px] border-collapse text-left text-sm">
                   <caption className="caption-bottom px-3 py-2 text-left text-xs text-muted-foreground">
                     Dados do Pedido — órgão conforme o contrato; status de aprovação do dono da empresa.
                   </caption>
                   <thead>
                     <tr className="border-b border-border/80 bg-muted/40 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       <th className="px-2 py-2.5">#</th>
+                      <th className="w-[84px] px-2 py-2.5" title="Sufixo único do sistema (id completo ao passar o rato na célula)">
+                        Ref.
+                      </th>
                       <th className="min-w-[140px] px-2 py-2.5">Órgão</th>
                       <th className="min-w-[120px] px-2 py-2.5">Nome do solicitante</th>
                       <th className="min-w-[100px] px-2 py-2.5">Cargo</th>
@@ -1019,6 +1097,14 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
                       return (
                         <tr key={row.id} className={cn('border-b border-border/50 align-top', zebra)}>
                           <td className="px-2 py-2 tabular-nums text-muted-foreground">{idx + 1}</td>
+                          <td className="px-2 py-2">
+                            <span
+                              className="font-mono text-[11px] text-muted-foreground tabular-nums"
+                              title={row.id}
+                            >
+                              {shortReportRefId(row.id)}
+                            </span>
+                          </td>
                           <td className="max-w-[180px] px-2 py-2 text-xs leading-snug">{org}</td>
                           <td className="max-w-[140px] px-2 py-2 text-xs">{row.requesterName}</td>
                           <td className="max-w-[120px] px-2 py-2 text-xs text-muted-foreground">
@@ -1141,6 +1227,10 @@ export function MissingItemsReportPanel({ projectId }: { projectId: string }) {
                             </span>
                             <span> · </span>
                             {row.requesterName}
+                            <span className="text-muted-foreground/80" title={row.id}>
+                              {' '}
+                              · Ref. {shortReportRefId(row.id)}
+                            </span>
                           </p>
                           <p className="truncate text-sm font-semibold text-foreground sm:text-[15px]">
                             {row.itemToAcquire}
