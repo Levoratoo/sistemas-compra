@@ -476,7 +476,7 @@ export function PurchaseControlPanel({ projectId }: { projectId: string }) {
       );
       const failed = results.filter((r) => r.status === 'rejected').length;
       if (failed > 0) {
-        toast.error(`${failed} linha(s) falharam ao salvar. Verifique a rede ou tente de novo.`);
+        toast.error(`${failed} linha(s) falharam ao salvar. Verifique a rede ou tente novamente.`);
       } else {
         toast.success(
           `${targets.length} linha(s) preenchidas com cenários de reposição (próximo do vencimento, em atraso, em dia e reposto).`,
@@ -710,7 +710,7 @@ function PurchaseControlRow({
         />
         {item.supplierQuoteExtraItem ? (
           <div className="border-t border-amber-200/80 bg-amber-100/80 px-1.5 py-1 text-[10px] font-semibold text-amber-950">
-            Nao encontrada no edital, mas presente no orcamento
+            Não encontrada no edital, mas presente no orçamento
           </div>
         ) : null}
       </td>

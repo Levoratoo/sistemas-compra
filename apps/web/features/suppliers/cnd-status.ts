@@ -42,11 +42,11 @@ export function supplierCndStatusLabel(supplier: Supplier) {
 
 export function supplierCndStatusDescription(supplier: Supplier) {
   if (supplier.cndStatus === 'EXPIRED') {
-    return 'Suba uma nova certidao para atualizar a vigencia.';
+    return 'Suba uma nova certidão para atualizar a vigência.';
   }
 
   if (supplier.cndStatus === 'EXPIRING_SOON') {
-    return 'Renove a certidao em breve para evitar bloqueio operacional.';
+    return 'Renove a certidão em breve para evitar bloqueio operacional.';
   }
 
   if (supplier.cndStatus === 'VALID') {
@@ -54,6 +54,6 @@ export function supplierCndStatusDescription(supplier: Supplier) {
   }
 
   return supplier.cndSourceFileName
-    ? 'O arquivo foi enviado, mas a validade nao foi identificada automaticamente em uma ou nas duas certidoes.'
+    ? 'O arquivo foi enviado, mas a validade não foi identificada automaticamente em uma ou nas duas certidões.'
     : 'Envie as CND federal e estadual em PDF para que o sistema leia as validades automaticamente.';
 }

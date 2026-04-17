@@ -15,13 +15,13 @@ const TABLE_COLUMNS = {
   totalPrice: 102,
 };
 const LEGAL_NOTES = [
-  'ATENCAO:',
-  '- Sob pena de devolucao da nota fiscal, esta devera vir com os dados bancarios para pagamento no corpo da nota.',
-  '- Em se tratando de pessoa juridica: a conta corrente devera pertencer ao mesmo CNPJ do favorecido.',
-  '- Em se tratando de pessoa fisica: a conta corrente devera pertencer ao mesmo CPF do favorecido.',
-  '- Os pagamentos nao serao efetuados, em hipotese alguma, em conta poupanca.',
-  '- Mencionar na nota fiscal: numero do GLPI e da Ordem de Compra.',
-  '- A copia da ordem de compra devera vir anexa a NF.',
+  'ATENÇÃO:',
+  '- Sob pena de devolução da nota fiscal, esta deverá vir com os dados bancários para pagamento no corpo da nota.',
+  '- Em se tratando de pessoa jurídica: a conta corrente deverá pertencer ao mesmo CNPJ do favorecido.',
+  '- Em se tratando de pessoa física: a conta corrente deverá pertencer ao mesmo CPF do favorecido.',
+  '- Os pagamentos não serão efetuados, em hipótese alguma, em conta poupança.',
+  '- Mencionar na nota fiscal: número do GLPI e da Ordem de Compra.',
+  '- A cópia da ordem de compra deverá vir anexa a NF.',
 ];
 const LOGO_CANDIDATE_PATHS = [
   path.resolve(env.APP_ROOT, '..', '..', 'Logo IDEAS', '764c3d25-f713-4848-9442-fc95c52d83f1.jpg'),
@@ -182,7 +182,7 @@ function drawTableHeader(page: PDFPage, boldFont: PDFFont, startY: number) {
     color: rgb(0.96, 0.96, 0.96),
   });
 
-  page.drawText('Descricao', {
+  page.drawText('Descrição', {
     x: left + 6,
     y: startY - 12,
     size: 8,
@@ -194,13 +194,13 @@ function drawTableHeader(page: PDFPage, boldFont: PDFFont, startY: number) {
     size: 8,
     font: boldFont,
   });
-  page.drawText('Preco Un.', {
+  page.drawText('Preço Un.', {
     x: left + TABLE_COLUMNS.description + TABLE_COLUMNS.quantity + 8,
     y: startY - 12,
     size: 8,
     font: boldFont,
   });
-  page.drawText('Preco Total', {
+  page.drawText('Preço Total', {
     x: left + TABLE_COLUMNS.description + TABLE_COLUMNS.quantity + TABLE_COLUMNS.unitPrice + 8,
     y: startY - 12,
     size: 8,
@@ -386,9 +386,9 @@ export function buildPurchaseOrderSearchText(input: PurchaseOrderPdfInput) {
     [
       item.description,
       `Quantidade: ${formatNumber(item.quantity)}`,
-      `Valor unitario: ${formatCurrency(item.unitPrice)}`,
+      `Valor unitário: ${formatCurrency(item.unitPrice)}`,
       `Valor total: ${formatCurrency(item.totalPrice)}`,
-      item.notes ? `Observacao do item: ${item.notes}` : null,
+      item.notes ? `Observação do item: ${item.notes}` : null,
     ]
       .filter(Boolean)
       .join(' | '),
@@ -397,19 +397,19 @@ export function buildPurchaseOrderSearchText(input: PurchaseOrderPdfInput) {
   return [
     'Ordem de Compra',
     `Projeto: ${input.projectCode} - ${input.projectName}`,
-    `Orgao: ${input.issuerName}`,
+    `Órgão: ${input.issuerName}`,
     `Fornecedor: ${input.supplierName}`,
     input.supplierDocumentNumber ? `Documento do fornecedor: ${input.supplierDocumentNumber}` : null,
-    input.supplierAddress ? `Endereco do fornecedor: ${input.supplierAddress}` : null,
+    input.supplierAddress ? `Endereço do fornecedor: ${input.supplierAddress}` : null,
     `GLPI: ${input.glpiNumber}`,
-    input.internalReference ? `Referencia interna: ${input.internalReference}` : null,
+    input.internalReference ? `Referência interna: ${input.internalReference}` : null,
     input.deliveryAddress ? `Entrega: ${input.deliveryAddress}` : null,
     input.freightType ? `Frete: ${input.freightType}` : null,
     input.paymentTerms ? `Pagamento: ${input.paymentTerms}` : null,
-    input.responsibleName ? `Responsavel: ${input.responsibleName}` : null,
+    input.responsibleName ? `Responsável: ${input.responsibleName}` : null,
     input.responsiblePhone ? `Telefone: ${input.responsiblePhone}` : null,
-    input.expectedDeliveryDateLabel ? `Previsao de entrega: ${input.expectedDeliveryDateLabel}` : null,
-    input.notes ? `Observacoes: ${input.notes}` : null,
+    input.expectedDeliveryDateLabel ? `Previsão de entrega: ${input.expectedDeliveryDateLabel}` : null,
+    input.notes ? `Observações: ${input.notes}` : null,
     ...itemLines,
     ...LEGAL_NOTES,
   ]
@@ -442,7 +442,7 @@ export async function buildPurchaseOrderPdf(input: PurchaseOrderPdfInput) {
   );
   cursorY -= 28;
 
-  drawLabelValue(page, boldFont, regularFont, PAGE_MARGIN, cursorY, 'Endereco', input.supplierAddress ?? '-');
+  drawLabelValue(page, boldFont, regularFont, PAGE_MARGIN, cursorY, 'Endereço', input.supplierAddress ?? '-');
   cursorY -= 28;
 
   drawLabelValue(page, boldFont, regularFont, PAGE_MARGIN, cursorY, 'Contato', input.supplierContactName ?? '-');
@@ -461,7 +461,7 @@ export async function buildPurchaseOrderPdf(input: PurchaseOrderPdfInput) {
   cursorY -= 28;
 
   drawLabelValue(page, boldFont, regularFont, PAGE_MARGIN, cursorY, 'Pagamento', input.paymentTerms ?? '-');
-  drawLabelValue(page, boldFont, regularFont, PAGE_MARGIN + 260, cursorY, 'Responsavel', input.responsibleName ?? '-');
+  drawLabelValue(page, boldFont, regularFont, PAGE_MARGIN + 260, cursorY, 'Responsável', input.responsibleName ?? '-');
   cursorY -= 28;
 
   drawLabelValue(
@@ -470,7 +470,7 @@ export async function buildPurchaseOrderPdf(input: PurchaseOrderPdfInput) {
     regularFont,
     PAGE_MARGIN,
     cursorY,
-    'Telefone responsavel',
+    'Telefone do responsável',
     input.responsiblePhone ?? '-',
   );
   drawLabelValue(
@@ -479,7 +479,7 @@ export async function buildPurchaseOrderPdf(input: PurchaseOrderPdfInput) {
     regularFont,
     PAGE_MARGIN + 260,
     cursorY,
-    'Referencia interna',
+    'Referência interna',
     input.internalReference ?? '-',
   );
   cursorY -= 40;
@@ -592,13 +592,13 @@ export async function buildPurchaseOrderPdf(input: PurchaseOrderPdfInput) {
     borderColor: rgb(0.3, 0.3, 0.3),
     borderWidth: 0.8,
   });
-  page.drawText('Observacoes', {
+  page.drawText('Observações', {
     x: PAGE_MARGIN + 8,
     y: cursorY - 14,
     size: 9,
     font: boldFont,
   });
-  const noteLines = wrapText(input.notes ?? 'Sem observacoes adicionais.', regularFont, 8.4, 344);
+  const noteLines = wrapText(input.notes ?? 'Sem observações adicionais.', regularFont, 8.4, 344);
   let noteY = cursorY - 30;
   for (const line of noteLines.slice(0, 5)) {
     page.drawText(line, {
@@ -644,7 +644,7 @@ export async function buildPurchaseOrderPdf(input: PurchaseOrderPdfInput) {
   });
 
   cursorY -= 116;
-  page.drawText('Condicoes e observacoes legais', {
+  page.drawText('Condições e observações legais', {
     x: PAGE_MARGIN,
     y: cursorY,
     size: 9,
@@ -661,7 +661,7 @@ export async function buildPurchaseOrderPdf(input: PurchaseOrderPdfInput) {
     cursorY -= 11;
   }
 
-  page.drawText(`Usuario de criacao: sistema`, {
+  page.drawText(`Usuário de criação: sistema`, {
     x: PAGE_MARGIN,
     y: 36,
     size: 8,

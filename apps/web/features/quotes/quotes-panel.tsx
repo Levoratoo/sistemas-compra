@@ -61,9 +61,9 @@ import type {
 type QuoteView = 'slot-1' | 'slot-2' | 'slot-3' | 'comparison';
 
 const viewTabs: Array<{ value: QuoteView; label: string }> = [
-  { value: 'slot-1', label: 'Orcamento 1' },
-  { value: 'slot-2', label: 'Orcamento 2' },
-  { value: 'slot-3', label: 'Orcamento 3' },
+  { value: 'slot-1', label: 'Orçamento 1' },
+  { value: 'slot-2', label: 'Orçamento 2' },
+  { value: 'slot-3', label: 'Orçamento 3' },
   { value: 'comparison', label: 'Mapa comparativo' },
 ];
 
@@ -143,7 +143,7 @@ function percentOrDash(value: number | null | undefined) {
 }
 
 function slotDisplayName(slot: ProjectQuoteSlot) {
-  return slot.supplier?.tradeName || slot.supplier?.legalName || `Orcamento ${slot.slotNumber}`;
+  return slot.supplier?.tradeName || slot.supplier?.legalName || `Orçamento ${slot.slotNumber}`;
 }
 
 function generateRandomQuoteUnitPrice() {
@@ -198,14 +198,14 @@ function QuoteLineEditDialog({
     }
     const quantity = Number(qtyNormalized);
     if (!Number.isFinite(quantity) || quantity <= 0) {
-      toast.error('Quantidade deve ser um numero maior que zero.');
+      toast.error('Quantidade deve ser um número maior que zero.');
       return;
     }
 
     const unitNormalized = unitPriceText.trim().replace(',', '.');
     const unitParsed = unitNormalized === '' ? null : Number(unitNormalized);
     if (unitParsed !== null && (!Number.isFinite(unitParsed) || unitParsed < 0)) {
-      toast.error('Valor unitario invalido.');
+      toast.error('Valor unitário inválido.');
       return;
     }
 
@@ -218,10 +218,10 @@ function QuoteLineEditDialog({
         unitPrice: unitParsed,
         notes: nextNotes,
       });
-      toast.success('Linha do orcamento atualizada.');
+      toast.success('Linha do orçamento atualizada.');
       onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel salvar as alteracoes.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível salvar as alterações.');
     }
   }
 
@@ -229,7 +229,7 @@ function QuoteLineEditDialog({
     const hasFilledData = row.values.some((entry) => entry.unitPrice != null || Boolean(entry.notes?.trim()));
     const confirmed = window.confirm(
       hasFilledData
-        ? 'Remover esta linha apaga os valores ja lancados nos 3 orcamentos desta compra. Deseja continuar?'
+        ? 'Remover esta linha apaga os valores já lancados nos 3 orçamentos desta compra. Deseja continuar?'
         : 'Deseja excluir esta linha desta compra?',
     );
 
@@ -243,7 +243,7 @@ function QuoteLineEditDialog({
       toast.success('Linha removida da compra.');
       onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel excluir a linha.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível excluir a linha.');
     } finally {
       setIsRemoving(false);
     }
@@ -258,10 +258,10 @@ function QuoteLineEditDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Editar linha do orcamento</DialogTitle>
+          <DialogTitle>Editar linha do orçamento</DialogTitle>
           <DialogDescription className="space-y-2">
             <span>
-              Ajuste quantidade, valor unitario e observacoes. Os totais do mapa comparativo usam esses valores.
+              Ajuste quantidade, valor unitário e observações. Os totais do mapa comparativo usam esses valores.
             </span>
             {importHint ? (
               <Badge className="mt-1 max-w-full text-left font-normal" variant="neutral">
@@ -286,7 +286,7 @@ function QuoteLineEditDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor={`quote-edit-unit-${row.budgetItemId}`}>Valor unitario (R$)</Label>
+            <Label htmlFor={`quote-edit-unit-${row.budgetItemId}`}>Valor unitário (R$)</Label>
             <Input
               disabled={actionDisabled}
               id={`quote-edit-unit-${row.budgetItemId}`}
@@ -300,7 +300,7 @@ function QuoteLineEditDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor={`quote-edit-notes-${row.budgetItemId}`}>Observacoes</Label>
+            <Label htmlFor={`quote-edit-notes-${row.budgetItemId}`}>Observações</Label>
             <Textarea
               disabled={actionDisabled}
               id={`quote-edit-notes-${row.budgetItemId}`}
@@ -422,7 +422,7 @@ function QuoteLineRow({
     const hasFilledData = row.values.some((entry) => entry.unitPrice != null || Boolean(entry.notes?.trim()));
     const confirmed = window.confirm(
       hasFilledData
-        ? 'Remover esta linha apaga os valores ja lancados nos 3 orcamentos desta compra. Deseja continuar?'
+        ? 'Remover esta linha apaga os valores já lancados nos 3 orçamentos desta compra. Deseja continuar?'
         : 'Deseja excluir esta linha desta compra?',
     );
 
@@ -477,7 +477,7 @@ function QuoteLineRow({
           <Input
             className="h-10"
             disabled={disabled}
-            placeholder="Observacoes do orcamento"
+            placeholder="Observações do orçamento"
             value={notes}
             onBlur={() => void commitNotes()}
             onChange={(event) => setNotes(event.target.value)}
@@ -570,7 +570,7 @@ function SupplierPickerDialog({
         <DialogContent className="max-h-[85vh] overflow-hidden p-0 sm:max-w-2xl">
           <DialogHeader className="border-b border-border/70 px-6 py-5">
             <DialogTitle>Selecionar fornecedor</DialogTitle>
-            <DialogDescription>Escolha o fornecedor deste orcamento ou cadastre um novo sem sair da tela.</DialogDescription>
+            <DialogDescription>Escolha o fornecedor deste orçamento ou cadastre um novo sem sair da tela.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 overflow-y-auto px-6 py-5">
@@ -609,7 +609,7 @@ function SupplierPickerDialog({
                 ))}
               </div>
             ) : isError ? (
-              <EmptyState description="Nao foi possivel carregar os fornecedores." title="Erro ao consultar fornecedores" />
+              <EmptyState description="Não foi possível carregar os fornecedores." title="Erro ao consultar fornecedores" />
             ) : filteredSuppliers.length === 0 ? (
               <EmptyState
                 actionLabel="Cadastrar fornecedor"
@@ -699,11 +699,11 @@ function NewQuoteItemDialog({
   async function handleSubmit() {
     const quantity = Number(plannedQuantity);
     if (!name.trim()) {
-      toast.error('Informe a descricao do item.');
+      toast.error('Informe a descrição do item.');
       return;
     }
     if (!Number.isFinite(quantity) || quantity <= 0) {
-      toast.error('Informe uma quantidade valida maior que zero.');
+      toast.error('Informe uma quantidade válida maior que zero.');
       return;
     }
 
@@ -725,7 +725,7 @@ function NewQuoteItemDialog({
       toast.success('Novo item adicionado ao projeto.');
       onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel criar o item.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível criar o item.');
     }
   }
 
@@ -733,9 +733,9 @@ function NewQuoteItemDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Novo item para orcamento</DialogTitle>
+          <DialogTitle>Novo item para orçamento</DialogTitle>
           <DialogDescription>
-            Este item sera criado no projeto inteiro e podera ser incluido na compra ativa.
+            Este item será criado no projeto inteiro e poderá ser incluído na compra ativa.
           </DialogDescription>
         </DialogHeader>
 
@@ -769,7 +769,7 @@ function NewQuoteItemDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="quote-item-name">Descricao</Label>
+            <Label htmlFor="quote-item-name">Descrição</Label>
             <Input id="quote-item-name" value={name} onChange={(event) => setName(event.target.value)} />
           </div>
 
@@ -779,7 +779,7 @@ function NewQuoteItemDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="quote-item-specification">Especificacao</Label>
+            <Label htmlFor="quote-item-specification">Especificação</Label>
             <Textarea
               id="quote-item-specification"
               rows={3}
@@ -789,7 +789,7 @@ function NewQuoteItemDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="quote-item-notes">Observacoes</Label>
+            <Label htmlFor="quote-item-notes">Observações</Label>
             <Textarea id="quote-item-notes" rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} />
           </div>
         </div>
@@ -851,11 +851,11 @@ function QuotePurchaseDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Editar compra do orcamento' : 'Nova compra para orcamento'}</DialogTitle>
+          <DialogTitle>{isEditing ? 'Editar compra do orçamento' : 'Nova compra para orçamento'}</DialogTitle>
           <DialogDescription>
             {isEditing
-              ? 'Atualize o nome e as observacoes desta compra sem perder os itens e orcamentos ja vinculados.'
-              : 'Cada compra tera seus proprios itens, 3 fornecedores e mapa comparativo.'}
+              ? 'Atualize o nome e as observações desta compra sem perder os itens e orçamentos já vinculados.'
+              : 'Cada compra terá seus próprios itens, 3 fornecedores e mapa comparativo.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -870,7 +870,7 @@ function QuotePurchaseDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="quote-purchase-notes">Observacoes</Label>
+            <Label htmlFor="quote-purchase-notes">Observações</Label>
             <Textarea
               id="quote-purchase-notes"
               rows={3}
@@ -885,7 +885,7 @@ function QuotePurchaseDialog({
             Cancelar
           </Button>
           <Button disabled={pending} type="button" onClick={() => void handleSubmit()}>
-            {pending ? 'Salvando...' : isEditing ? 'Salvar alteracoes' : 'Criar compra'}
+            {pending ? 'Salvando...' : isEditing ? 'Salvar alterações' : 'Criar compra'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -948,7 +948,7 @@ function ManageQuotePurchaseItemsDialog({
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               className="pl-9"
-              placeholder="Buscar item por descricao, especificacao, unidade ou observacao"
+              placeholder="Buscar item por descrição, especificação, unidade ou observação"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
@@ -1150,7 +1150,7 @@ function GeneratePurchaseOrderDialog({
             />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="quote-order-notes">Observacoes</Label>
+            <Label htmlFor="quote-order-notes">Observações</Label>
             <Textarea id="quote-order-notes" rows={4} value={notes} onChange={(event) => setNotes(event.target.value)} />
           </div>
         </div>
@@ -1315,7 +1315,7 @@ function SupplierQuoteImportDialog({
       const budgetItem = await ensureBudgetItemForRow(row);
       toast.success(`Item "${budgetItem.name}" criado e vinculado a compra.`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel criar o item a partir da linha.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível criar o item a partir da linha.');
     } finally {
       setCreatingRowIndexes((current) => current.filter((entry) => entry !== row.rowIndex));
     }
@@ -1346,7 +1346,7 @@ function SupplierQuoteImportDialog({
           : `${createdCount} itens pendentes foram criados e vinculados a compra.`,
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel criar os itens pendentes.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível criar os itens pendentes.');
     } finally {
       setCreatingPendingItems(false);
     }
@@ -1381,7 +1381,7 @@ function SupplierQuoteImportDialog({
         <DialogHeader className="shrink-0 border-b border-border/70 px-6 py-5">
           <DialogTitle>Importar PDF do fornecedor</DialogTitle>
           <DialogDescription>
-            Envie o PDF do fornecedor para o orcamento {slot?.slotNumber ?? 'selecionado'} e revise o casamento dos itens antes de aplicar.
+            Envie o PDF do fornecedor para o orçamento {slot?.slotNumber ?? 'selecionado'} e revise o casamento dos itens antes de aplicar.
           </DialogDescription>
         </DialogHeader>
 
@@ -1424,7 +1424,7 @@ function SupplierQuoteImportDialog({
                   </p>
                   {preview.extractionDiagnostics.rowsWithInconsistentArithmetic > 0 ? (
                     <p className="mt-1 font-medium text-amber-800 dark:text-amber-200">
-                      {preview.extractionDiagnostics.rowsWithInconsistentArithmetic} linha(s) em que qtd x unit. nao bate com o
+                      {preview.extractionDiagnostics.rowsWithInconsistentArithmetic} linha(s) em que qtd x unit. não bate com o
                       total — use o filtro abaixo para revisar.
                     </p>
                   ) : null}
@@ -1456,7 +1456,7 @@ function SupplierQuoteImportDialog({
                 </div>
                 {priceIntegrityFilter !== 'all' ? (
                   <p className="pb-2 text-xs text-muted-foreground">
-                    Mostrando {filteredImportRows.length} de {preview.rows.length}. A aplicacao continua usando todos os itens.
+                    Mostrando {filteredImportRows.length} de {preview.rows.length}. A aplicação continua usando todos os itens.
                   </p>
                 ) : null}
                 <div className="ml-auto flex flex-wrap gap-2">
@@ -1586,7 +1586,7 @@ function SupplierQuoteImportDialog({
                   Fechar
                 </Button>
                 <Button disabled={applyPending} type="button" onClick={() => void handleApply()}>
-                  {applyPending ? 'Aplicando...' : 'Aplicar importacao'}
+                  {applyPending ? 'Aplicando...' : 'Aplicar importação'}
                 </Button>
               </div>
             </div>
@@ -1609,11 +1609,11 @@ function ComparisonTable({
       <table className="w-full min-w-[980px] border-collapse text-sm">
         <thead className="bg-muted/35">
           <tr>
-            <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Descricao</th>
+            <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Descrição</th>
             <th className="border-b border-border/70 px-3 py-3 text-center font-semibold text-foreground">Qtd.</th>
             {slots.map((slot) => (
               <th key={slot.slotNumber} className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">
-                Orcamento {slot.slotNumber}
+                Orçamento {slot.slotNumber}
               </th>
             ))}
             <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">Vencedor</th>
@@ -1651,7 +1651,7 @@ function ComparisonTable({
                     <p className="text-sm font-medium text-foreground">
                       {slots.find((slot) => slot.slotNumber === row.winner.slotNumbers[0])?.supplier?.tradeName ||
                         slots.find((slot) => slot.slotNumber === row.winner.slotNumbers[0])?.supplier?.legalName ||
-                        `Orcamento ${row.winner.slotNumbers[0]}`}
+                        `Orçamento ${row.winner.slotNumbers[0]}`}
                     </p>
                     <p className="text-xs text-muted-foreground">{currencyOrDash(row.winner.totalValue)}</p>
                   </div>
@@ -1659,7 +1659,7 @@ function ComparisonTable({
                   <div className="space-y-1">
                     <Badge variant="warning">Empate</Badge>
                     <p className="text-xs text-muted-foreground">
-                      {row.winner.slotNumbers.map((slotNumber) => `Orcamento ${slotNumber}`).join(' | ')}
+                      {row.winner.slotNumbers.map((slotNumber) => `Orçamento ${slotNumber}`).join(' | ')}
                     </p>
                   </div>
                 ) : (
@@ -1762,7 +1762,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
       handlePurchaseDialogChange(false);
       toast.success('Compra criada com sucesso.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel criar a compra.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível criar a compra.');
     }
   }
 
@@ -1780,13 +1780,13 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
       handlePurchaseDialogChange(false);
       toast.success('Compra atualizada com sucesso.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel atualizar a compra.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar a compra.');
     }
   }
 
   async function handleDeletePurchase(purchase: ProjectQuoteState) {
     const confirmed = window.confirm(
-      `Deseja excluir a compra "${purchase.title}"? Os itens do projeto serao mantidos, mas os 3 orcamentos, o mapa comparativo e os vinculos desta compra serao removidos.`,
+      `Deseja excluir a compra "${purchase.title}"? Os itens do projeto serão mantidos, mas os 3 orçamentos, o mapa comparativo e os vínculos desta compra serão removidos.`,
     );
 
     if (!confirmed) {
@@ -1801,9 +1801,9 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
       if (editingPurchase?.id === purchase.id) {
         handlePurchaseDialogChange(false);
       }
-      toast.success('Compra excluida com sucesso.');
+      toast.success('Compra excluída com sucesso.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel excluir a compra.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível excluir a compra.');
     }
   }
 
@@ -1820,7 +1820,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
         payload: { budgetItemIds: [budgetItemId] },
       });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel adicionar o item a compra.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível adicionar o item a compra.');
     } finally {
       setPendingBudgetItemId(null);
     }
@@ -1838,7 +1838,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
     if (
       !options?.skipFilledDataConfirm &&
       hasFilledData &&
-      !window.confirm('Remover este item apaga os valores ja lancados nos 3 orcamentos desta compra. Deseja continuar?')
+      !window.confirm('Remover este item apaga os valores já lancados nos 3 orçamentos desta compra. Deseja continuar?')
     ) {
       return;
     }
@@ -1850,7 +1850,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
         budgetItemId,
       });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel remover o item da compra.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível remover o item da compra.');
     } finally {
       setPendingBudgetItemId(null);
     }
@@ -1867,7 +1867,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
 
     if (needsReset) {
       const confirmed = window.confirm(
-        'Trocar o fornecedor deste orcamento limpa os valores e observacoes ja preenchidos. Deseja continuar?',
+        'Trocar o fornecedor deste orçamento limpa os valores e observações já preenchidos. Deseja continuar?',
       );
       if (!confirmed) {
         return;
@@ -1924,7 +1924,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
       );
       setGenerateDialogOpen(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel gerar os pedidos.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível gerar os pedidos.');
     }
   }
 
@@ -1955,9 +1955,9 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
         });
       }
 
-      toast.success('Valores de exemplo gerados para o orcamento ativo.');
+      toast.success('Valores de exemplo gerados para o orçamento ativo.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel gerar valores aleatorios.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível gerar valores aleatórios.');
     } finally {
       setIsGeneratingRandomValues(false);
     }
@@ -1977,7 +1977,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
       setImportPreview(preview);
       toast.success('PDF lido com sucesso. Revise os itens antes de aplicar.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel importar o PDF.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível importar o PDF.');
     }
   }
 
@@ -1990,7 +1990,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
     if (
       hasExistingValues &&
       !window.confirm(
-        'Este orcamento ja possui valores preenchidos. Aplicar a importacao vai substituir os dados atuais desta compra. Deseja continuar?',
+        'Este orçamento já possui valores preenchidos. Aplicar a importação vai substituir os dados atuais desta compra. Deseja continuar?',
       )
     ) {
       return;
@@ -2008,9 +2008,9 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
       });
       setImportPreview(null);
       setImportDialogOpen(false);
-      toast.success('Importacao aplicada ao orcamento.');
+      toast.success('Importação aplicada ao orçamento.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel aplicar a importacao.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível aplicar a importação.');
     }
   }
 
@@ -2025,10 +2025,10 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
         mode: 'PER_ITEM',
       });
       toast.success(
-        `${result.updatedItems} item(ns) aplicados na compra ${activePurchase.title}.${result.skippedItems > 0 ? ` ${result.skippedItems} item(ns) ficaram sem vencedor unico.` : ''}`,
+        `${result.updatedItems} item(ns) aplicados na compra ${activePurchase.title}.${result.skippedItems > 0 ? ` ${result.skippedItems} item(ns) ficaram sem vencedor único.` : ''}`,
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel aplicar os vencedores.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível aplicar os vencedores.');
     }
   }
 
@@ -2042,11 +2042,11 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
         purchaseId: activePurchase.id,
       });
       toast.success(
-        `Relatorio do mapa gerado para ${result.purchaseTitle}${result.folderPathLabel ? ` em ${result.folderPathLabel}` : ''}.`,
+        `Relatório do mapa gerado para ${result.purchaseTitle}${result.folderPathLabel ? ` em ${result.folderPathLabel}` : ''}.`,
       );
       await openProjectDocumentInNewTab(projectId, result.documentId);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Nao foi possivel gerar o relatorio do mapa comparativo.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível gerar o relatório do mapa comparativo.');
     }
   }
 
@@ -2067,9 +2067,9 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
   if (projectQuery.isError || quotesQuery.isError || !project) {
     return (
       <EmptyState
-        description="Nao foi possivel carregar a estrutura de compras e orcamentos deste projeto."
+        description="Não foi possível carregar a estrutura de compras e orçamentos deste projeto."
         icon={CircleDollarSign}
-        title="Erro ao carregar orcamentos"
+        title="Erro ao carregar orçamentos"
       />
     );
   }
@@ -2081,12 +2081,12 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="neutral">Modulo de compras por orcamento</Badge>
+                <Badge variant="neutral">Módulo de compras por orçamento</Badge>
                 <Badge variant="warning">3 fornecedores por compra</Badge>
               </div>
-              <CardTitle className="text-2xl">Orcamentos por compra</CardTitle>
+              <CardTitle className="text-2xl">Orçamentos por compra</CardTitle>
               <CardDescription className="max-w-3xl text-sm leading-relaxed">
-                Cada compra possui seus proprios itens, ate 3 fornecedores, mapa comparativo proprio e pedidos separados
+                Cada compra possui seus próprios itens, até 3 fornecedores, mapa comparativo próprio e pedidos separados
                 por fornecedor vencedor.
               </CardDescription>
             </div>
@@ -2111,7 +2111,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
           <div className="rounded-2xl border border-border/70 bg-card px-4 py-4">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Compras</p>
             <p className="mt-2 text-3xl font-semibold text-foreground">{purchases.length}</p>
-            <p className="text-sm text-muted-foreground">Cada compra tem 3 orcamentos fixos</p>
+            <p className="text-sm text-muted-foreground">Cada compra tem 3 orçamentos fixos</p>
           </div>
           <div className="rounded-2xl border border-border/70 bg-card px-4 py-4">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Itens no projeto</p>
@@ -2199,7 +2199,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
       ) : (
         <EmptyState
           actionLabel="Criar primeira compra"
-          description="Divida o projeto em compras independentes. Cada compra tera seus itens, seus 3 fornecedores e o proprio mapa comparativo."
+          description="Divida o projeto em compras independentes. Cada compra terá seus itens, seus 3 fornecedores e o próprio mapa comparativo."
           icon={LayoutGrid}
           onAction={openCreatePurchaseDialog}
           title="Nenhuma compra cadastrada"
@@ -2217,7 +2217,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                 </div>
                 <CardTitle className="text-xl">{activePurchase.title}</CardTitle>
                 <CardDescription className="max-w-3xl">
-                  {activePurchase.notes?.trim() || 'Defina os itens desta compra e preencha os 3 orcamentos para comparar por item.'}
+                  {activePurchase.notes?.trim() || 'Defina os itens desta compra e preencha os 3 orçamentos para comparar por item.'}
                 </CardDescription>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -2273,7 +2273,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                     onClick={() => void handleGenerateComparisonReport()}
                   >
                     <FileText className="size-4" aria-hidden />
-                    {quoteMutations.generateComparisonReport.isPending ? 'Gerando relatorio...' : 'Gerar relatorio do mapa'}
+                    {quoteMutations.generateComparisonReport.isPending ? 'Gerando relatório...' : 'Gerar relatório do mapa'}
                   </Button>
                   <Button
                     disabled={quoteMutations.applyWinner.isPending || (comparison?.resolvedRowCount ?? 0) === 0}
@@ -2332,8 +2332,8 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                     <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                       <div className="space-y-3">
                         <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="success">Analise automatica</Badge>
-                          <Badge variant="neutral">{comparisonAnalysis.completeSlotCount} orcamento(s) completos</Badge>
+                          <Badge variant="success">Análise automática</Badge>
+                          <Badge variant="neutral">{comparisonAnalysis.completeSlotCount} orçamento(s) completos</Badge>
                         </div>
                         <div className="space-y-2">
                           <p className="text-lg font-semibold text-foreground">{comparisonAnalysis.headline}</p>
@@ -2353,7 +2353,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                           <p className="text-xs text-muted-foreground">
                             {comparisonAnalysis.bestSupplierNames.length > 0
                               ? comparisonAnalysis.bestSupplierNames.join(' | ')
-                              : 'Aguardando orcamentos completos'}
+                              : 'Aguardando orçamentos completos'}
                           </p>
                         </div>
                         <div className="rounded-2xl border border-border/70 bg-card px-4 py-4">
@@ -2374,10 +2374,10 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                     return (
                       <div key={slotTotal.slotNumber} className="rounded-2xl border border-border/70 bg-card px-4 py-4">
                         <div className="flex items-center justify-between gap-3">
-                          <p className="font-semibold text-foreground">Orcamento {slotTotal.slotNumber}</p>
+                          <p className="font-semibold text-foreground">Orçamento {slotTotal.slotNumber}</p>
                           <SlotStatusBadge slot={slots.find((slot) => slot.slotNumber === slotTotal.slotNumber) ?? slots[0]!} />
                         </div>
-                        <p className="mt-2 text-sm text-muted-foreground">{slotTotal.supplierName || 'Fornecedor nao definido'}</p>
+                        <p className="mt-2 text-sm text-muted-foreground">{slotTotal.supplierName || 'Fornecedor não definido'}</p>
                         <p className="mt-4 text-xl font-semibold text-foreground">{currencyOrDash(slotTotal.totalValue)}</p>
                         <div className="mt-2 space-y-1 text-xs text-muted-foreground">
                           <p>
@@ -2393,8 +2393,8 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
 
                 {rows.length === 0 ? (
                   <EmptyState
-                    actionLabel="Abrir orcamento 1"
-                    description="A compra ainda nao possui itens comparaveis, mas voce ja pode abrir um orcamento, escolher o fornecedor e importar o PDF."
+                    actionLabel="Abrir orçamento 1"
+                    description="A compra ainda não possui itens comparáveis, mas você já pode abrir um orçamento, escolher o fornecedor e importar o PDF."
                     icon={ArrowUpFromLine}
                     onAction={() => setActiveView('slot-1')}
                     secondaryActionLabel="Adicionar itens"
@@ -2411,7 +2411,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="space-y-3">
                       <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="neutral">Orcamento {activeSlot.slotNumber}</Badge>
+                        <Badge variant="neutral">Orçamento {activeSlot.slotNumber}</Badge>
                         <SlotStatusBadge slot={activeSlot} />
                       </div>
                       <div className="space-y-1">
@@ -2419,7 +2419,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                         <p className="text-sm text-muted-foreground">
                           {activeSlot.supplierId
                             ? `${activeSlot.filledItemCount}/${activeSlot.itemCount} item(ns) preenchidos`
-                            : 'Nenhum fornecedor definido para este orcamento'}
+                            : 'Nenhum fornecedor definido para este orçamento'}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
@@ -2437,7 +2437,7 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                             onClick={() =>
                               void openProjectDocumentInNewTab(projectId, activeSlot.latestImportedDocument!.id).catch(
                                 (err) =>
-                                  toast.error(err instanceof Error ? err.message : 'Nao foi possivel abrir o arquivo.'),
+                                  toast.error(err instanceof Error ? err.message : 'Não foi possível abrir o arquivo.'),
                               )
                             }
                           >
@@ -2478,15 +2478,15 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                 {!activeSlot.supplierId ? (
                   <EmptyState
                     actionLabel="Selecionar fornecedor"
-                    description="Defina o fornecedor deste orcamento antes de preencher valores ou importar o PDF."
+                    description="Defina o fornecedor deste orçamento antes de preencher valores ou importar o PDF."
                     icon={Store}
                     onAction={() => setSupplierPickerSlot(activeSlot)}
-                    title="Fornecedor nao selecionado"
+                    title="Fornecedor não selecionado"
                   />
                 ) : rows.length === 0 ? (
                   <EmptyState
                     actionLabel="Importar PDF"
-                    description="Voce pode importar o PDF do fornecedor mesmo sem itens vinculados. Na aplicacao, os itens do PDF poderao entrar como itens extras desta compra."
+                    description="Você pode importar o PDF do fornecedor mesmo sem itens vinculados. Na aplicação, os itens do PDF poderão entrar como itens extras desta compra."
                     icon={ArrowUpFromLine}
                     onAction={() => setImportDialogOpen(true)}
                     secondaryActionLabel="Adicionar itens"
@@ -2499,19 +2499,19 @@ export function QuotesPanel({ projectId }: { projectId: string }) {
                       <thead className="bg-muted/35">
                         <tr>
                           <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">
-                            Descricao
+                            Descrição
                           </th>
                           <th className="border-b border-border/70 px-3 py-3 text-center font-semibold text-foreground">
                             Qtd.
                           </th>
                           <th className="border-b border-border/70 px-3 py-3 text-right font-semibold text-foreground">
-                            Valor unitario
+                            Valor unitário
                           </th>
                           <th className="border-b border-border/70 px-3 py-3 text-right font-semibold text-foreground">
                             Total
                           </th>
                           <th className="border-b border-border/70 px-3 py-3 text-left font-semibold text-foreground">
-                            Observacoes
+                            Observações
                           </th>
                           <th className="border-b border-border/70 px-3 py-3 text-center font-semibold text-foreground">
                             Acoes

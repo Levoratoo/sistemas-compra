@@ -35,7 +35,7 @@ export function SuppliersPageContent() {
       await deleteSupplier.mutateAsync(supplierId);
       toast.success('Fornecedor removido com sucesso.');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Nao foi possivel excluir o fornecedor.';
+      const message = error instanceof Error ? error.message : 'Não foi possível excluir o fornecedor.';
       toast.error(message);
     }
   }
@@ -74,7 +74,7 @@ export function SuppliersPageContent() {
       ) : isError ? (
         <EmptyState
           description="Verifique o backend e tente novamente."
-          title="Nao foi possivel carregar os fornecedores"
+          title="Não foi possível carregar os fornecedores"
         />
       ) : !data || data.length === 0 ? (
         <EmptyState

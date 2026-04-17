@@ -48,7 +48,7 @@ const emptyFormValues = {
 function buildUserSchema(isEdit: boolean) {
   return z
     .object({
-      email: z.string().trim().email('Informe um e-mail valido.'),
+      email: z.string().trim().email('Informe um e-mail válido.'),
       password: z.string().optional(),
       name: z.string().trim().min(1, 'Informe o nome.'),
       role: z.enum(['ADMIN', 'USER', 'APPROVER', 'SUPERVISOR']),
@@ -157,7 +157,7 @@ function UserFormDialog({
     mutationFn: (payload: CreateUserPayload) => createUser(payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-      toast.success('Usuario criado.');
+      toast.success('Usuário criado.');
       onOpenChange(false);
     },
     onError: (error: Error) => toast.error(error.message),
@@ -167,7 +167,7 @@ function UserFormDialog({
     mutationFn: ({ id, payload }: { id: string; payload: UpdateUserPayload }) => updateUser(id, payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-      toast.success('Usuario atualizado.');
+      toast.success('Usuário atualizado.');
       onOpenChange(false);
     },
     onError: (error: Error) => toast.error(error.message),
@@ -224,7 +224,7 @@ function UserFormDialog({
       <DialogContent className="max-h-[92vh] flex flex-col overflow-hidden p-0 sm:max-w-2xl">
         <div className="border-b border-border/60 px-6 py-5">
           <DialogHeader className="space-y-1 text-left">
-            <DialogTitle>{isEdit ? 'Editar usuario' : 'Novo usuario'}</DialogTitle>
+            <DialogTitle>{isEdit ? 'Editar usuário' : 'Novo usuário'}</DialogTitle>
             <DialogDescription>
               Defina os dados de acesso e, para supervisoras, escolha os projetos liberados.
             </DialogDescription>
@@ -279,7 +279,7 @@ function UserFormDialog({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <Label className="text-sm font-medium" htmlFor="isActive">
-                    Usuario ativo
+                    Usuário ativo
                   </Label>
                   <p className="text-xs text-muted-foreground">
                     Se desativado, o login passa a ser bloqueado imediatamente.
@@ -312,7 +312,7 @@ function UserFormDialog({
                 <Input
                   id="released-project-search"
                   onChange={(event) => setProjectSearch(event.target.value)}
-                  placeholder="Buscar projeto por nome, codigo ou orgao"
+                  placeholder="Buscar projeto por nome, código ou órgão"
                   value={projectSearch}
                 />
 
@@ -380,7 +380,7 @@ function UserFormDialog({
               Cancelar
             </Button>
             <Button disabled={pending} type="submit">
-              {pending ? 'Salvando...' : isEdit ? 'Salvar alteracoes' : 'Criar usuario'}
+              {pending ? 'Salvando...' : isEdit ? 'Salvar alterações' : 'Criar usuário'}
             </Button>
           </DialogFooter>
         </form>
@@ -402,7 +402,7 @@ function UserRow({
     mutationFn: (isActive: boolean) => updateUser(user.id, { isActive }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-      toast.success('Usuario atualizado.');
+      toast.success('Usuário atualizado.');
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -472,16 +472,16 @@ export function UsersAdminPanel() {
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Usuarios</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Usuários</h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Perfis: <strong>Administrador</strong>, <strong>Usuario</strong>, <strong>Aprovador</strong> e{' '}
+            Perfis: <strong>Administrador</strong>, <strong>Usuário</strong>, <strong>Aprovador</strong> e{' '}
             <strong>Supervisora</strong>. Para supervisoras, o administrador libera quais projetos podem aparecer na
             carteira.
           </p>
         </div>
         <Button className="gap-2" onClick={openCreateDialog} type="button">
           <Plus className="size-4" aria-hidden />
-          Novo usuario
+          Novo usuário
         </Button>
       </div>
 
@@ -491,7 +491,7 @@ export function UsersAdminPanel() {
             <Shield className="size-5 text-primary" aria-hidden />
             Contas cadastradas
           </CardTitle>
-          <CardDescription>Lista de usuarios e projetos liberados para cada supervisora.</CardDescription>
+          <CardDescription>Lista de usuários e projetos liberados para cada supervisora.</CardDescription>
         </CardHeader>
         <CardContent>
           {isUsersLoading ? (

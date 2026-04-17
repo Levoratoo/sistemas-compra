@@ -10,7 +10,7 @@ mkdirSync(env.UPLOADS_DIR_ABSOLUTE, { recursive: true });
 try {
   await ensureDemoUsers();
 } catch (error) {
-  logger.warn('Falha ao garantir os usuarios demo no startup da API.', error);
+  logger.warn('Falha ao garantir os usuários demo no startup da API.', error);
 }
 
 const app = createApp();

@@ -741,7 +741,7 @@ function buildImportedQuoteItemNotes(
   const parts = [`Importado de ${fileName}`];
 
   if (preview.quoteNumber) {
-    parts.push(`Orcamento ${preview.quoteNumber}`);
+    parts.push(`Orçamento ${preview.quoteNumber}`);
   }
 
   const quoteDateLabel = formatDateLabel(preview.quoteDate);
@@ -963,20 +963,20 @@ function buildQuoteComparisonAnalysis(
       ? []
       : itemWinnerCounts.filter((slot) => overallWinner.slotNumbers.includes(slot.slotNumber));
 
-  const bestSupplierNames = bestSlots.map((slot) => slot.supplierName || `Orcamento ${slot.slotNumber}`);
+  const bestSupplierNames = bestSlots.map((slot) => slot.supplierName || `Orçamento ${slot.slotNumber}`);
   const summaryLines: string[] = [];
-  let headline = 'Ainda nao existe um melhor orcamento geral definido.';
+  let headline = 'Ainda não existe um melhor orçamento geral definido.';
 
   if (overallWinner.status === 'UNIQUE' && bestSlots[0] && bestTotalValue !== null) {
-    headline = `${bestSupplierNames[0]} (orcamento ${bestSlots[0].slotNumber}) apresenta o menor total geral: ${bestTotalValue.toLocaleString('pt-BR', {
+    headline = `${bestSupplierNames[0]} (orçamento ${bestSlots[0].slotNumber}) apresenta o menor total geral: ${bestTotalValue.toLocaleString('pt-BR', {
       style: 'currency',
       currency: 'BRL',
     })}.`;
 
     if (savingsValue !== null && savingsPercent !== null) {
-      const secondBestLabel = secondBest?.supplierName || (secondBest ? `Orcamento ${secondBest.slotNumber}` : 'o segundo colocado');
+      const secondBestLabel = secondBest?.supplierName || (secondBest ? `Orçamento ${secondBest.slotNumber}` : 'o segundo colocado');
       summaryLines.push(
-        `A economia frente ao segundo melhor orcamento (${secondBestLabel}) e de ${savingsValue.toLocaleString('pt-BR', {
+        `A economia frente ao segundo melhor orçamento (${secondBestLabel}) é de ${savingsValue.toLocaleString('pt-BR', {
           style: 'currency',
           currency: 'BRL',
         })} (${formatPercent(savingsPercent)}%).`,
@@ -984,17 +984,17 @@ function buildQuoteComparisonAnalysis(
     }
   } else if (overallWinner.status === 'TIE' && bestTotalValue !== null) {
     headline = `Existe empate no melhor total geral entre ${bestSlots
-      .map((slot) => `${slot.supplierName || `Orcamento ${slot.slotNumber}`} (orcamento ${slot.slotNumber})`)
+      .map((slot) => `${slot.supplierName || `Orçamento ${slot.slotNumber}`} (orçamento ${slot.slotNumber})`)
       .join(' e ')}: ${bestTotalValue.toLocaleString('pt-BR', {
       style: 'currency',
       currency: 'BRL',
     })}.`;
   } else if (completeSlots.length === 0) {
-    headline = 'Nenhum dos 3 orcamentos esta completo o suficiente para definir o melhor total geral.';
+    headline = 'Nenhum dos 3 orçamentos está completo o suficiente para definir o melhor total geral.';
   }
 
   summaryLines.push(
-    `${rows.filter((row) => row.winner.status === 'UNIQUE').length} item(ns) ja possuem vencedor unico, ${rows.filter((row) => row.winner.status === 'TIE').length} estao empatados e ${rows.filter((row) => row.winner.status === 'NONE').length} seguem pendentes.`,
+    `${rows.filter((row) => row.winner.status === 'UNIQUE').length} item(ns) já possuem vencedor único, ${rows.filter((row) => row.winner.status === 'TIE').length} estão empatados e ${rows.filter((row) => row.winner.status === 'NONE').length} seguem pendentes.`,
   );
 
   const slotLead = [...itemWinnerCounts].sort(
@@ -1003,12 +1003,12 @@ function buildQuoteComparisonAnalysis(
 
   if (slotLead && slotLead.uniqueWinCount > 0) {
     summaryLines.push(
-      `${slotLead.supplierName || `Orcamento ${slotLead.slotNumber}`} lidera nas vitorias por item com ${slotLead.uniqueWinCount} item(ns) de menor valor.`,
+      `${slotLead.supplierName || `Orçamento ${slotLead.slotNumber}`} lidera nas vitórias por item com ${slotLead.uniqueWinCount} item(ns) de menor valor.`,
     );
   }
 
   if (rows.some((row) => row.winner.status === 'NONE')) {
-    summaryLines.push('Ainda existem itens sem comparacao fechada. O melhor total geral pode mudar quando os valores pendentes forem preenchidos.');
+    summaryLines.push('Ainda existem itens sem comparação fechada. O melhor total geral pode mudar quando os valores pendentes forem preenchidos.');
   }
 
   return {
@@ -1289,7 +1289,7 @@ async function ensurePurchaseOrderFolders(projectId: string, monthFolderName: st
 }
 
 async function ensureSupplierQuoteFolders(projectId: string, purchaseTitle: string, supplierName: string) {
-  const rootFolder = await ensureDocumentFolder(projectId, null, 'Orcamentos de fornecedores');
+  const rootFolder = await ensureDocumentFolder(projectId, null, 'Orçamentos de fornecedores');
   const purchaseFolder = await ensureDocumentFolder(projectId, rootFolder.id, purchaseTitle);
   const supplierFolder = await ensureDocumentFolder(projectId, purchaseFolder.id, supplierName);
 
@@ -1301,7 +1301,7 @@ async function ensureSupplierQuoteFolders(projectId: string, purchaseTitle: stri
 }
 
 async function ensureQuoteComparisonReportFolders(projectId: string, purchaseTitle: string) {
-  const rootFolder = await ensureDocumentFolder(projectId, null, 'Relatorios de orcamento');
+  const rootFolder = await ensureDocumentFolder(projectId, null, 'Relatórios de orçamento');
   const purchaseFolder = await ensureDocumentFolder(projectId, rootFolder.id, purchaseTitle);
 
   return {
@@ -1396,7 +1396,7 @@ class QuoteService {
     });
 
     if (budgetItems.length !== new Set(input.budgetItemIds).size) {
-      throw new AppError('Um ou mais itens nao pertencem a este projeto.', 409);
+      throw new AppError('Um ou mais itens não pertencem a este projeto.', 409);
     }
 
     await prisma.projectQuotePurchaseItem.createMany({
@@ -1488,7 +1488,7 @@ class QuoteService {
 
     if (isChangingSupplier && hasSavedValues && !input.confirmReset) {
       throw new AppError(
-        'Trocar o fornecedor limpa os valores e observacoes deste orcamento. Confirme a operacao para continuar.',
+        'Trocar o fornecedor limpa os valores e observações deste orçamento. Confirme a operação para continuar.',
         409,
       );
     }
@@ -1527,7 +1527,7 @@ class QuoteService {
     ]);
 
     if (!quote.supplierId) {
-      throw new AppError('Selecione um fornecedor para este orcamento antes de preencher valores.', 409);
+      throw new AppError('Selecione um fornecedor para este orçamento antes de preencher valores.', 409);
     }
 
     await prisma.$transaction(async (tx) => {
@@ -1591,7 +1591,7 @@ class QuoteService {
     ]);
 
     if (!quote.supplierId || !quote.supplier) {
-      throw new AppError('Selecione um fornecedor antes de importar o PDF deste orcamento.', 409);
+      throw new AppError('Selecione um fornecedor antes de importar o PDF deste orçamento.', 409);
     }
 
     const supplierName = supplierDisplayName(quote.supplier) ?? 'Fornecedor';
@@ -1610,7 +1610,7 @@ class QuoteService {
       documentDate: extracted.quoteDate ? toSaoPauloNoonDate(extracted.quoteDate).toISOString() : undefined,
       processingStatus: 'PROCESSED',
       reviewStatus: 'REVIEWED',
-      notes: `PDF importado para a compra ${purchase.title}, orcamento ${slotNumber}.`,
+      notes: `PDF importado para a compra ${purchase.title}, orçamento ${slotNumber}.`,
       searchText: extracted.fullText,
       contentText: extracted.fullText,
       previewJson: buildStoredQuoteImportPreview(
@@ -1675,30 +1675,30 @@ class QuoteService {
     ]);
 
     if (!quote.supplierId) {
-      throw new AppError('Selecione um fornecedor antes de aplicar a importacao do PDF.', 409);
+      throw new AppError('Selecione um fornecedor antes de aplicar a importação do PDF.', 409);
     }
 
     if (!document) {
-      throw new AppError('PDF de orcamento nao encontrado neste projeto.', 404);
+      throw new AppError('PDF de orçamento não encontrado neste projeto.', 404);
     }
 
     if (!isStoredQuoteImportPreview(document.previewJson)) {
-      throw new AppError('O documento selecionado nao possui uma importacao valida para aplicar.', 409);
+      throw new AppError('O documento selecionado não possui uma importação válida para aplicar.', 409);
     }
 
     const preview = document.previewJson;
     if (preview.projectId !== projectId || preview.purchaseId !== purchaseId || preview.slotNumber !== slotNumber) {
-      throw new AppError('Este PDF nao pertence a compra e ao slot de orcamento informados.', 409);
+      throw new AppError('Este PDF não pertence a compra e ao slot de orçamento informados.', 409);
     }
 
     if (preview.supplierId !== quote.supplierId) {
-      throw new AppError('O fornecedor do slot mudou depois da importacao. Reimporte o PDF para continuar.', 409);
+      throw new AppError('O fornecedor do slot mudou depois da importação. Reimporte o PDF para continuar.', 409);
     }
 
     const hasExistingValues = quote.items.some(hasMeaningfulQuoteItemData);
     if (hasExistingValues && !input.confirmReplace) {
       throw new AppError(
-        'Aplicar a importacao vai substituir os valores atuais deste orcamento. Confirme a operacao para continuar.',
+        'Aplicar a importação vai substituir os valores atuais deste orçamento. Confirme a operação para continuar.',
         409,
       );
     }
@@ -1750,7 +1750,7 @@ class QuoteService {
                 hasBidReference: false,
                 sourceType: 'MANUAL',
                 contextOnly: false,
-                notes: 'Nao encontrada no edital, mas presente no orcamento',
+                notes: 'Não encontrada no edital, mas presente no orçamento',
               },
               select: quoteBudgetItemSelect,
             });
@@ -1777,7 +1777,7 @@ class QuoteService {
           });
 
           if (!existingBudgetItem) {
-            throw new AppError('Item do projeto nao encontrado para aplicar a importacao.', 404);
+            throw new AppError('Item do projeto não encontrado para aplicar a importação.', 404);
           }
 
           await ensureQuotePurchaseItemLink(
@@ -1833,13 +1833,13 @@ class QuoteService {
       input.mode === 'OVERALL'
         ? (() => {
             if (purchaseState.comparison.overallWinner.status !== 'UNIQUE') {
-              throw new AppError('Nao existe vencedor geral unico para aplicar.', 409);
+              throw new AppError('Não existe vencedor geral único para aplicar.', 409);
             }
 
             const winnerSlot = purchaseState.comparison.overallWinner.slotNumbers[0];
             const slot = winnerSlot ? slotMap.get(winnerSlot) : null;
             if (!slot?.supplier?.legalName) {
-              throw new AppError('O orcamento vencedor geral nao possui fornecedor valido.', 409);
+              throw new AppError('O orçamento vencedor geral não possui fornecedor válido.', 409);
             }
 
             const approvedSupplierName = slot.supplier.legalName;
@@ -1921,7 +1921,7 @@ class QuoteService {
     }
 
     if (purchaseState.rows.length === 0) {
-      throw new AppError('Esta compra ainda nao possui itens para gerar o relatorio do mapa.', 409);
+      throw new AppError('Esta compra ainda não possui itens para gerar o relatório do mapa.', 409);
     }
 
     const saoPauloNow = getSaoPauloNowParts();
@@ -1929,7 +1929,7 @@ class QuoteService {
     const { purchaseFolder } = await ensureQuoteComparisonReportFolders(projectId, purchaseState.title);
     const projectSegment = sanitizeDocumentSegment((project.code?.trim() || project.name?.trim() || 'PROJETO').toUpperCase());
     const purchaseSegment = sanitizeDocumentSegment(purchaseState.title.toUpperCase());
-    const fileName = `${projectSegment}_${purchaseSegment}_relatorio_mapa_${saoPauloNow.isoDate}.pdf`;
+    const fileName = `${projectSegment}_${purchaseSegment}_relatório_mapa_${saoPauloNow.isoDate}.pdf`;
 
     const pdfInput = {
       issuerName: project.organizationName,
@@ -1953,7 +1953,7 @@ class QuoteService {
         winnerSlotNumbers: [...row.winner.slotNumbers],
         winnerLabel:
           row.winner.status === 'UNIQUE'
-            ? `Orcamento ${row.winner.slotNumbers[0]}`
+            ? `Orçamento ${row.winner.slotNumbers[0]}`
             : row.winner.status === 'TIE'
               ? `Empate ${row.winner.slotNumbers.map((slotNumber) => `O${slotNumber}`).join('/')}`
               : 'Pendente',
@@ -1970,7 +1970,7 @@ class QuoteService {
       documentDate: issuedAt.toISOString(),
       contentText: searchText,
       searchText,
-      notes: `Relatorio gerado do mapa comparativo da compra ${purchaseState.title}.`,
+      notes: `Relatório gerado do mapa comparativo da compra ${purchaseState.title}.`,
       processingStatus: 'PROCESSED',
       reviewStatus: 'REVIEWED',
       previewJson: {
@@ -2010,7 +2010,7 @@ class QuoteService {
     const groups = buildWinningPurchaseOrderGroups(purchaseState);
     if (groups.length === 0) {
       throw new AppError(
-        'Nao existem itens com vencedor unico para gerar pedidos. Resolva os itens pendentes ou empatados.',
+        'Não existem itens com vencedor único para gerar pedidos. Resolva os itens pendentes ou empatados.',
         409,
       );
     }

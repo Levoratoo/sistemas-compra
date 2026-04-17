@@ -53,7 +53,7 @@ export function SupplierDetailPage({ supplierId }: { supplierId: string }) {
     return (
       <EmptyState
         actionLabel="Voltar para fornecedores"
-        description="O fornecedor nao foi encontrado ou houve falha ao carregar os dados."
+        description="O fornecedor não foi encontrado ou houve falha ao carregar os dados."
         onAction={() => {
           window.location.assign('/suppliers');
         }}
@@ -82,7 +82,7 @@ export function SupplierDetailPage({ supplierId }: { supplierId: string }) {
           </>
         }
         breadcrumbs={[{ label: 'Fornecedores', href: '/suppliers' }, { label: displayName }]}
-        description="Visao consolidada do cadastro, contato e situacao da CND deste fornecedor."
+        description="Visão consolidada do cadastro, contato e situação da CND deste fornecedor."
         title={displayName}
       />
 
@@ -104,7 +104,7 @@ export function SupplierDetailPage({ supplierId }: { supplierId: string }) {
               <DetailRow label="Telefone">{displayOrDash(supplier.phone)}</DetailRow>
               <DetailRow label="E-mail">{displayOrDash(supplier.email)}</DetailRow>
               <DetailRow label="Endereco">{displayOrDash(supplier.address)}</DetailRow>
-              <DetailRow label="Observacoes">{displayOrDash(supplier.notes)}</DetailRow>
+              <DetailRow label="Observações">{displayOrDash(supplier.notes)}</DetailRow>
             </dl>
           </CardContent>
         </Card>
@@ -134,7 +134,7 @@ export function SupplierDetailPage({ supplierId }: { supplierId: string }) {
               <DetailRow label="CND federal — validade">
                 {supplier.cndFederal?.validUntil ? formatDate(supplier.cndFederal.validUntil) : <span className="text-muted-foreground">-</span>}
               </DetailRow>
-              <DetailRow label="CND federal — emissao">
+              <DetailRow label="CND federal — emissão">
                 {supplier.cndFederal?.issuedAt ? formatDateTime(supplier.cndFederal.issuedAt) : <span className="text-muted-foreground">-</span>}
               </DetailRow>
               <DetailRow label="CND federal — arquivo">{displayOrDash(supplier.cndFederal?.originalFileName)}</DetailRow>
@@ -145,12 +145,12 @@ export function SupplierDetailPage({ supplierId }: { supplierId: string }) {
                 {supplier.cndState?.issuedAt ? formatDateTime(supplier.cndState.issuedAt) : <span className="text-muted-foreground">-</span>}
               </DetailRow>
               <DetailRow label="CND estadual — arquivo">{displayOrDash(supplier.cndState?.originalFileName)}</DetailRow>
-              <DetailRow label="Emissao (referencia agregada)">
+              <DetailRow label="Emissão (referência agregada)">
                 {supplier.cndIssuedAt ? formatDateTime(supplier.cndIssuedAt) : <span className="text-muted-foreground">-</span>}
               </DetailRow>
-              <DetailRow label="Codigo de controle (referencia agregada)">{displayOrDash(supplier.cndControlCode)}</DetailRow>
-              <DetailRow label="Observacao manual">{displayOrDash(supplier.cnd)}</DetailRow>
-              <DetailRow label="Ultima atualizacao">{supplier.updatedAt ? formatDateTime(supplier.updatedAt) : <span className="text-muted-foreground">-</span>}</DetailRow>
+              <DetailRow label="Código de controle (referência agregada)">{displayOrDash(supplier.cndControlCode)}</DetailRow>
+              <DetailRow label="Observação manual">{displayOrDash(supplier.cnd)}</DetailRow>
+              <DetailRow label="Última atualização">{supplier.updatedAt ? formatDateTime(supplier.updatedAt) : <span className="text-muted-foreground">-</span>}</DetailRow>
             </dl>
           </CardContent>
         </Card>

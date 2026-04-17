@@ -603,7 +603,7 @@ export function PurchasesPanel({ projectId }: { projectId: string }) {
                                 <p className="font-medium text-foreground">{item.name}</p>
                                 {item.supplierQuoteExtraItem ? (
                                   <p className="text-xs font-medium text-amber-800">
-                                    Nao encontrada no edital, mas presente no orcamento
+                                    Não encontrada no edital, mas presente no orçamento
                                   </p>
                                 ) : null}
                                 {item.description ? (

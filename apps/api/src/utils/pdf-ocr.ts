@@ -99,7 +99,7 @@ function cropCanvas(sourceCanvas: any, region: PdfOcrRegion, width: number, heig
 
 /**
  * Renderiza paginas do PDF em imagem e aplica OCR (Tesseract).
- * Usado quando o texto embutido do PDF nao traz tabelas que estao so como imagem.
+ * Usado quando o texto embutido do PDF não traz tabelas que estão só como imagem.
  */
 export async function extractPdfTextViaOcr(buffer: Buffer, options?: ExtractPdfTextViaOcrOptions): Promise<string> {
   const { maxPages, scale, pageSegMode, rotationDegrees } = getOcrDefaults(options);

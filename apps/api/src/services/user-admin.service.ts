@@ -22,7 +22,7 @@ class UserAdminService {
     const invalidIds = projectIds.filter((id) => !existingIds.has(id));
 
     if (invalidIds.length) {
-      throw new AppError('Um ou mais projetos informados para liberacao nao existem.', 422, {
+      throw new AppError('Um ou mais projetos informados para liberação não existem.', 422, {
         invalidProjectIds: invalidIds,
       });
     }

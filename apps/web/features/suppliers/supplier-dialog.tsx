@@ -33,7 +33,7 @@ const formSchema = z.object({
   contactName: z.string().trim().optional(),
   address: z.string().trim().optional(),
   phone: z.string().trim().optional(),
-  email: z.string().trim().email('Informe um e-mail valido.').optional().or(z.literal('')),
+  email: z.string().trim().email('Informe um e-mail válido.').optional().or(z.literal('')),
   cnd: z.string().trim().optional(),
   notes: z.string().trim().optional(),
 });
@@ -135,7 +135,7 @@ export function SupplierDialog({
       onSaved?.(saved);
       onOpenChange(false);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Nao foi possivel salvar o fornecedor.';
+      const message = error instanceof Error ? error.message : 'Não foi possível salvar o fornecedor.';
       toast.error(message);
     }
   }
@@ -189,7 +189,7 @@ export function SupplierDialog({
                   <Input
                     id="address"
                     className="min-w-0"
-                    placeholder="Logradouro, numero, bairro, cidade..."
+                    placeholder="Logradouro, número, bairro, cidade..."
                     {...form.register('address')}
                   />
                 </div>
@@ -212,7 +212,7 @@ export function SupplierDialog({
 
                 <div className="space-y-5 sm:col-span-2">
                   <div>
-                    <Label className="text-base font-medium">CND (certidao negativa de debitos)</Label>
+                    <Label className="text-base font-medium">CND (certidão negativa de débitos)</Label>
                     <p className="mt-1 text-xs leading-snug text-muted-foreground">
                       Envie o PDF da CND federal e, separadamente, da CND estadual. O sistema replica cada arquivo na
                       documentacao dos projetos e le a validade automaticamente quando possivel.
@@ -240,7 +240,7 @@ export function SupplierDialog({
                         ) : (
                           <p>
                             <span className="font-medium text-foreground/90">Federal:</span> sem leitura de validade ou
-                            nao enviada.
+                            não enviada.
                           </p>
                         )}
                         {supplier.cndState?.validUntil ? (
@@ -252,11 +252,11 @@ export function SupplierDialog({
                         ) : (
                           <p>
                             <span className="font-medium text-foreground/90">Estadual:</span> sem leitura de validade ou
-                            nao enviada.
+                            não enviada.
                           </p>
                         )}
                         <div className="grid gap-1 border-t border-border/50 pt-2 sm:grid-cols-2">
-                          <p>Emissao (agregado): {supplier.cndIssuedAt ? formatDateTime(supplier.cndIssuedAt) : '-'}</p>
+                          <p>Emissão (agregado): {supplier.cndIssuedAt ? formatDateTime(supplier.cndIssuedAt) : '-'}</p>
                           <p>Controle (agregado): {supplier.cndControlCode || '-'}</p>
                           <p className="sm:col-span-2">Arquivo referencia (agregado): {supplier.cndSourceFileName || '-'}</p>
                         </div>
@@ -270,7 +270,7 @@ export function SupplierDialog({
                         CND federal
                       </Label>
                       <p className="text-[11px] leading-snug text-muted-foreground">
-                        PDF da Receita Federal (ou orgao federal competente).
+                        PDF da Receita Federal (ou órgão federal competente).
                       </p>
                       <div className="flex flex-wrap items-center gap-2">
                         <label
@@ -314,7 +314,7 @@ export function SupplierDialog({
                         CND estadual
                       </Label>
                       <p className="text-[11px] leading-snug text-muted-foreground">
-                        PDF da Fazenda estadual (UF) ou orgao estadual competente.
+                        PDF da Fazenda estadual (UF) ou órgão estadual competente.
                       </p>
                       <div className="flex flex-wrap items-center gap-2">
                         <label
@@ -361,7 +361,7 @@ export function SupplierDialog({
                     <Input
                       id="cnd"
                       className="min-w-0"
-                      placeholder="Ex.: observacao manual, observacao de renovacao..."
+                      placeholder="Ex.: observação manual, observação de renovação..."
                       {...form.register('cnd')}
                     />
                   </div>
@@ -369,7 +369,7 @@ export function SupplierDialog({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="notes">Observacoes</Label>
+                <Label htmlFor="notes">Observações</Label>
                 <Textarea
                   id="notes"
                   className="min-h-[88px] max-h-40 min-w-0 resize-y"
@@ -385,7 +385,7 @@ export function SupplierDialog({
               Cancelar
             </Button>
             <Button disabled={submitting} type="submit">
-              {submitting ? 'Salvando...' : supplier ? 'Salvar alteracoes' : 'Criar fornecedor'}
+              {submitting ? 'Salvando...' : supplier ? 'Salvar alterações' : 'Criar fornecedor'}
             </Button>
           </DialogFooter>
         </form>

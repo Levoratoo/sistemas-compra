@@ -30,7 +30,7 @@ const demoCredentials = [
     password: 'Admin@123',
   },
   {
-    label: 'Usuario operacional',
+    label: 'Usuário operacional',
     email: 'usuario@sitecompras.local',
     password: 'Usuario@123',
   },

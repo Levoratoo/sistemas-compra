@@ -1299,7 +1299,7 @@ function parseBareQtyTwoMoneyRows(text: string): SupplierQuoteParsedRow[] {
 
     const descParts = collectLinesForBareQtyTwoMoney(sourceLines, index);
     const description =
-      cleanupQuoteDescription(descParts) || 'Item (orcamento com valores em linha isolada)';
+      cleanupQuoteDescription(descParts) || 'Item (orçamento com valores em linha isolada)';
 
     const rawText = [...descParts, trimmed].join(' ').slice(0, 1200);
     const key = `${normalizeSupplierQuoteMatchText(description)}|${unitPrice}|${totalValue}`;
@@ -3135,5 +3135,5 @@ export async function extractSupplierQuotePdfPreview(buffer: Buffer, originalFil
     /* ignorar — mantém erro abaixo */
   }
 
-  throw new Error(`Nao foi possivel identificar linhas de orcamento no PDF ${originalFileName}.`);
+  throw new Error(`Não foi possível identificar linhas de orçamento no PDF ${originalFileName}.`);
 }

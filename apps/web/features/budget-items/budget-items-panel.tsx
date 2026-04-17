@@ -129,10 +129,10 @@ function BudgetItemDialog({
 
     try {
       await deleteItem.mutateAsync(item.id);
-      toast.success('Item orcado excluido.');
+      toast.success('Item orçado excluído.');
       onOpenChange(false);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Nao foi possivel excluir o item.';
+      const message = error instanceof Error ? error.message : 'Não foi possível excluir o item.';
       toast.error(message);
     }
   }

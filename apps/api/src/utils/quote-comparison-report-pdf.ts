@@ -211,7 +211,7 @@ function drawPageHeader(page: PDFPage, regularFont: PDFFont, boldFont: PDFFont, 
     borderWidth: 0.75,
   });
 
-  page.drawText('Relatorio do mapa comparativo', {
+  page.drawText('Relatório do mapa comparativo', {
     x: padX,
     y: titleY,
     size: 16,
@@ -268,7 +268,7 @@ function drawPageHeader(page: PDFPage, regularFont: PDFFont, boldFont: PDFFont, 
     }
   }
 
-  page.drawText('Orgao / base', {
+  page.drawText('Órgão / base', {
     x: padX,
     y: orgLabelY,
     size: 7.5,
@@ -306,7 +306,7 @@ function drawSlotSummaryTable(
 ) {
   const left = PAGE_MARGIN;
   const colWidths = [66, 166, 74, 72, 66, 58];
-  const headers = ['Orcamento', 'Fornecedor', 'Status', 'Total', 'Vitorias', 'Empates'];
+  const headers = ['Orçamento', 'Fornecedor', 'Status', 'Total', 'Vitórias', 'Empates'];
   const headerHeight = 20;
   const totalWidth = colWidths.reduce((sum, width) => sum + width, 0);
 
@@ -349,7 +349,7 @@ function drawSlotSummaryTable(
     const status = slot.isComplete ? 'Completo' : 'Em aberto';
     const values = [
       `Orc. ${slot.slotNumber}`,
-      slot.supplierName || 'Nao definido',
+      slot.supplierName || 'Não definido',
       status,
       formatCurrency(slot.totalValue),
       String(slot.uniqueWinCount),
@@ -411,7 +411,7 @@ function drawItemTableHeader(page: PDFPage, boldFont: PDFFont, y: number) {
   const totalWidth = Object.values(ITEM_TABLE_COLUMNS).reduce((sum, width) => sum + width, 0);
   let currentX = PAGE_MARGIN;
   const headerHeight = 22;
-  const headers = ['Descricao', 'Qtd.', 'Orc. 1', 'Orc. 2', 'Orc. 3', 'Melhor / situacao'];
+  const headers = ['Descrição', 'Qtd.', 'Orc. 1', 'Orc. 2', 'Orc. 3', 'Melhor / situação'];
   const widths = Object.values(ITEM_TABLE_COLUMNS);
 
   page.drawRectangle({
@@ -618,15 +618,15 @@ function addPage(document: PDFDocument, regularFont: PDFFont, boldFont: PDFFont,
 
 export function buildQuoteComparisonReportSearchText(input: QuoteComparisonReportPdfInput) {
   return [
-    'Relatorio do mapa comparativo de orcamentos',
+    'Relatório do mapa comparativo de orçamentos',
     `Projeto: ${input.projectCode} - ${input.projectName}`,
     `Compra: ${input.purchaseTitle}`,
     `Emitido em: ${input.issuedAtLabel}`,
-    `Analise: ${input.analysis.headline}`,
+    `Análise: ${input.analysis.headline}`,
     ...input.analysis.summaryLines,
     ...input.slotTotals.map(
       (slot) =>
-        `Orcamento ${slot.slotNumber}: ${slot.supplierName || 'Fornecedor nao definido'} | Total ${formatCurrency(slot.totalValue)} | ${slot.filledItemCount}/${slot.itemCount} itens`,
+        `Orçamento ${slot.slotNumber}: ${slot.supplierName || 'Fornecedor não definido'} | Total ${formatCurrency(slot.totalValue)} | ${slot.filledItemCount}/${slot.itemCount} itens`,
     ),
     ...input.rows.map(
       (row) =>
@@ -705,12 +705,12 @@ export async function buildQuoteComparisonReportPdf(input: QuoteComparisonReport
 
   let { page, y } = addPage(document, regularFont, boldFont, input);
 
-  drawSectionTitle(page, boldFont, y, 'Analise executiva');
+  drawSectionTitle(page, boldFont, y, 'Análise executiva');
   y -= 18;
   y = drawExecutiveBlock(page, regularFont, boldFont, y, input);
 
   if (input.purchaseNotes) {
-    drawSectionTitle(page, boldFont, y, 'Observacoes da compra');
+    drawSectionTitle(page, boldFont, y, 'Observações da compra');
     y -= 18;
     for (const line of wrapText(input.purchaseNotes, regularFont, 9, PAGE_WIDTH - PAGE_MARGIN * 2)) {
       page.drawText(line, {
@@ -725,7 +725,7 @@ export async function buildQuoteComparisonReportPdf(input: QuoteComparisonReport
     y -= 8;
   }
 
-  drawSectionTitle(page, boldFont, y, 'Resumo por orcamento');
+  drawSectionTitle(page, boldFont, y, 'Resumo por orçamento');
   y -= 18;
   y = drawSlotSummaryTable(page, regularFont, boldFont, y, input) - 18;
 

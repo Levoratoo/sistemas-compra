@@ -13,7 +13,7 @@ type DemoUser = {
 
 const demoUsers: DemoUser[] = [
   { email: 'admin@sitecompras.local', password: 'Admin@123', name: 'Administrador', role: 'ADMIN' },
-  { email: 'usuario@sitecompras.local', password: 'Usuario@123', name: 'Usuario operacional', role: 'USER' },
+  { email: 'usuario@sitecompras.local', password: 'Usuario@123', name: 'Usuário operacional', role: 'USER' },
   { email: 'aprovador@sitecompras.local', password: 'Aprovador@123', name: 'Aprovador', role: 'APPROVER' },
   { email: 'supervisora@sitecompras.local', password: 'Supervisora@123', name: 'Supervisora', role: 'SUPERVISOR' },
 ];
