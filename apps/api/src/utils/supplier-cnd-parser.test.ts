@@ -18,7 +18,30 @@ Valida ate 04/04/2026.
 Codigo de controle da certidao: 57A3.7F4C.ADBC.CBB2
 `;
 
+const SAMPLE_SP_RELATIVE_VALIDITY = `
+CNPJ: 42.840.861/0001-28
+Ressalvado o direito da Secretaria da Fazenda e Planejamento do Estado de São Paulo
+Débitos Tributários Não Inscritos na Dívida Ativa do Estado de São Paulo
+Data e hora da emissão
+Certidão nº
+Validade
+www.pfe.fazenda.sp.gov.br
+25120580529-88
+08/12/2025 10:27:08
+6 (seis) meses, contados da data de sua expedição.
+`;
+
 describe('supplier cnd parser', () => {
+  it('CND estadual SPF: deduz validade absoluta quando o PDF só traz vigência relativa à emissão', () => {
+    const parsed = extractSupplierCndMetadataFromText(SAMPLE_SP_RELATIVE_VALIDITY);
+
+    assert.equal(parsed.holderDocumentNumber, '42.840.861/0001-28');
+    assert.equal(parsed.controlCode, '25120580529-88');
+    assert.equal(parsed.issuedAt?.toISOString(), '2025-12-08T13:27:08.000Z');
+    /** 6 meses após emissão: 08/06/2026 ao meio-dia BRT. */
+    assert.equal(parsed.validUntil?.toISOString(), '2026-06-08T15:00:00.000Z');
+  });
+
   it('extrai titular, emissao, validade e codigo de controle do layout federal', () => {
     const parsed = extractSupplierCndMetadataFromText(SAMPLE_CND_TEXT);
 

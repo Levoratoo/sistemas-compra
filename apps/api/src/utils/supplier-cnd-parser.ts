@@ -55,6 +55,100 @@ function parseBrazilianDateTime(dateValue: string, timeValue: string): Date | nu
   return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}-03:00`);
 }
 
+/** Dias no mês (1–12) em ano calendário, para somar meses sem depender do fuso do servidor. */
+function daysInGregorianMonth(year: number, month1to12: number) {
+  return new Date(Date.UTC(year, month1to12, 0)).getUTCDate();
+}
+
+/**
+ * Soma meses a uma data brasileira (dia/mês/ano) devolvendo validade ao meio-dia em Brasília —
+ * mesmo critério de `parseBrazilianDate` na CND federal.
+ */
+export function validUntilCalendarMonthsAfterBrazilianIssue(
+  day: number,
+  month1to12: number,
+  year: number,
+  monthsToAdd: number,
+): Date | null {
+  if (!Number.isFinite(monthsToAdd) || monthsToAdd <= 0 || monthsToAdd > 120) {
+    return null;
+  }
+
+  let m = month1to12 + monthsToAdd;
+  let y = year + Math.floor((m - 1) / 12);
+  m = ((m - 1) % 12) + 1;
+  const dim = daysInGregorianMonth(y, m);
+  const d = Math.min(day, dim);
+  const mm = String(m).padStart(2, '0');
+  const dd = String(d).padStart(2, '0');
+
+  return new Date(`${y}-${mm}-${dd}T12:00:00-03:00`);
+}
+
+/** Ex.: SPF "6 (seis) meses, contados da data de sua expedição." (sem "Válida até DD/MM/AAAA"). */
+function tryParseStateCndRelativeValidity(normalizedText: string) {
+  const relMatch = normalizedText.match(
+    /(\d+)\s*\([^)]+\)\s+mes(?:es)?,\s*contad[oa]s?\s+d[ae]\s+data\s+d[ae]\s+sua\s+expedicao/i,
+  );
+  if (!relMatch) {
+    return null;
+  }
+
+  const monthsToAdd = Number(relMatch[1] ?? '');
+  const relIndex = relMatch.index ?? 0;
+
+  const emissions = [...normalizedText.matchAll(/(\d{2}\/\d{2}\/\d{4})\s+(\d{2}:\d{2}:\d{2})/g)];
+  if (emissions.length === 0) {
+    return null;
+  }
+
+  let chosen: RegExpMatchArray | null = null;
+
+  let bestLead = -1;
+  for (const m of emissions) {
+    const idx = m.index ?? 0;
+    if (idx < relIndex && idx > bestLead) {
+      bestLead = idx;
+      chosen = m;
+    }
+  }
+
+  chosen ??= emissions[0];
+
+  const datePart = chosen[1];
+  const timePart = chosen[2];
+  if (!datePart || !timePart) {
+    return null;
+  }
+
+  const dm = datePart.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!dm) {
+    return null;
+  }
+
+  const day = Number(dm[1]);
+  const month1to12 = Number(dm[2]);
+  const year = Number(dm[3]);
+  const issuedAt = parseBrazilianDateTime(datePart, timePart);
+  if (!issuedAt) {
+    return null;
+  }
+
+  const validUntil = validUntilCalendarMonthsAfterBrazilianIssue(day, month1to12, year, monthsToAdd);
+  if (!validUntil) {
+    return null;
+  }
+
+  const spCert = normalizedText.match(/\b(\d{11}-\d{2})\b/);
+
+  return {
+    issuedAt,
+    validUntil,
+    /** Nº da certidão (SP costuma usar 11 dígitos + traço + 2 dígitos). */
+    certificateNumber: spCert ? normalizeWhitespace(spCert[1] ?? '') || null : null,
+  };
+}
+
 export function extractSupplierCndMetadataFromText(
   text: string,
 ): Omit<SupplierCndParsedMetadata, 'fullText' | 'extractionMode'> {
@@ -67,12 +161,26 @@ export function extractSupplierCndMetadataFromText(
   const validUntilMatch = normalizedText.match(/Valida ate\s*(\d{2}\/\d{2}\/\d{4})/i);
   const controlCodeMatch = normalizedText.match(/Codigo de controle da certidao:\s*([A-Z0-9.]+)/i);
 
+  let holderName = holderNameMatch ? normalizeWhitespace(holderNameMatch[1] ?? '') || null : null;
+  let holderDocumentNumber = holderDocumentMatch ? normalizeWhitespace(holderDocumentMatch[1] ?? '') || null : null;
+  let issuedAt = issuedMatch ? parseBrazilianDateTime(issuedMatch[2] ?? '', issuedMatch[1] ?? '') : null;
+  let validUntil = validUntilMatch ? parseBrazilianDate(validUntilMatch[1] ?? '') : null;
+  let controlCode = controlCodeMatch ? normalizeWhitespace(controlCodeMatch[1] ?? '') || null : null;
+
+  const stateRelative = validUntil === null ? tryParseStateCndRelativeValidity(normalizedText) : null;
+
+  if (stateRelative) {
+    issuedAt ??= stateRelative.issuedAt;
+    validUntil = validUntil ?? stateRelative.validUntil;
+    controlCode ??= stateRelative.certificateNumber ?? null;
+  }
+
   return {
-    holderName: holderNameMatch ? normalizeWhitespace(holderNameMatch[1] ?? '') || null : null,
-    holderDocumentNumber: holderDocumentMatch ? normalizeWhitespace(holderDocumentMatch[1] ?? '') || null : null,
-    issuedAt: issuedMatch ? parseBrazilianDateTime(issuedMatch[2] ?? '', issuedMatch[1] ?? '') : null,
-    validUntil: validUntilMatch ? parseBrazilianDate(validUntilMatch[1] ?? '') : null,
-    controlCode: controlCodeMatch ? normalizeWhitespace(controlCodeMatch[1] ?? '') || null : null,
+    holderName,
+    holderDocumentNumber,
+    issuedAt,
+    validUntil,
+    controlCode,
   };
 }
 
