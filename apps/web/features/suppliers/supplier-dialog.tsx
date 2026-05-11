@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { FileUp, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { toast } from 'sonner';
 
@@ -95,8 +95,16 @@ export function SupplierDialog({
     },
   });
 
+  const { reset } = form;
+
+  const supplierResetKey =
+    supplier == null ? 'new' : `${supplier.id}:${supplier.updatedAt ?? ''}`;
+
   useEffect(() => {
-    form.reset({
+    if (!open) {
+      return;
+    }
+    reset({
       legalName: supplier?.legalName ?? '',
       tradeName: supplier?.tradeName ?? '',
       documentNumber: supplier?.documentNumber ?? '',
@@ -109,7 +117,7 @@ export function SupplierDialog({
       offeringCategories: supplier?.offeringCategories ?? [],
       offeringCategoriesOtherDetail: supplier?.offeringCategoriesOtherDetail ?? '',
     });
-  }, [form, supplier]);
+  }, [open, supplierResetKey, reset]);
 
   useEffect(() => {
     if (!open) {
@@ -171,15 +179,20 @@ export function SupplierDialog({
   }
 
   const submitting = createSupplier.isPending || updateSupplier.isPending;
-  const selectedCategories = form.watch('offeringCategories') ?? [];
+  const selectedCategories =
+    useWatch({
+      control: form.control,
+      name: 'offeringCategories',
+      defaultValue: [],
+    }) ?? [];
 
   function toggleCategory(slug: SupplierOfferingCategorySlug) {
     const cur = form.getValues('offeringCategories') ?? [];
     const removingOutros = slug === 'OUTROS' && cur.includes('OUTROS');
     const next = cur.includes(slug) ? cur.filter((s) => s !== slug) : [...cur, slug];
-    form.setValue('offeringCategories', next, { shouldDirty: true });
+    form.setValue('offeringCategories', next, { shouldDirty: true, shouldTouch: true });
     if (removingOutros) {
-      form.setValue('offeringCategoriesOtherDetail', '', { shouldDirty: true });
+      form.setValue('offeringCategoriesOtherDetail', '', { shouldDirty: true, shouldTouch: true });
     }
   }
   const hasParsedCnd = Boolean(
