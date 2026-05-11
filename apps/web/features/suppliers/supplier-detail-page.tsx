@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supplierCndBadgeVariant, supplierCndStatusDescription, supplierCndStatusLabel } from '@/features/suppliers/cnd-status';
+import { SupplierCndInlineUpload } from '@/features/suppliers/supplier-cnd-inline-upload';
 import { SupplierDialog } from '@/features/suppliers/supplier-dialog';
 import { useSupplierQuery } from '@/hooks/use-suppliers';
 import { formatDate, formatDateTime } from '@/lib/format';
@@ -129,7 +130,11 @@ export function SupplierDetailPage({ supplierId }: { supplierId: string }) {
               <FileBadge2 className="size-4 text-primary" aria-hidden />
               CND e conformidade
             </CardTitle>
-            <CardDescription>Status calculado a partir das CND federal e estadual (pior cenario entre as duas).</CardDescription>
+            <CardDescription>
+              Status calculado a partir das CND federal e estadual (pior cenário entre as duas). Para anexar ou
+              substituir PDFs, use o bloco abaixo ou{' '}
+              <span className="font-medium text-foreground/90">Editar fornecedor</span> no topo.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5 p-5">
             <div className="rounded-2xl border border-border/70 bg-muted/15 p-4">
@@ -143,6 +148,8 @@ export function SupplierDetailPage({ supplierId }: { supplierId: string }) {
               </div>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{supplierCndStatusDescription(supplier)}</p>
             </div>
+
+            <SupplierCndInlineUpload supplierId={supplier.id} supplierLegalName={supplier.legalName} />
 
             <dl>
               <DetailRow label="CND federal — validade">

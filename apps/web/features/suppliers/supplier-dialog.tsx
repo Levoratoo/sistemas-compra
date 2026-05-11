@@ -2,8 +2,8 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
-import { FileUp, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+
+import { useEffect, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
 import { toast } from 'sonner';
@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { supplierCndBadgeVariant, supplierCndStatusDescription, supplierCndStatusLabel } from '@/features/suppliers/cnd-status';
+import { SupplierCndPdfPickers } from '@/features/suppliers/supplier-cnd-pdf-pickers';
 import { useSuppliersMutations } from '@/hooks/use-suppliers';
 import { formatDate, formatDateTime } from '@/lib/format';
 import { SUPPLIER_OFFERING_CATEGORY_OPTIONS } from '@/lib/supplier-offering-categories';
@@ -77,6 +78,7 @@ export function SupplierDialog({
   const { createSupplier, updateSupplier } = useSuppliersMutations();
   const [cndFederalFile, setCndFederalFile] = useState<File | null>(null);
   const [cndEstadualFile, setCndEstadualFile] = useState<File | null>(null);
+  const cndBlockRef = useRef<HTMLDivElement>(null);
 
   const form = useForm<FormValues, undefined, FormSubmitValues>({
     resolver: zodResolver(formSchema),
@@ -125,6 +127,21 @@ export function SupplierDialog({
       setCndEstadualFile(null);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const bothServerMissing =
+      supplier == null || (!supplier.cndFederalPresent && !supplier.cndStatePresent);
+    if (!bothServerMissing) {
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      cndBlockRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 160);
+    return () => window.clearTimeout(handle);
+  }, [open, supplier?.id, supplier?.cndFederalPresent, supplier?.cndStatePresent]);
 
   async function onSubmit(values: FormSubmitValues) {
     try {
@@ -311,7 +328,7 @@ export function SupplierDialog({
                   ) : null}
                 </div>
 
-                <div className="space-y-5 sm:col-span-2">
+                <div ref={cndBlockRef} className="space-y-5 sm:col-span-2">
                   <div>
                     <Label className="text-base font-medium">CND (certidão negativa de débitos)</Label>
                     <p className="mt-1 text-xs leading-snug text-muted-foreground">
@@ -365,95 +382,12 @@ export function SupplierDialog({
                     </div>
                   ) : null}
 
-                  <div className="grid gap-5 sm:grid-cols-2">
-                    <div className="space-y-2 rounded-xl border border-border/60 bg-muted/10 p-3">
-                      <Label htmlFor="cnd-federal-file" className="text-sm font-medium">
-                        CND federal
-                      </Label>
-                      <p className="text-[11px] leading-snug text-muted-foreground">
-                        PDF da Receita Federal (ou órgão federal competente).
-                      </p>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <label
-                          className="inline-flex max-w-full cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border/80 bg-background px-3 py-2 text-xs font-medium text-foreground transition hover:border-primary/50"
-                          htmlFor="cnd-federal-file"
-                        >
-                          <FileUp className="size-4 shrink-0 text-primary" aria-hidden />
-                          Escolher arquivo
-                        </label>
-                        <input
-                          className="sr-only"
-                          id="cnd-federal-file"
-                          accept="application/pdf,.pdf"
-                          type="file"
-                          onChange={(event) => {
-                            const f = event.target.files?.[0] ?? null;
-                            setCndFederalFile(f);
-                            event.target.value = '';
-                          }}
-                        />
-                      </div>
-                      {cndFederalFile ? (
-                        <div className="flex items-center justify-between gap-2 text-xs">
-                          <span className="min-w-0 break-all text-foreground">{cndFederalFile.name}</span>
-                          <Button
-                            className="shrink-0"
-                            size="sm"
-                            type="button"
-                            variant="ghost"
-                            onClick={() => setCndFederalFile(null)}
-                          >
-                            <X className="size-4" aria-hidden />
-                            <span className="sr-only">Remover</span>
-                          </Button>
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <div className="space-y-2 rounded-xl border border-border/60 bg-muted/10 p-3">
-                      <Label htmlFor="cnd-estadual-file" className="text-sm font-medium">
-                        CND estadual
-                      </Label>
-                      <p className="text-[11px] leading-snug text-muted-foreground">
-                        PDF da Fazenda estadual (UF) ou órgão estadual competente.
-                      </p>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <label
-                          className="inline-flex max-w-full cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border/80 bg-background px-3 py-2 text-xs font-medium text-foreground transition hover:border-primary/50"
-                          htmlFor="cnd-estadual-file"
-                        >
-                          <FileUp className="size-4 shrink-0 text-primary" aria-hidden />
-                          Escolher arquivo
-                        </label>
-                        <input
-                          className="sr-only"
-                          id="cnd-estadual-file"
-                          accept="application/pdf,.pdf"
-                          type="file"
-                          onChange={(event) => {
-                            const f = event.target.files?.[0] ?? null;
-                            setCndEstadualFile(f);
-                            event.target.value = '';
-                          }}
-                        />
-                      </div>
-                      {cndEstadualFile ? (
-                        <div className="flex items-center justify-between gap-2 text-xs">
-                          <span className="min-w-0 break-all text-foreground">{cndEstadualFile.name}</span>
-                          <Button
-                            className="shrink-0"
-                            size="sm"
-                            type="button"
-                            variant="ghost"
-                            onClick={() => setCndEstadualFile(null)}
-                          >
-                            <X className="size-4" aria-hidden />
-                            <span className="sr-only">Remover</span>
-                          </Button>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
+                  <SupplierCndPdfPickers
+                    estadualFile={cndEstadualFile}
+                    federalFile={cndFederalFile}
+                    onEstadualFile={setCndEstadualFile}
+                    onFederalFile={setCndFederalFile}
+                  />
 
                   <div className="space-y-2 pt-1">
                     <Label className="text-muted-foreground" htmlFor="cnd">
