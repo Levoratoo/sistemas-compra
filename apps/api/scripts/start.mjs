@@ -7,12 +7,19 @@
  */
 import { spawn } from 'node:child_process';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(__dirname, '..');
 const prismaCli = path.join(appRoot, 'scripts/prisma-cli.mjs');
 const serverJs = path.join(appRoot, 'dist/server.js');
+
+/** Garante utilizadores demo após migrações — evita falha quando `server.ts` corre antes de existir a tabela `User`. */
+async function ensureDemoUsersAfterMigrateDeploy() {
+  const modulePath = path.join(appRoot, 'dist/services/demo-user.service.js');
+  const mod = await import(pathToFileURL(modulePath).href);
+  await mod.ensureDemoUsers();
+}
 
 const skipMigrate = process.env.SKIP_PRISMA_MIGRATE_ON_START === '1';
 const failOnMigrateError = process.env.FAIL_ON_PRISMA_MIGRATE_ERROR === '1';
@@ -45,9 +52,14 @@ if (!skipMigrate) {
 
       console.warn(
         `[WARN] prisma migrate deploy falhou no startup (codigo ${code ?? 'desconhecido'}). ` +
-          'A API continuara em execucao. Defina FAIL_ON_PRISMA_MIGRATE_ERROR=1 para tornar isso fatal.',
+          'A API continuará em execução. Defina FAIL_ON_PRISMA_MIGRATE_ERROR=1 para tornar isso fatal.',
       );
+      return;
     }
+
+    ensureDemoUsersAfterMigrateDeploy().catch((error) => {
+      console.warn('[WARN] ensureDemoUsers após migrate deploy falhou (login demo pode falhar até correr seed).', error);
+    });
   });
 
   migrateChild.on('error', (error) => {
@@ -61,7 +73,7 @@ if (!skipMigrate) {
       process.exit(1);
     }
 
-    console.warn('[WARN] Falha ao iniciar prisma migrate deploy; a API continuara em execucao.', error);
+    console.warn('[WARN] Falha ao iniciar prisma migrate deploy; a API continuará em execução.', error);
   });
 }
 
