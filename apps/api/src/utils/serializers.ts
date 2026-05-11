@@ -219,14 +219,17 @@ export function serializeSupplier(supplier: SupplierWithCndAttachments) {
 
   return {
     ...rest,
+    offeringCategories: [...(rest.offeringCategories ?? [])],
     cndIssuedAt: toIsoString(rest.cndIssuedAt),
     cndValidUntil: toIsoString(rest.cndValidUntil),
     createdAt: toIsoString(rest.createdAt),
     updatedAt: toIsoString(rest.updatedAt),
     cndStatus: cndDerived.status,
     cndDaysUntilExpiration: cndDerived.daysUntilExpiration,
-    cndFederal,
-    cndState,
+    cndFederal: cndFederal,
+    cndState: cndState,
+    cndFederalPresent: Boolean(federalAtt),
+    cndStatePresent: Boolean(stateAtt),
   };
 }
 

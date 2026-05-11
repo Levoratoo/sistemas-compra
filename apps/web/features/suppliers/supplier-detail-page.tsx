@@ -15,6 +15,7 @@ import { supplierCndBadgeVariant, supplierCndStatusDescription, supplierCndStatu
 import { SupplierDialog } from '@/features/suppliers/supplier-dialog';
 import { useSupplierQuery } from '@/hooks/use-suppliers';
 import { formatDate, formatDateTime } from '@/lib/format';
+import { labelForOfferingCategory } from '@/lib/supplier-offering-categories';
 
 function DetailRow({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -57,7 +58,7 @@ export function SupplierDetailPage({ supplierId }: { supplierId: string }) {
         onAction={() => {
           window.location.assign('/suppliers');
         }}
-        title="Fornecedor indisponivel"
+        title="Fornecedor indisponível"
       />
     );
   }
@@ -93,17 +94,30 @@ export function SupplierDetailPage({ supplierId }: { supplierId: string }) {
               <Building2 className="size-4 text-primary" aria-hidden />
               Dados do fornecedor
             </CardTitle>
-            <CardDescription>Informacoes principais de cadastro e contato.</CardDescription>
+            <CardDescription>Informações principais de cadastro e contato.</CardDescription>
           </CardHeader>
           <CardContent className="p-0 px-4 sm:px-6">
             <dl>
-              <DetailRow label="Razao social">{displayOrDash(supplier.legalName)}</DetailRow>
+              <DetailRow label="Razão social">{displayOrDash(supplier.legalName)}</DetailRow>
               <DetailRow label="Nome fantasia">{displayOrDash(supplier.tradeName)}</DetailRow>
               <DetailRow label="CNPJ / Documento">{displayOrDash(supplier.documentNumber)}</DetailRow>
+              <DetailRow label="Categorias">
+                {(supplier.offeringCategories ?? []).length ? (
+                  <span className="flex flex-wrap gap-1">
+                    {(supplier.offeringCategories ?? []).map((slug) => (
+                      <Badge key={slug} className="font-normal" variant="secondary">
+                        {labelForOfferingCategory(slug)}
+                      </Badge>
+                    ))}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">-</span>
+                )}
+              </DetailRow>
               <DetailRow label="Contato">{displayOrDash(supplier.contactName)}</DetailRow>
               <DetailRow label="Telefone">{displayOrDash(supplier.phone)}</DetailRow>
               <DetailRow label="E-mail">{displayOrDash(supplier.email)}</DetailRow>
-              <DetailRow label="Endereco">{displayOrDash(supplier.address)}</DetailRow>
+              <DetailRow label="Endereço">{displayOrDash(supplier.address)}</DetailRow>
               <DetailRow label="Observações">{displayOrDash(supplier.notes)}</DetailRow>
             </dl>
           </CardContent>

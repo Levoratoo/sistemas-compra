@@ -5,6 +5,7 @@ import { userRepository } from '../repositories/user.repository.js';
 import { AppError } from '../utils/app-error.js';
 import { toIsoString } from '../utils/date.js';
 import { effectiveNextReplenishmentDate, isReplenishmentAttentionActive } from '../utils/replenishment-dates.js';
+import { buildSupplierCndAlertPayload } from '../utils/supplier-cnd-alert.js';
 
 function serializeNotification(n: Notification) {
   return {
@@ -16,6 +17,7 @@ function serializeNotification(n: Notification) {
     readAt: toIsoString(n.readAt),
     projectId: n.projectId,
     budgetItemId: n.budgetItemId,
+    supplierId: n.supplierId,
     createdAt: toIsoString(n.createdAt),
     updatedAt: toIsoString(n.updatedAt),
   };
@@ -62,19 +64,21 @@ async function syncReplenishmentDueSoon(userId: string, role: UserRole) {
 
       await prisma.notification.upsert({
         where: {
-          userId_type_budgetItemId: {
+          userId_type_dedupeKey: {
             userId,
             type: 'REPLENISHMENT_DUE_SOON',
-            budgetItemId: it.id,
+            dedupeKey: it.id,
           },
         },
         create: {
           userId,
           type: 'REPLENISHMENT_DUE_SOON',
+          dedupeKey: it.id,
           title,
           body,
           projectId: it.projectId,
           budgetItemId: it.id,
+          supplierId: null,
         },
         update: {
           title,
@@ -93,7 +97,73 @@ async function syncReplenishmentDueSoon(userId: string, role: UserRole) {
       where: {
         userId,
         type: 'REPLENISHMENT_DUE_SOON',
-        budgetItemId: { notIn: [...inWindowIds] },
+        dedupeKey: { notIn: [...inWindowIds] },
+      },
+    });
+  }
+}
+
+/** Sincroniza alertas de CND (falta de certidão, vencida ou a vencer) por fornecedor. */
+async function syncSupplierCndAlerts(userId: string) {
+  const suppliers = await prisma.supplier.findMany({
+    select: {
+      id: true,
+      legalName: true,
+      cndAttachments: true,
+    },
+    orderBy: { legalName: 'asc' },
+  });
+
+  const activeDedupeKeys = new Set<string>();
+
+  for (const s of suppliers) {
+    const payload = buildSupplierCndAlertPayload({
+      legalName: s.legalName,
+      attachments: s.cndAttachments,
+    });
+    if (!payload) {
+      continue;
+    }
+
+    const dedupeKey = `supplier-cnd:${s.id}`;
+    activeDedupeKeys.add(dedupeKey);
+
+    await prisma.notification.upsert({
+      where: {
+        userId_type_dedupeKey: {
+          userId,
+          type: 'SUPPLIER_CND_ALERT',
+          dedupeKey,
+        },
+      },
+      create: {
+        userId,
+        type: 'SUPPLIER_CND_ALERT',
+        dedupeKey,
+        title: payload.title,
+        body: payload.body,
+        projectId: null,
+        budgetItemId: null,
+        supplierId: s.id,
+      },
+      update: {
+        title: payload.title,
+        body: payload.body,
+        supplierId: s.id,
+      },
+    });
+  }
+
+  if (activeDedupeKeys.size === 0) {
+    await prisma.notification.deleteMany({
+      where: { userId, type: 'SUPPLIER_CND_ALERT' },
+    });
+  } else {
+    await prisma.notification.deleteMany({
+      where: {
+        userId,
+        type: 'SUPPLIER_CND_ALERT',
+        dedupeKey: { notIn: [...activeDedupeKeys] },
       },
     });
   }
@@ -102,6 +172,7 @@ async function syncReplenishmentDueSoon(userId: string, role: UserRole) {
 class NotificationService {
   async listForUser(userId: string, role: UserRole) {
     await syncReplenishmentDueSoon(userId, role);
+    await syncSupplierCndAlerts(userId);
 
     const rows = await prisma.notification.findMany({
       where: { userId },
@@ -138,6 +209,7 @@ class NotificationService {
 
   async unreadCount(userId: string, role: UserRole) {
     await syncReplenishmentDueSoon(userId, role);
+    await syncSupplierCndAlerts(userId);
     return prisma.notification.count({
       where: { userId, readAt: null },
     });

@@ -24,7 +24,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { supplierCndBadgeVariant, supplierCndStatusDescription, supplierCndStatusLabel } from '@/features/suppliers/cnd-status';
 import { useSuppliersMutations } from '@/hooks/use-suppliers';
 import { formatDate, formatDateTime } from '@/lib/format';
-import type { Supplier } from '@/types/api';
+import { SUPPLIER_OFFERING_CATEGORY_OPTIONS } from '@/lib/supplier-offering-categories';
+import { cn } from '@/lib/utils';
+import type { Supplier, SupplierOfferingCategorySlug } from '@/types/api';
+
+const OFFERING_CATEGORY_SLUGS = SUPPLIER_OFFERING_CATEGORY_OPTIONS.map((o) => o.value) as [
+  SupplierOfferingCategorySlug,
+  ...SupplierOfferingCategorySlug[],
+];
+
+const offeringCategoryField = z.enum(OFFERING_CATEGORY_SLUGS);
 
 const formSchema = z.object({
   legalName: z.string().trim().min(1, 'Informe o nome do fornecedor.'),
@@ -36,6 +45,7 @@ const formSchema = z.object({
   email: z.string().trim().email('Informe um e-mail válido.').optional().or(z.literal('')),
   cnd: z.string().trim().optional(),
   notes: z.string().trim().optional(),
+  offeringCategories: z.array(offeringCategoryField).default([]),
 });
 
 type FormValues = z.input<typeof formSchema>;
@@ -69,6 +79,7 @@ export function SupplierDialog({
       email: supplier?.email ?? '',
       cnd: supplier?.cnd ?? '',
       notes: supplier?.notes ?? '',
+      offeringCategories: supplier?.offeringCategories ?? [],
     },
   });
 
@@ -83,6 +94,7 @@ export function SupplierDialog({
       email: supplier?.email ?? '',
       cnd: supplier?.cnd ?? '',
       notes: supplier?.notes ?? '',
+      offeringCategories: supplier?.offeringCategories ?? [],
     });
   }, [form, supplier]);
 
@@ -105,6 +117,7 @@ export function SupplierDialog({
         email: values.email || null,
         cnd: values.cnd || null,
         notes: values.notes || null,
+        offeringCategories: values.offeringCategories ?? [],
       };
 
       const cndUploads =
@@ -141,6 +154,13 @@ export function SupplierDialog({
   }
 
   const submitting = createSupplier.isPending || updateSupplier.isPending;
+  const selectedCategories = form.watch('offeringCategories') ?? [];
+
+  function toggleCategory(slug: SupplierOfferingCategorySlug) {
+    const cur = form.getValues('offeringCategories') ?? [];
+    const next = cur.includes(slug) ? cur.filter((s) => s !== slug) : [...cur, slug];
+    form.setValue('offeringCategories', next, { shouldDirty: true });
+  }
   const hasParsedCnd = Boolean(
     supplier?.cndFederal?.validUntil ||
       supplier?.cndState?.validUntil ||
@@ -156,7 +176,9 @@ export function SupplierDialog({
         <div className="shrink-0 px-4 pb-2 pt-5 sm:px-6 sm:pt-6">
           <DialogHeader>
             <DialogTitle>{supplier ? 'Editar fornecedor' : 'Novo fornecedor'}</DialogTitle>
-            <DialogDescription>Cadastre o fornecedor para usar nos pedidos, compras reais e controle automatico da CND.</DialogDescription>
+            <DialogDescription>
+              Cadastre o fornecedor para usar nos pedidos, compras reais e controle automático da CND.
+            </DialogDescription>
           </DialogHeader>
         </div>
 
@@ -210,12 +232,37 @@ export function SupplierDialog({
                   />
                 </div>
 
+                <div className="min-w-0 space-y-2 sm:col-span-2">
+                  <Label>Categorias de produtos / serviços</Label>
+                  <p className="text-xs text-muted-foreground">Selecione uma ou mais opções (ex.: EPI, uniformes).</p>
+                  <div className="flex flex-wrap gap-2">
+                    {SUPPLIER_OFFERING_CATEGORY_OPTIONS.map((opt) => {
+                      const on = selectedCategories.includes(opt.value);
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          className={cn(
+                            'rounded-full border px-3 py-1.5 text-xs font-medium transition',
+                            on
+                              ? 'border-primary bg-primary/10 text-foreground'
+                              : 'border-border/80 bg-muted/30 text-muted-foreground hover:border-primary/40',
+                          )}
+                          onClick={() => toggleCategory(opt.value)}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div className="space-y-5 sm:col-span-2">
                   <div>
                     <Label className="text-base font-medium">CND (certidão negativa de débitos)</Label>
                     <p className="mt-1 text-xs leading-snug text-muted-foreground">
                       Envie o PDF da CND federal e, separadamente, da CND estadual. O sistema replica cada arquivo na
-                      documentacao dos projetos e le a validade automaticamente quando possivel.
+                      documentação dos projetos e lê a validade automaticamente quando possível.
                     </p>
                   </div>
 
@@ -356,7 +403,7 @@ export function SupplierDialog({
 
                   <div className="space-y-2 pt-1">
                     <Label className="text-muted-foreground" htmlFor="cnd">
-                      Observacao da CND (opcional)
+                      Observação da CND (opcional)
                     </Label>
                     <Input
                       id="cnd"

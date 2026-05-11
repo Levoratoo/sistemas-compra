@@ -31,7 +31,11 @@ export function useSuppliersMutations() {
   const queryClient = useQueryClient();
 
   const invalidate = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['suppliers'] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['suppliers'] }),
+      queryClient.invalidateQueries({ queryKey: ['notifications'] }),
+      queryClient.invalidateQueries({ queryKey: ['notifications-unread'] }),
+    ]);
   };
 
   return {

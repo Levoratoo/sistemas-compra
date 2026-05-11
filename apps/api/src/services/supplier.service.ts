@@ -19,6 +19,7 @@ class SupplierService {
       email: input.email ?? null,
       cnd: input.cnd ?? null,
       notes: input.notes ?? null,
+      offeringCategories: input.offeringCategories ?? [],
     });
 
     const scoped = options?.scopedCndFiles ?? [];
@@ -62,6 +63,9 @@ class SupplierService {
       email: input.email,
       cnd: input.cnd,
       notes: input.notes,
+      ...(input.offeringCategories !== undefined
+        ? { offeringCategories: input.offeringCategories }
+        : {}),
     });
 
     const scoped = options?.scopedCndFiles ?? [];

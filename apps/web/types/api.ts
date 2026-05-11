@@ -130,7 +130,7 @@ export interface EntityTimestamps {
 
 export type UserRole = 'ADMIN' | 'USER' | 'APPROVER' | 'SUPERVISOR';
 
-export type NotificationType = 'REPLENISHMENT_DUE_SOON';
+export type NotificationType = 'REPLENISHMENT_DUE_SOON' | 'SUPPLIER_CND_ALERT';
 
 export interface AppNotification {
   id: string;
@@ -139,8 +139,9 @@ export interface AppNotification {
   title: string;
   body: string;
   readAt: string | null;
-  projectId: string;
-  budgetItemId: string;
+  projectId: string | null;
+  budgetItemId: string | null;
+  supplierId: string | null;
   createdAt: string | null;
   updatedAt: string | null;
 }
@@ -275,6 +276,14 @@ export type SupplierCndScopeSnapshot = {
   originalFileName: string;
 } | null;
 
+export type SupplierOfferingCategorySlug =
+  | 'EPI'
+  | 'EQUIPAMENTOS'
+  | 'UNIFORMES'
+  | 'MATERIAIS_ESCRITORIO'
+  | 'SERVICOS'
+  | 'OUTROS';
+
 export interface Supplier extends EntityTimestamps {
   id: string;
   legalName: string;
@@ -294,6 +303,11 @@ export interface Supplier extends EntityTimestamps {
   cndDaysUntilExpiration: number | null;
   cndFederal: SupplierCndScopeSnapshot;
   cndState: SupplierCndScopeSnapshot;
+  /** Há arquivo CND federal anexado (ainda que sem data lida automaticamente). */
+  cndFederalPresent: boolean;
+  /** Há arquivo CND estadual anexado. */
+  cndStatePresent: boolean;
+  offeringCategories: SupplierOfferingCategorySlug[];
   notes: string | null;
 }
 

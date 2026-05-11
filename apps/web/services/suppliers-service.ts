@@ -1,5 +1,5 @@
 import { apiRequest, apiUploadJson } from '@/services/api-client';
-import type { Supplier } from '@/types/api';
+import type { Supplier, SupplierOfferingCategorySlug } from '@/types/api';
 
 export type SupplierPayload = {
   legalName: string;
@@ -11,10 +11,17 @@ export type SupplierPayload = {
   email?: string | null;
   cnd?: string | null;
   notes?: string | null;
+  offeringCategories?: SupplierOfferingCategorySlug[];
 };
 
 function appendSupplierFormData(formData: FormData, payload: SupplierPayload | Partial<SupplierPayload>) {
   for (const [key, value] of Object.entries(payload)) {
+    if (key === 'offeringCategories') {
+      if (value !== undefined) {
+        formData.append(key, JSON.stringify(Array.isArray(value) ? value : []));
+      }
+      continue;
+    }
     if (value !== undefined && value !== null) {
       formData.append(key, String(value));
     }

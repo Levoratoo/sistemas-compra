@@ -1,21 +1,49 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, SquarePen, Trash2 } from 'lucide-react';
+import { Plus, Search, SquarePen, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { EmptyState } from '@/components/common/empty-state';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supplierCndBadgeVariant, supplierCndStatusDescription, supplierCndStatusLabel } from '@/features/suppliers/cnd-status';
 import { SupplierDialog } from '@/features/suppliers/supplier-dialog';
 import { useSuppliersMutations, useSuppliersQuery } from '@/hooks/use-suppliers';
+import { labelForOfferingCategory } from '@/lib/supplier-offering-categories';
 import { formatDate } from '@/lib/format';
 import type { Supplier } from '@/types/api';
+
+function normalizePt(s: string) {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function supplierSearchHaystack(supplier: Supplier) {
+  const cats = supplier.offeringCategories ?? [];
+  const catText = cats.map((c) => `${c} ${labelForOfferingCategory(c)}`).join(' ');
+  return normalizePt(
+    [supplier.legalName, supplier.tradeName ?? '', supplier.documentNumber ?? '', supplier.notes ?? '', catText]
+      .filter(Boolean)
+      .join(' '),
+  );
+}
+
+function matchesSupplierSearch(supplier: Supplier, raw: string) {
+  const q = raw.trim();
+  if (!q) {
+    return true;
+  }
+  const haystack = supplierSearchHaystack(supplier);
+  const tokens = normalizePt(q)
+    .split(/\s+/)
+    .filter(Boolean);
+  return tokens.every((t) => haystack.includes(t));
+}
 
 export function SuppliersPageContent() {
   const router = useRouter();
@@ -23,6 +51,14 @@ export function SuppliersPageContent() {
   const { deleteSupplier } = useSuppliersMutations();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filtered = useMemo(() => {
+    if (!data?.length) {
+      return [];
+    }
+    return data.filter((s) => matchesSupplierSearch(s, searchQuery));
+  }, [data, searchQuery]);
 
   async function handleDelete(supplierId: string) {
     const confirmed = window.confirm('Deseja excluir este fornecedor?');
@@ -79,7 +115,7 @@ export function SuppliersPageContent() {
       ) : !data || data.length === 0 ? (
         <EmptyState
           actionLabel="Cadastrar fornecedor"
-          description="Os fornecedores aparecerao aqui para serem utilizados nos pedidos."
+          description="Os fornecedores aparecerão aqui para serem utilizados nos pedidos."
           onAction={() => {
             setEditingSupplier(null);
             setDialogOpen(true);
@@ -88,104 +124,149 @@ export function SuppliersPageContent() {
         />
       ) : (
         <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow variant="header">
-                  <TableHead>Fornecedor</TableHead>
-                  <TableHead>Documento</TableHead>
-                  <TableHead>Endereco</TableHead>
-                  <TableHead>Telefone</TableHead>
-                  <TableHead>E-mail</TableHead>
-                  <TableHead>CND</TableHead>
-                  <TableHead className="text-right">Acoes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.map((supplier) => (
-                  <TableRow
-                    key={supplier.id}
-                    className="cursor-pointer focus-visible:bg-muted/45 focus-visible:outline-none"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => openSupplierDetail(supplier.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        openSupplierDetail(supplier.id);
-                      }
-                    }}
-                  >
-                    <TableCell>
-                      <div>
-                        <p className="font-semibold">{supplier.legalName}</p>
-                        {supplier.tradeName ? <p className="text-xs text-muted-foreground">{supplier.tradeName}</p> : null}
-                        <p className="text-xs text-muted-foreground line-clamp-2">{supplier.notes || '-'}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>{supplier.documentNumber || '-'}</TableCell>
-                    <TableCell className="max-w-[200px] text-sm text-muted-foreground">{supplier.address || '-'}</TableCell>
-                    <TableCell>{supplier.phone || '-'}</TableCell>
-                    <TableCell>{supplier.email || '-'}</TableCell>
-                    <TableCell className="min-w-[240px] max-w-[280px]">
-                      <div className="space-y-1.5">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant={supplierCndBadgeVariant(supplier)}>{supplierCndStatusLabel(supplier)}</Badge>
-                          {supplier.cndValidUntil ? (
-                            <span className="text-xs font-medium text-foreground">
-                              restrita ate {formatDate(supplier.cndValidUntil)}
-                            </span>
-                          ) : null}
-                        </div>
-                        <p className="text-xs leading-relaxed text-muted-foreground">{supplierCndStatusDescription(supplier)}</p>
-                        {supplier.cndFederal?.validUntil ? (
-                          <p className="text-xs text-muted-foreground">
-                            Federal ate {formatDate(supplier.cndFederal.validUntil)}
-                          </p>
-                        ) : null}
-                        {supplier.cndState?.validUntil ? (
-                          <p className="text-xs text-muted-foreground">
-                            Estadual ate {formatDate(supplier.cndState.validUntil)}
-                          </p>
-                        ) : null}
-                        {supplier.cndIssuedAt ? (
-                          <p className="text-xs text-muted-foreground">Emitida (ref.): {formatDate(supplier.cndIssuedAt)}</p>
-                        ) : null}
-                        {supplier.cndControlCode ? (
-                          <p className="text-xs text-muted-foreground">Controle (ref.): {supplier.cndControlCode}</p>
-                        ) : null}
-                        {supplier.cnd ? <p className="text-xs text-muted-foreground line-clamp-2">{supplier.cnd}</p> : null}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setEditingSupplier(supplier);
-                            setDialogOpen(true);
-                          }}
-                          size="sm"
-                          variant="ghost"
-                        >
-                          <SquarePen className="size-4" />
-                        </Button>
-                        <Button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void handleDelete(supplier.id);
-                          }}
-                          size="sm"
-                          variant="ghost"
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <CardContent className="space-y-4 p-4 sm:p-6">
+            <div className="relative max-w-md">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <Input
+                aria-label="Pesquisar fornecedores"
+                className="pl-9"
+                placeholder="Nome, fantasia, documento ou categoria…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            {searchQuery.trim() ? (
+              <p className="text-xs text-muted-foreground">
+                Exibindo {filtered.length} de {data.length} fornecedor(es) com a pesquisa aplicada.
+              </p>
+            ) : null}
+            {!filtered.length ? (
+              <p className="rounded-xl border border-dashed border-border/80 bg-muted/15 px-4 py-8 text-center text-sm text-muted-foreground">
+                Nenhum fornecedor corresponde à pesquisa.
+              </p>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-border/60">
+                <Table>
+                  <TableHeader>
+                    <TableRow variant="header">
+                      <TableHead>Fornecedor</TableHead>
+                      <TableHead>Categoria</TableHead>
+                      <TableHead>Documento</TableHead>
+                      <TableHead>Endereço</TableHead>
+                      <TableHead>Telefone</TableHead>
+                      <TableHead>E-mail</TableHead>
+                      <TableHead>CND</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.map((supplier) => (
+                      <TableRow
+                        key={supplier.id}
+                        className="cursor-pointer focus-visible:bg-muted/45 focus-visible:outline-none"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => openSupplierDetail(supplier.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            openSupplierDetail(supplier.id);
+                          }
+                        }}
+                      >
+                        <TableCell>
+                          <div>
+                            <p className="font-semibold">{supplier.legalName}</p>
+                            {supplier.tradeName ? <p className="text-xs text-muted-foreground">{supplier.tradeName}</p> : null}
+                            <p className="line-clamp-2 text-xs text-muted-foreground">{supplier.notes || '-'}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="max-w-[200px]">
+                          {(supplier.offeringCategories ?? []).length ? (
+                            <div className="flex flex-wrap gap-1">
+                              {(supplier.offeringCategories ?? []).map((slug) => (
+                                <Badge key={slug} className="font-normal" variant="secondary">
+                                  {labelForOfferingCategory(slug)}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell>{supplier.documentNumber || '-'}</TableCell>
+                        <TableCell className="max-w-[200px] text-sm text-muted-foreground">{supplier.address || '-'}</TableCell>
+                        <TableCell>{supplier.phone || '-'}</TableCell>
+                        <TableCell>{supplier.email || '-'}</TableCell>
+                        <TableCell className="max-w-[240px] min-w-[240px]">
+                          <div className="space-y-1.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant={supplierCndBadgeVariant(supplier)}>{supplierCndStatusLabel(supplier)}</Badge>
+                              {supplier.cndValidUntil ? (
+                                <span className="text-xs font-medium text-foreground">
+                                  restrita até {formatDate(supplier.cndValidUntil)}
+                                </span>
+                              ) : null}
+                            </div>
+                            <p className="text-xs leading-relaxed text-muted-foreground">{supplierCndStatusDescription(supplier)}</p>
+                            {supplier.cndFederal?.validUntil ? (
+                              <p className="text-xs text-muted-foreground">
+                                Federal até {formatDate(supplier.cndFederal.validUntil)}
+                              </p>
+                            ) : supplier.cndFederalPresent ? (
+                              <p className="text-xs text-muted-foreground">Federal: arquivo enviado, sem data lida automaticamente</p>
+                            ) : (
+                              <p className="text-xs text-muted-foreground">Federal: não enviada</p>
+                            )}
+                            {supplier.cndState?.validUntil ? (
+                              <p className="text-xs text-muted-foreground">
+                                Estadual até {formatDate(supplier.cndState.validUntil)}
+                              </p>
+                            ) : supplier.cndStatePresent ? (
+                              <p className="text-xs text-muted-foreground">Estadual: arquivo enviado, sem data lida automaticamente</p>
+                            ) : (
+                              <p className="text-xs text-muted-foreground">Estadual: não enviada</p>
+                            )}
+                            {supplier.cndIssuedAt ? (
+                              <p className="text-xs text-muted-foreground">Emitida (ref.): {formatDate(supplier.cndIssuedAt)}</p>
+                            ) : null}
+                            {supplier.cndControlCode ? (
+                              <p className="text-xs text-muted-foreground">Controle (ref.): {supplier.cndControlCode}</p>
+                            ) : null}
+                            {supplier.cnd ? <p className="line-clamp-2 text-xs text-muted-foreground">{supplier.cnd}</p> : null}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setEditingSupplier(supplier);
+                                setDialogOpen(true);
+                              }}
+                              size="sm"
+                              variant="ghost"
+                            >
+                              <SquarePen className="size-4" />
+                            </Button>
+                            <Button
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void handleDelete(supplier.id);
+                              }}
+                              size="sm"
+                              variant="ghost"
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
