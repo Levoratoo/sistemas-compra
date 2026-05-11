@@ -9,6 +9,7 @@ import type { CreateSupplierInput, UpdateSupplierInput } from '../modules/suppli
 
 class SupplierService {
   async createSupplier(input: CreateSupplierInput, options?: { scopedCndFiles?: ScopedCndUpload[] }) {
+    const categories = input.offeringCategories ?? [];
     let supplier = await supplierRepository.create({
       legalName: input.legalName,
       tradeName: input.tradeName ?? null,
@@ -19,7 +20,10 @@ class SupplierService {
       email: input.email ?? null,
       cnd: input.cnd ?? null,
       notes: input.notes ?? null,
-      offeringCategories: input.offeringCategories ?? [],
+      offeringCategories: categories,
+      offeringCategoriesOtherDetail: categories.includes('OUTROS')
+        ? (input.offeringCategoriesOtherDetail ?? '').trim()
+        : null,
     });
 
     const scoped = options?.scopedCndFiles ?? [];
@@ -53,7 +57,31 @@ class SupplierService {
       throw new AppError('Supplier not found', 404);
     }
 
-    let supplier = await supplierRepository.update(id, {
+    const touchesOfferingCategories =
+      input.offeringCategories !== undefined || input.offeringCategoriesOtherDetail !== undefined;
+
+    const nextOfferingCategories =
+      input.offeringCategories !== undefined ? input.offeringCategories : existingSupplier.offeringCategories;
+
+    let mergedOfferingOtherDetail: string | null | undefined;
+    if (touchesOfferingCategories) {
+      if (!nextOfferingCategories.includes('OUTROS')) {
+        mergedOfferingOtherDetail = null;
+      } else {
+        const merged =
+          input.offeringCategoriesOtherDetail !== undefined
+            ? String(input.offeringCategoriesOtherDetail ?? '').trim()
+            : (existingSupplier.offeringCategoriesOtherDetail ?? '').trim();
+
+        if (!merged) {
+          throw new AppError('Descreva o que se enquadra em «Outros».');
+        }
+
+        mergedOfferingOtherDetail = merged;
+      }
+    }
+
+    const updatePayload: Parameters<typeof supplierRepository.update>[1] = {
       legalName: input.legalName,
       tradeName: input.tradeName,
       documentNumber: input.documentNumber,
@@ -63,10 +91,17 @@ class SupplierService {
       email: input.email,
       cnd: input.cnd,
       notes: input.notes,
-      ...(input.offeringCategories !== undefined
-        ? { offeringCategories: input.offeringCategories }
-        : {}),
-    });
+    };
+
+    if (input.offeringCategories !== undefined) {
+      updatePayload.offeringCategories = input.offeringCategories;
+    }
+
+    if (touchesOfferingCategories) {
+      updatePayload.offeringCategoriesOtherDetail = mergedOfferingOtherDetail ?? null;
+    }
+
+    let supplier = await supplierRepository.update(id, updatePayload);
 
     const scoped = options?.scopedCndFiles ?? [];
     if (scoped.length > 0) {

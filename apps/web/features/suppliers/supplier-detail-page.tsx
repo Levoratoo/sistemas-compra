@@ -15,7 +15,7 @@ import { supplierCndBadgeVariant, supplierCndStatusDescription, supplierCndStatu
 import { SupplierDialog } from '@/features/suppliers/supplier-dialog';
 import { useSupplierQuery } from '@/hooks/use-suppliers';
 import { formatDate, formatDateTime } from '@/lib/format';
-import { labelForOfferingCategory } from '@/lib/supplier-offering-categories';
+import { displayOfferingCategoryLabel } from '@/lib/supplier-offering-categories';
 
 function DetailRow({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -106,7 +106,7 @@ export function SupplierDetailPage({ supplierId }: { supplierId: string }) {
                   <span className="flex flex-wrap gap-1">
                     {(supplier.offeringCategories ?? []).map((slug) => (
                       <Badge key={slug} className="font-normal" variant="secondary">
-                        {labelForOfferingCategory(slug)}
+                        {displayOfferingCategoryLabel(slug, supplier.offeringCategoriesOtherDetail)}
                       </Badge>
                     ))}
                   </span>

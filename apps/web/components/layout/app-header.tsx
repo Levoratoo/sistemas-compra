@@ -1,19 +1,25 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Bell, CalendarDays, LogOut, PanelLeft } from 'lucide-react';
 
 import { useAuth } from '@/components/auth/auth-context';
+import { NotificationsInboxBody } from '@/components/layout/notifications-inbox-body';
 import { useSidebar } from '@/components/layout/sidebar-context';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useNotificationMutations, useNotificationsQuery, useUnreadNotificationCountQuery } from '@/hooks/use-notifications';
 import { getUserRoleLabel } from '@/lib/constants';
-import { cn } from '@/lib/utils';
 
 const pageTitles: Record<string, { title: string; description: string }> = {
   '/': {
@@ -139,47 +145,26 @@ export function AppHeader() {
                   ) : null}
                 </Button>
                 <Dialog onOpenChange={setNotificationsOpen} open={notificationsOpen}>
-                  <DialogContent className="max-h-[min(90dvh,560px)] max-w-lg gap-0 overflow-hidden p-0">
-                    <DialogHeader className="border-b border-border px-4 py-3">
+                  <DialogContent className="max-h-[min(92dvh,640px)] max-w-xl gap-0 overflow-hidden p-0">
+                    <DialogHeader className="space-y-1 border-b border-border px-4 py-3 text-left">
                       <DialogTitle>Notificações</DialogTitle>
+                      <DialogDescription>
+                        Histórico recente, como uma caixa de entrada: dia, hora e de qual área do site veio cada alerta.
+                        Toque para abrir o recurso relacionado.
+                      </DialogDescription>
                     </DialogHeader>
-                    <div className="max-h-[min(60dvh,420px)] overflow-y-auto px-2 py-2">
-                      {notificationsQuery.isLoading ? (
-                        <p className="px-2 py-6 text-center text-sm text-muted-foreground">A carregar…</p>
-                      ) : notificationsQuery.isError ? (
-                        <p className="px-2 py-6 text-center text-sm text-destructive">Não foi possível carregar.</p>
-                      ) : !notificationsQuery.data?.length ? (
-                        <p className="px-2 py-6 text-center text-sm text-muted-foreground">Sem notificações.</p>
-                      ) : (
-                        <ul className="space-y-1">
-                          {notificationsQuery.data.map((n) => (
-                            <li key={n.id}>
-                              <Link
-                                className={cn(
-                                  'block rounded-lg border border-transparent px-3 py-2.5 text-left transition hover:bg-muted',
-                                  !n.readAt && 'border-primary/25 bg-primary/5',
-                                )}
-                                href={
-                                  n.type === 'SUPPLIER_CND_ALERT' && n.supplierId
-                                    ? `/suppliers/${n.supplierId}`
-                                    : n.projectId
-                                      ? `/projects/${n.projectId}/purchase-control`
-                                      : '/suppliers'
-                                }
-                                onClick={() => {
-                                  if (!n.readAt) {
-                                    void markRead.mutateAsync(n.id);
-                                  }
-                                  setNotificationsOpen(false);
-                                }}
-                              >
-                                <span className="block text-sm font-medium text-foreground">{n.title}</span>
-                                <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{n.body}</span>
-                              </Link>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+                    <div className="max-h-[min(62dvh,520px)] overflow-y-auto px-2 pb-1 pt-2 sm:px-3">
+                      <NotificationsInboxBody
+                        isError={notificationsQuery.isError}
+                        isLoading={notificationsQuery.isLoading}
+                        items={notificationsQuery.data ?? []}
+                        onOpenItem={(n) => {
+                          if (!n.readAt) {
+                            void markRead.mutateAsync(n.id);
+                          }
+                          setNotificationsOpen(false);
+                        }}
+                      />
                     </div>
                     <DialogFooter className="border-t border-border px-4 py-3 sm:justify-between">
                       <Button

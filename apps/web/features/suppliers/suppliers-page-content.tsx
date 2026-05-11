@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { supplierCndBadgeVariant, supplierCndStatusDescription, supplierCndStatusLabel } from '@/features/suppliers/cnd-status';
 import { SupplierDialog } from '@/features/suppliers/supplier-dialog';
 import { useSuppliersMutations, useSuppliersQuery } from '@/hooks/use-suppliers';
-import { labelForOfferingCategory } from '@/lib/supplier-offering-categories';
+import { displayOfferingCategoryLabel } from '@/lib/supplier-offering-categories';
 import { formatDate } from '@/lib/format';
 import type { Supplier } from '@/types/api';
 
@@ -25,7 +25,9 @@ function normalizePt(s: string) {
 
 function supplierSearchHaystack(supplier: Supplier) {
   const cats = supplier.offeringCategories ?? [];
-  const catText = cats.map((c) => `${c} ${labelForOfferingCategory(c)}`).join(' ');
+  const catText = cats
+    .map((c) => `${c} ${displayOfferingCategoryLabel(c, supplier.offeringCategoriesOtherDetail)}`)
+    .join(' ');
   return normalizePt(
     [supplier.legalName, supplier.tradeName ?? '', supplier.documentNumber ?? '', supplier.notes ?? '', catText]
       .filter(Boolean)
@@ -186,7 +188,7 @@ export function SuppliersPageContent() {
                             <div className="flex flex-wrap gap-1">
                               {(supplier.offeringCategories ?? []).map((slug) => (
                                 <Badge key={slug} className="font-normal" variant="secondary">
-                                  {labelForOfferingCategory(slug)}
+                                  {displayOfferingCategoryLabel(slug, supplier.offeringCategoriesOtherDetail)}
                                 </Badge>
                               ))}
                             </div>

@@ -34,20 +34,31 @@ const OFFERING_CATEGORY_SLUGS = SUPPLIER_OFFERING_CATEGORY_OPTIONS.map((o) => o.
 ];
 
 const offeringCategoryField = z.enum(OFFERING_CATEGORY_SLUGS);
-
-const formSchema = z.object({
-  legalName: z.string().trim().min(1, 'Informe o nome do fornecedor.'),
-  tradeName: z.string().trim().optional(),
-  documentNumber: z.string().trim().optional(),
-  contactName: z.string().trim().optional(),
-  address: z.string().trim().optional(),
-  phone: z.string().trim().optional(),
-  email: z.string().trim().email('Informe um e-mail válido.').optional().or(z.literal('')),
-  cnd: z.string().trim().optional(),
-  notes: z.string().trim().optional(),
-  offeringCategories: z.array(offeringCategoryField).default([]),
-});
-
+const formSchema = z
+  .object({
+    legalName: z.string().trim().min(1, 'Informe o nome do fornecedor.'),
+    tradeName: z.string().trim().optional(),
+    documentNumber: z.string().trim().optional(),
+    contactName: z.string().trim().optional(),
+    address: z.string().trim().optional(),
+    phone: z.string().trim().optional(),
+    email: z.string().trim().email('Informe um e-mail válido.').optional().or(z.literal('')),
+    cnd: z.string().trim().optional(),
+    notes: z.string().trim().optional(),
+    offeringCategories: z.array(offeringCategoryField).default([]),
+    offeringCategoriesOtherDetail: z.string().max(400, 'Use no máximo 400 caracteres.').optional(),
+  })
+  .superRefine((data, ctx) => {
+    const hasOutros = data.offeringCategories?.includes('OUTROS');
+    const detail = (data.offeringCategoriesOtherDetail ?? '').trim();
+    if (hasOutros && !detail) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Descreva o que se enquadra em «Outros».',
+        path: ['offeringCategoriesOtherDetail'],
+      });
+    }
+  });
 type FormValues = z.input<typeof formSchema>;
 type FormSubmitValues = z.output<typeof formSchema>;
 
@@ -80,6 +91,7 @@ export function SupplierDialog({
       cnd: supplier?.cnd ?? '',
       notes: supplier?.notes ?? '',
       offeringCategories: supplier?.offeringCategories ?? [],
+      offeringCategoriesOtherDetail: supplier?.offeringCategoriesOtherDetail ?? '',
     },
   });
 
@@ -95,6 +107,7 @@ export function SupplierDialog({
       cnd: supplier?.cnd ?? '',
       notes: supplier?.notes ?? '',
       offeringCategories: supplier?.offeringCategories ?? [],
+      offeringCategoriesOtherDetail: supplier?.offeringCategoriesOtherDetail ?? '',
     });
   }, [form, supplier]);
 
@@ -107,8 +120,12 @@ export function SupplierDialog({
 
   async function onSubmit(values: FormSubmitValues) {
     try {
+      const hasOutros = (values.offeringCategories ?? []).includes('OUTROS');
+      const trimmedOtherDetail = hasOutros ? (values.offeringCategoriesOtherDetail ?? '').trim() : undefined;
+      const { offeringCategoriesOtherDetail: _otherDetail, ...restValues } = values;
+
       const payload = {
-        ...values,
+        ...restValues,
         tradeName: values.tradeName || null,
         documentNumber: values.documentNumber || null,
         contactName: values.contactName || null,
@@ -118,8 +135,8 @@ export function SupplierDialog({
         cnd: values.cnd || null,
         notes: values.notes || null,
         offeringCategories: values.offeringCategories ?? [],
+        ...(trimmedOtherDetail !== undefined ? { offeringCategoriesOtherDetail: trimmedOtherDetail } : {}),
       };
-
       const cndUploads =
         cndFederalFile || cndEstadualFile
           ? {
@@ -158,8 +175,12 @@ export function SupplierDialog({
 
   function toggleCategory(slug: SupplierOfferingCategorySlug) {
     const cur = form.getValues('offeringCategories') ?? [];
+    const removingOutros = slug === 'OUTROS' && cur.includes('OUTROS');
     const next = cur.includes(slug) ? cur.filter((s) => s !== slug) : [...cur, slug];
     form.setValue('offeringCategories', next, { shouldDirty: true });
+    if (removingOutros) {
+      form.setValue('offeringCategoriesOtherDetail', '', { shouldDirty: true });
+    }
   }
   const hasParsedCnd = Boolean(
     supplier?.cndFederal?.validUntil ||
@@ -255,6 +276,26 @@ export function SupplierDialog({
                       );
                     })}
                   </div>
+                  {selectedCategories.includes('OUTROS') ? (
+                    <div className="space-y-2 pt-1">
+                      <Label htmlFor="offeringCategoriesOtherDetail">Descrição em «Outros»</Label>
+                      <Input
+                        id="offeringCategoriesOtherDetail"
+                        autoComplete="off"
+                        className="min-w-0"
+                        maxLength={400}
+                        placeholder="Ex.: ferramentas especializadas, insumos de laboratório…"
+                        {...form.register('offeringCategoriesOtherDetail')}
+                      />
+                      {form.formState.errors.offeringCategoriesOtherDetail ? (
+                        <p className="text-xs text-destructive">
+                          {form.formState.errors.offeringCategoriesOtherDetail.message}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Campo obrigatório quando «Outros» está selecionado.</p>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="space-y-5 sm:col-span-2">

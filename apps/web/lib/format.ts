@@ -55,6 +55,24 @@ export function formatDateTime(value?: string | null) {
   }).format(date);
 }
 
+/** HH:mm no fuso local, para lista tipo caixa de entrada. */
+export function formatInboxTime(value?: string | null) {
+  if (!value) {
+    return '—';
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return '—';
+  }
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
 export function toDateInputValue(value?: string | null) {
   if (!value) {
     return '';

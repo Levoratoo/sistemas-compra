@@ -54,18 +54,33 @@ const offeringCategoriesField = z.preprocess(
   z.array(supplierOfferingCategorySchema).default([]),
 );
 
-const supplierBaseSchema = z.object({
-  legalName: z.string().trim().min(1),
-  tradeName: optionalTrim,
-  documentNumber: optionalTrim,
-  contactName: optionalTrim,
-  address: optionalTrim,
-  phone: optionalTrim,
-  email: z.preprocess(emptyToUndefined, z.string().email().optional()),
-  cnd: optionalTrim,
-  notes: optionalTrim,
-  offeringCategories: offeringCategoriesField,
-});
+const offeringCategoriesOtherDetailSchema = z.preprocess(emptyToUndefined, z.string().trim().max(400).optional());
+
+const supplierBaseSchema = z
+  .object({
+    legalName: z.string().trim().min(1),
+    tradeName: optionalTrim,
+    documentNumber: optionalTrim,
+    contactName: optionalTrim,
+    address: optionalTrim,
+    phone: optionalTrim,
+    email: z.preprocess(emptyToUndefined, z.string().email().optional()),
+    cnd: optionalTrim,
+    notes: optionalTrim,
+    offeringCategories: offeringCategoriesField,
+    offeringCategoriesOtherDetail: offeringCategoriesOtherDetailSchema,
+  })
+  .superRefine((data, ctx) => {
+    const hasOutros = data.offeringCategories.includes('OUTROS');
+    const detail = (data.offeringCategoriesOtherDetail ?? '').trim();
+    if (hasOutros && !detail) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Descreva o que se enquadra em «Outros».',
+        path: ['offeringCategoriesOtherDetail'],
+      });
+    }
+  });
 
 export const createSupplierSchema = supplierBaseSchema;
 
@@ -73,7 +88,22 @@ export const supplierIdParamsSchema = z.object({
   id: z.string().min(1),
 });
 
-export const updateSupplierSchema = supplierBaseSchema.partial();
+export const updateSupplierSchema = supplierBaseSchema.partial().superRefine((data, ctx) => {
+  if (!data.offeringCategories?.includes('OUTROS')) {
+    return;
+  }
+  if (data.offeringCategoriesOtherDetail === undefined) {
+    return;
+  }
+  const detail = String(data.offeringCategoriesOtherDetail).trim();
+  if (!detail) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Descreva o que se enquadra em «Outros».',
+      path: ['offeringCategoriesOtherDetail'],
+    });
+  }
+});
 
 export type CreateSupplierInput = z.infer<typeof createSupplierSchema>;
 export type UpdateSupplierInput = z.infer<typeof updateSupplierSchema>;

@@ -132,6 +132,17 @@ export type UserRole = 'ADMIN' | 'USER' | 'APPROVER' | 'SUPERVISOR';
 
 export type NotificationType = 'REPLENISHMENT_DUE_SOON' | 'SUPPLIER_CND_ALERT';
 
+export interface NotificationProjectRef {
+  id: string;
+  code: string;
+  name: string;
+}
+
+export interface NotificationSupplierRef {
+  id: string;
+  legalName: string;
+}
+
 export interface AppNotification {
   id: string;
   userId: string;
@@ -144,6 +155,8 @@ export interface AppNotification {
   supplierId: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+  project: NotificationProjectRef | null;
+  supplier: NotificationSupplierRef | null;
 }
 
 export interface ReleasedProjectSummary {
@@ -308,6 +321,8 @@ export interface Supplier extends EntityTimestamps {
   /** Há arquivo CND estadual anexado. */
   cndStatePresent: boolean;
   offeringCategories: SupplierOfferingCategorySlug[];
+  /** Texto livre quando `OUTROS` está em `offeringCategories`. */
+  offeringCategoriesOtherDetail: string | null;
   notes: string | null;
 }
 

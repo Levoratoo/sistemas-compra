@@ -12,6 +12,7 @@ export type SupplierPayload = {
   cnd?: string | null;
   notes?: string | null;
   offeringCategories?: SupplierOfferingCategorySlug[];
+  offeringCategoriesOtherDetail?: string | null;
 };
 
 function appendSupplierFormData(formData: FormData, payload: SupplierPayload | Partial<SupplierPayload>) {

@@ -537,6 +537,8 @@ model Supplier {
   notes             String?
   /// Categorias de produtos/serviços (slugs validados na API, ex.: EPI, UNIFORMES).
   offeringCategories String[] @default([])
+  /// Descrição livre quando `OUTROS` está em offeringCategories (obrigatório nesse caso).
+  offeringCategoriesOtherDetail String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 

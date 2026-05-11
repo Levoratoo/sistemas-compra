@@ -7,7 +7,12 @@ import { toIsoString } from '../utils/date.js';
 import { effectiveNextReplenishmentDate, isReplenishmentAttentionActive } from '../utils/replenishment-dates.js';
 import { buildSupplierCndAlertPayload } from '../utils/supplier-cnd-alert.js';
 
-function serializeNotification(n: Notification) {
+type NotificationWithRefs = Notification & {
+  project: { id: string; code: string; name: string } | null;
+  supplier: { id: string; legalName: string } | null;
+};
+
+function serializeNotification(n: NotificationWithRefs) {
   return {
     id: n.id,
     userId: n.userId,
@@ -20,6 +25,8 @@ function serializeNotification(n: Notification) {
     supplierId: n.supplierId,
     createdAt: toIsoString(n.createdAt),
     updatedAt: toIsoString(n.updatedAt),
+    project: n.project ? { id: n.project.id, code: n.project.code, name: n.project.name } : null,
+    supplier: n.supplier ? { id: n.supplier.id, legalName: n.supplier.legalName } : null,
   };
 }
 
@@ -178,6 +185,10 @@ class NotificationService {
       where: { userId },
       orderBy: { createdAt: 'desc' },
       take: 80,
+      include: {
+        project: { select: { id: true, code: true, name: true } },
+        supplier: { select: { id: true, legalName: true } },
+      },
     });
 
     return rows.map(serializeNotification);
@@ -195,6 +206,10 @@ class NotificationService {
     const updated = await prisma.notification.update({
       where: { id: notificationId },
       data: { readAt: new Date() },
+      include: {
+        project: { select: { id: true, code: true, name: true } },
+        supplier: { select: { id: true, legalName: true } },
+      },
     });
 
     return serializeNotification(updated);
