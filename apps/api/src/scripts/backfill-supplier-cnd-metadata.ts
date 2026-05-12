@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 import { prisma } from '../config/prisma.js';
 import { env } from '../config/env.js';
-import { extractSupplierCndMetadataFromFile } from '../utils/supplier-cnd-parser.js';
+import { extractSupplierCndMetadataFromFile, inferSupplierCndScopeFromText } from '../utils/supplier-cnd-parser.js';
 import { ensureRelativeStoragePath } from '../utils/file.js';
 import { refreshSupplierCndAggregateFields } from '../services/supplier-cnd-sync.service.js';
 
@@ -30,8 +30,9 @@ async function main() {
         attachment.originalFileName,
         attachment.mimeType,
       );
+      const inferredScope = inferSupplierCndScopeFromText(parsed?.fullText ?? '', attachment.originalFileName);
 
-      if (!parsed?.validUntil) {
+      if (!parsed?.validUntil && !inferredScope) {
         skipped += 1;
         continue;
       }
@@ -39,9 +40,10 @@ async function main() {
       await prisma.supplierCndAttachment.update({
         where: { id: attachment.id },
         data: {
-          parsedIssuedAt: parsed.issuedAt ?? null,
-          parsedValidUntil: parsed.validUntil,
-          parsedControlCode: parsed.controlCode ?? null,
+          scope: inferredScope ?? attachment.scope,
+          parsedIssuedAt: parsed?.issuedAt ?? null,
+          parsedValidUntil: parsed?.validUntil ?? null,
+          parsedControlCode: parsed?.controlCode ?? null,
         },
       });
 

@@ -33,6 +33,14 @@ function normalizeForSearch(value: string) {
     .trim();
 }
 
+function normalizeLinesForSearch(value: string) {
+  return repairUtf8MisinterpretedAsLatin1(value)
+    .replace(/\r/g, '')
+    .split('\n')
+    .map((line) => stripDiacritics(line).replace(/[ \t]+/g, ' ').trim())
+    .filter(Boolean);
+}
+
 function parseBrazilianDate(value: string): Date | null {
   const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (!match) {
@@ -149,6 +157,109 @@ function tryParseStateCndRelativeValidity(normalizedText: string) {
   };
 }
 
+function findFirstMatchingLine(
+  lines: string[],
+  startIndex: number,
+  maxLinesAhead: number,
+  patterns: RegExp[],
+) {
+  const end = Math.min(lines.length, startIndex + maxLinesAhead + 1);
+  for (const pattern of patterns) {
+    for (let i = startIndex + 1; i < end; i += 1) {
+      const line = lines[i];
+      if (!line) {
+        continue;
+      }
+      const match = line.match(pattern);
+      if (match) {
+        return match;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Alguns layouts estaduais saem do OCR como tabela: os rótulos ficam em linhas
+ * separadas e os valores aparecem nas linhas seguintes.
+ */
+function tryParseStateCndTabularValidity(originalText: string) {
+  const lines = normalizeLinesForSearch(originalText);
+  if (lines.length === 0) {
+    return null;
+  }
+
+  const validityLabelIndex = lines.findIndex((line) => /\bvalidade\b/i.test(line));
+  const issueLabelIndex = lines.findIndex((line) => /\bemissao\b/i.test(line));
+  const certificateLabelIndex = lines.findIndex((line) => /\bcertidao\b/i.test(line));
+
+  const validityMatch =
+    validityLabelIndex >= 0
+      ? findFirstMatchingLine(lines, validityLabelIndex, 6, [/^(\d{2}\/\d{2}\/\d{4})$/, /^(\d{2}\/\d{2}\/\d{4})\s+\d{2}:\d{2}:\d{2}$/])
+      : null;
+  const issuedMatch =
+    issueLabelIndex >= 0
+      ? findFirstMatchingLine(lines, issueLabelIndex, 6, [/^(\d{2}\/\d{2}\/\d{4})\s+(\d{2}:\d{2}:\d{2})$/, /^(\d{2}\/\d{2}\/\d{4})$/])
+      : null;
+  const certificateMatch =
+    certificateLabelIndex >= 0
+      ? findFirstMatchingLine(lines, certificateLabelIndex, 6, [/\b((?=[A-Z0-9.-]*\d)[A-Z0-9.-]{8,}|[0-9]{11}-[0-9]{2})\b/i])
+      : null;
+
+  const validityDate = validityMatch?.[1] ?? null;
+  const issuedDate = issuedMatch?.[1] ?? null;
+  const issuedTime = issuedMatch?.[2] ?? null;
+
+  return {
+    issuedAt: issuedDate ? (issuedTime ? parseBrazilianDateTime(issuedDate, issuedTime) : parseBrazilianDate(issuedDate)) : null,
+    validUntil: validityDate ? parseBrazilianDate(validityDate) : null,
+    certificateNumber: certificateMatch ? normalizeWhitespace(certificateMatch[1] ?? '') || null : null,
+  };
+}
+
+export function inferSupplierCndScopeFromText(
+  text: string,
+  originalFileName?: string | null,
+): 'FEDERAL' | 'STATE' | null {
+  const normalizedText = normalizeForSearch(text).toLowerCase();
+  const normalizedFileName = normalizeForSearch(originalFileName ?? '').toLowerCase();
+
+  const federalSignals = [
+    /receita federal do brasil/,
+    /procuradoria-geral da fazenda nacional/,
+    /tributos federais/,
+    /divida ativa da uniao/,
+    /portaria conjunta rfb\/pgfn/,
+  ];
+  const stateSignals = [
+    /secretaria da fazenda/,
+    /estado de [a-z]/,
+    /divida ativa do estado/,
+    /nao inscritos na divida ativa/,
+    /fazenda e planejamento/,
+    /\bsefaz\b/,
+  ];
+
+  const federalScore = federalSignals.reduce((score, pattern) => score + (pattern.test(normalizedText) ? 1 : 0), 0);
+  const stateScore = stateSignals.reduce((score, pattern) => score + (pattern.test(normalizedText) ? 1 : 0), 0);
+
+  if (federalScore > stateScore) {
+    return 'FEDERAL';
+  }
+  if (stateScore > federalScore) {
+    return 'STATE';
+  }
+
+  if (/\bfederal\b|\buniao\b/.test(normalizedFileName)) {
+    return 'FEDERAL';
+  }
+  if (/\bestadual\b|\bestado\b|\bsefaz\b/.test(normalizedFileName)) {
+    return 'STATE';
+  }
+
+  return null;
+}
+
 export function extractSupplierCndMetadataFromText(
   text: string,
 ): Omit<SupplierCndParsedMetadata, 'fullText' | 'extractionMode'> {
@@ -168,11 +279,18 @@ export function extractSupplierCndMetadataFromText(
   let controlCode = controlCodeMatch ? normalizeWhitespace(controlCodeMatch[1] ?? '') || null : null;
 
   const stateRelative = validUntil === null ? tryParseStateCndRelativeValidity(normalizedText) : null;
+  const stateTabular = validUntil === null ? tryParseStateCndTabularValidity(originalText) : null;
 
   if (stateRelative) {
     issuedAt ??= stateRelative.issuedAt;
     validUntil = validUntil ?? stateRelative.validUntil;
     controlCode ??= stateRelative.certificateNumber ?? null;
+  }
+
+  if (stateTabular) {
+    issuedAt ??= stateTabular.issuedAt;
+    validUntil = validUntil ?? stateTabular.validUntil;
+    controlCode ??= stateTabular.certificateNumber ?? null;
   }
 
   return {
@@ -230,7 +348,7 @@ export async function extractSupplierCndMetadataFromFile(
   if (isImageLikeFile(originalFileName, mimeType)) {
     const ocrText = repairUtf8MisinterpretedAsLatin1((await extractTextFromImageBuffer(buffer)).trim());
     const parsed = extractSupplierCndMetadataFromText(ocrText);
-    return extractionScore(parsed) > 0 ? { ...parsed, fullText: ocrText, extractionMode: 'OCR' } : null;
+    return extractionScore(parsed) > 0 || ocrText.trim().length > 0 ? { ...parsed, fullText: ocrText, extractionMode: 'OCR' } : null;
   }
 
   if (!isPdfLikeFile(originalFileName, mimeType)) {
@@ -254,5 +372,5 @@ export async function extractSupplierCndMetadataFromFile(
       ? { ...ocrParsed, fullText: ocrText, extractionMode: 'OCR' as const }
       : { ...directParsed, fullText: directText, extractionMode: 'DIRECT_TEXT' as const };
 
-  return extractionScore(best) > 0 ? best : null;
+  return extractionScore(best) > 0 || best.fullText.trim().length > 0 ? best : null;
 }

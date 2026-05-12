@@ -13,11 +13,14 @@ import { env } from '../config/env.js';
 import { CND_ROOT_FOLDER_NAME } from '../constants/documentation-folders.js';
 import { buildSupplierCndFolderLabel } from '../services/supplier-cnd-folders.service.js';
 import {
+  cndDocumentNotesForScope,
   persistSupplierCndMasterFile,
   replicateSupplierCndAttachmentToProject,
+  refreshSupplierCndAggregateFields,
   SUPPLIER_CND_DOCUMENT_NOTES,
 } from '../services/supplier-cnd-sync.service.js';
 import { ensureRelativeStoragePath } from '../utils/file.js';
+import { extractSupplierCndMetadataFromFile, inferSupplierCndScopeFromText } from '../utils/supplier-cnd-parser.js';
 
 async function readDocBuffer(storagePath: string): Promise<Buffer> {
   const relative = ensureRelativeStoragePath(storagePath);
@@ -92,6 +95,7 @@ async function main() {
   let created = 0;
   let linked = 0;
   let replicated = 0;
+  const touchedSupplierIds = new Set<string>();
 
   const allProjects = await prisma.project.findMany({ select: { id: true } });
 
@@ -108,22 +112,32 @@ async function main() {
     }
 
     const buffer = await readDocBuffer(first.storagePath);
+    const parsed = await extractSupplierCndMetadataFromFile(
+      buffer,
+      first.originalFileName,
+      first.mimeType ?? undefined,
+    );
+    const scope = inferSupplierCndScopeFromText(parsed?.fullText ?? '', first.originalFileName) ?? 'FEDERAL';
     const attachment = await persistSupplierCndMasterFile(
       supplier.id,
       first.originalFileName,
       buffer,
       first.mimeType ?? undefined,
-      'FEDERAL',
-      null,
+      scope,
+      parsed,
       first.fileSizeBytes ?? buffer.length,
     );
     created += 1;
+    touchedSupplierIds.add(supplier.id);
 
     const projectIdsWithDoc = new Set(groupDocs.map((d) => d.projectId));
     for (const doc of groupDocs) {
       await prisma.projectDocument.update({
         where: { id: doc.id },
-        data: { supplierCndAttachmentId: attachment.id },
+        data: {
+          supplierCndAttachmentId: attachment.id,
+          notes: cndDocumentNotesForScope(scope),
+        },
       });
       linked += 1;
     }
@@ -132,9 +146,13 @@ async function main() {
       if (projectIdsWithDoc.has(projectId)) {
         continue;
       }
-      await replicateSupplierCndAttachmentToProject(projectId, supplier.legalName, attachment, 'FEDERAL', buffer);
+      await replicateSupplierCndAttachmentToProject(projectId, supplier.legalName, attachment, scope, buffer);
       replicated += 1;
     }
+  }
+
+  for (const supplierId of touchedSupplierIds) {
+    await refreshSupplierCndAggregateFields(supplierId);
   }
 
   console.log(
