@@ -123,6 +123,69 @@ Cinto em couro, na cor preta 01 unidade
 2.3. No caso de a empregada estar em fase de gestação.
 `;
 
+const FIXTURE_CUIABA_UNIFORM_ANNEX_HUJM = `
+ANEXO I - B
+DETALHAMENTO DOS UNIFORMES
+Objeto: Contratação de empresa especializada para a prestação serviços de apoio administrativo, com dedicação exclusiva de mão de
+obra, a afim de atender as necessidades do Hospital Universitário Julio Muller - UFMT, filial da Empresa Brasileira de Serviços
+Hospitalares – EBSERH.
+2. DETALHAMENTO DOS UNIFORMES
+2.1. A Contratada será responsável pelo fornecimento de dois conjuntos de uniformes completos aos seus empregados no
+início da prestação dos serviços. Após, a partir do sexto mês de execução contratual, deverá fornecer 1 (um) kit
+semestralmente.
+2.2. Os kits serão compostos segundo a listagem dos uniformes necessários abaixo, separados por cargo:
+RECEPCIONISTA, AUXILIAR DE DOCUMENTAÇÃO, PORTEIRO, DIGITADOR, CONTÍNUO.
+TIPO DE UNIFORME MASCULINO QUANTIDADE
+SEMESTRAL
+Calça jeans escura. 01 unidade
+Orientação - SEI 1 (44298243) SEI 23532.000274/2024-71 / pg. 1
+Camisa gola polo, cor cinza cinza claro, em Piquet, manga curta, com detalhe
+em verde (ebserh), contendo bordado com o nome da empresa contratada, da
+EBSERH e do HUJM/UFMT)
+01 unidade
+Calçado fechado macio, modelo básico, linha profissional, solado
+antiderrapante, confortável. 01 par
+Meia branca material macio e confortável 02 pares
+TIPO DE UNIFORME FEMININO QUANTIDADE
+SEMESTRAL
+Camisa gola polo feminina, cinza claro, em Piquet, manga curta com detalhe
+em verde (ebserh), contendo bordado com o nome da empresa contratada, da
+EBSERH e do HUJM/UFMT)
+01 unidade
+Calça jeans escura. 01 unidade
+Calçado fechado macio, modelo básico, linha profissional, solado
+antiderrapante, confortável 01 par
+Meia branca material macio e confortável 02 pares
+MAQUEIRO
+TIPO DE UNIFORME MASCULINO / FEMININO QUANTIDADE
+SEMESTRAL
+Scrub - Pijama cirúrgico, sendo:
+Camisa gola V, manga curta, 1 bolso na parte superior esquerda, tecido 100%
+algodão, na cor verde (contendo bordado com o nome da empresa contratada e
+do HUJM/UFMT)
+Calça Scrub cintura com elástico, cordão de ajuste, um bolso superior,
+fabricada em 100% algodão, na cor verde
+02 unidades
+Meia em algodão, cor branca 02 pares
+ENCARREGADO
+TIPO DE UNIFORME MASCULINO / FEMININO QUANTIDADE
+SEMESTRAL
+Camisa social manga comprida, de botões, em poliéster com algodão, na cor
+cinza claro, contendo bordado com o nome da empresa contratada, da
+EBSERH e do HUJM/UFMT.
+01 unidade
+Calça social com presilhas para cinto e entretela, na cor preta gabardine ou
+Oxford; abotoamento com um botão; fechamento frontal com zíper tradicional;
+dois bolsos na frontal faca; dois bolsos traseiros, embutidos, com possibilidade
+de ajuste individual.
+01 unidade
+Sapato social em Couro preto, linha conforto 01 par
+Meia, tecido em nylon cor preta 02 pares
+Orientação - SEI 1 (44298243) SEI 23532.000274/2024-71 / pg. 2
+Cinto em couro, na cor preta 01 unidade
+2.3. No caso de a empregada da empresa CONTRATADA estiver em fase de gestação.
+`;
+
 const FIXTURE_CUIABA_EPI_ANNEX = `
 ANEXO I - C
 DETALHAMENTO DO EQUIPAMENTOS DE PROTEÇÃO INDIVIDUAIS (EPI)
@@ -251,6 +314,14 @@ describe('edital-anexo-materiais', () => {
     assert.equal(rows.length, 15);
     assert.ok(rows.some((row) => row.proposedValue.includes('Calçado fechado macio, modelo básico, linha profissional, solado antiderrapante, confortável')));
     assert.ok(rows.some((row) => row.proposedValue.includes('"item":"Masculino / Feminino — Cinto em couro, na cor preta"')));
+    assert.ok(rows.every((row) => !row.proposedValue.includes('Orientação - SEI')));
+  });
+
+  it('extrai anexo de uniformes do HUJM em texto unicode com quebra de pagina', () => {
+    const rows = extractBudgetLinesFromCuiabaUniformAnnex(FIXTURE_CUIABA_UNIFORM_ANNEX_HUJM);
+    assert.equal(rows.length, 15);
+    assert.ok(rows.some((row) => row.proposedValue.includes('Calça jeans escura.')));
+    assert.ok(rows.some((row) => row.proposedValue.includes('Cinto em couro, na cor preta')));
     assert.ok(rows.every((row) => !row.proposedValue.includes('Orientação - SEI')));
   });
 

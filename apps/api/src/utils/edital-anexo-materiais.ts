@@ -1,7 +1,17 @@
+import { repairUtf8MisinterpretedAsLatin1 } from './encoding.js';
 import type { BudgetLineCandidate } from './implementation-map-pdf.js';
 
 function normalizeSpaces(value: string) {
   return value.replace(/\s+/g, ' ').trim();
+}
+
+function normalizeSearch(value: string) {
+  return repairUtf8MisinterpretedAsLatin1(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 }
 
 const PDF_NOISE_LINE =
@@ -104,6 +114,20 @@ const CUIABA_ROLE_NAMES = [
 ];
 
 const CUIABA_ROLE_NAMES_SORTED = [...CUIABA_ROLE_NAMES].sort((a, b) => b.length - a.length);
+const CUIABA_ROLE_NAMES_CANONICAL = [
+  'Recepcionista',
+  'Auxiliar de documentação',
+  'Porteiro',
+  'Digitador',
+  'Contínuo',
+  'Maqueiro',
+  'Encarregado',
+  'Almoxarife',
+  'Secretário Executivo',
+];
+const CUIABA_ROLE_NAMES_SEARCH = new Map(
+  CUIABA_ROLE_NAMES_CANONICAL.map((role) => [normalizeSearch(role), role]),
+);
 
 const EXTRA_PDF_NOISE_LINE =
   /^(Orienta[cç][aã]o\s*-\s*SEI\b|Refer[êe]ncia:\s+Processo\s+n[º°])/i;
@@ -380,7 +404,7 @@ function splitCuiabaBrokenRoleLines(lines: string[]) {
     const next = normalizeSpaces(lines[i + 1] ?? '');
     if (current && next) {
       const maybeRole = normalizeSpaces(`${current} ${next}`).replace(/\.$/, '');
-      if (CUIABA_ROLE_NAMES.some((role) => role.toLowerCase() === maybeRole.toLowerCase())) {
+      if (CUIABA_ROLE_NAMES_SEARCH.has(normalizeSearch(maybeRole))) {
         current = maybeRole;
         i += 1;
       }
@@ -391,8 +415,8 @@ function splitCuiabaBrokenRoleLines(lines: string[]) {
 }
 
 function isCuiabaRoleName(line: string) {
-  const normalized = normalizeSpaces(line).replace(/\.$/, '');
-  return CUIABA_ROLE_NAMES.find((role) => role.toLowerCase() === normalized.toLowerCase()) ?? null;
+  const normalized = normalizeSearch(normalizeSpaces(line).replace(/\.$/, ''));
+  return CUIABA_ROLE_NAMES_SEARCH.get(normalized) ?? null;
 }
 
 export function extractBudgetLinesFromGenericRoleTables(fullText: string): BudgetLineCandidate[] {
@@ -780,6 +804,19 @@ function buildCuiabaUniformItemLabel(variant: string | null, item: string) {
   return variant ? `${variant} — ${item}` : item;
 }
 
+function isCuiabaSharedUniformRoleLineNormalized(line: string) {
+  const normalized = normalizeSearch(normalizeSpaces(line).replace(/\.$/, ''));
+  return normalized.includes('recepcionista, auxiliar de documentacao, porteiro, digitador, continuo');
+}
+
+function parseCuiabaUniformVariantNormalized(line: string): string | null {
+  const normalized = normalizeSearch(line);
+  if (normalized.startsWith('tipo de uniforme masculino / feminino')) return 'Masculino / Feminino';
+  if (normalized.startsWith('tipo de uniforme masculino')) return 'Masculino';
+  if (normalized.startsWith('tipo de uniforme feminino')) return 'Feminino';
+  return null;
+}
+
 export function extractBudgetLinesFromCuiabaUniformAnnex(fullText: string): BudgetLineCandidate[] {
   if (!/ANEXO\s+I\s*-\s*B/i.test(fullText) || !/DETALHAMENTO\s+DOS\s+UNIFORMES/i.test(fullText)) {
     return [];
@@ -790,7 +827,13 @@ export function extractBudgetLinesFromCuiabaUniformAnnex(fullText: string): Budg
     .split('\n')
     .map((line) => normalizeSpaces(line))
     .filter((line) => line.length > 0 && !isNoise(line));
-  const lines = splitCuiabaBrokenRoleLines(baseLines);
+  const annexHeaderIndex = baseLines.findIndex((line, index) => {
+    if (!/^ANEXO\s+I\s*-\s*B/i.test(line)) return false;
+    return /^DETALHAMENTO\s+DOS\s+UNIFORMES/i.test(baseLines[index + 1] ?? '');
+  });
+  if (annexHeaderIndex < 0) return [];
+
+  const lines = splitCuiabaBrokenRoleLines(baseLines.slice(annexHeaderIndex));
 
   const rows: BudgetLineCandidate[] = [];
   const seen = new Set<string>();
@@ -827,7 +870,7 @@ export function extractBudgetLinesFromCuiabaUniformAnnex(fullText: string): Budg
 
     if (/^2\.3\.|^3\./.test(line)) break;
 
-    if (isCuiabaSharedUniformRoleLine(line)) {
+    if (isCuiabaSharedUniformRoleLineNormalized(line)) {
       currentRole = normalizeSpaces(line).replace(/\.$/, '');
       currentVariant = null;
       pendingParts = [];
@@ -844,7 +887,7 @@ export function extractBudgetLinesFromCuiabaUniformAnnex(fullText: string): Budg
       continue;
     }
 
-    const variant = parseCuiabaUniformVariant(line);
+    const variant = parseCuiabaUniformVariantNormalized(line);
     if (variant) {
       currentVariant = variant;
       pendingParts = [];
@@ -853,7 +896,16 @@ export function extractBudgetLinesFromCuiabaUniformAnnex(fullText: string): Budg
     }
 
     if (!inTable || !currentRole) continue;
-    if (/^SEMESTRAL$/i.test(line)) continue;
+
+    const normalizedLine = normalizeSearch(line);
+    if (normalizedLine === 'semestral') continue;
+    if (
+      normalizedLine.startsWith('orientacao - sei') ||
+      normalizedLine.startsWith('*imagens') ||
+      normalizedLine.startsWith('**imagens')
+    ) {
+      continue;
+    }
 
     const inline = parseTrailingQuantity(line);
     if (inline && inline.item.length >= 3) {
@@ -890,10 +942,10 @@ function startsCuiabaPrimaryLotacaoLine(line: string) {
 
 function parseCuiabaInlineWildcardRoleRow(line: string) {
   const normalized = normalizeSpaces(line);
-  const lower = normalized.toLocaleLowerCase('pt-BR');
+  const lower = normalizeSearch(normalized);
 
   for (const role of CUIABA_ROLE_NAMES_SORTED) {
-    const roleLower = role.toLocaleLowerCase('pt-BR');
+    const roleLower = normalizeSearch(role);
     if (!lower.startsWith(roleLower) || !/\*\s*\*/.test(normalized)) continue;
 
     const rest = normalizeSpaces(
