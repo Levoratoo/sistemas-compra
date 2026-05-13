@@ -964,8 +964,70 @@ function parseCuiabaInlineWildcardRoleRow(line: string) {
   return null;
 }
 
+function isCuiabaClauseStart(line: string, clause: string) {
+  const escaped = clause.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\./g, '\\s*\\.\\s*');
+  return new RegExp(`^${escaped}`).test(line);
+}
+
+function extractCuiabaSupplementalEpiList(
+  lines: string[],
+  rows: BudgetLineCandidate[],
+  seen: Set<string>,
+) {
+  const sectionStart = lines.findIndex((line) => {
+    if (!isCuiabaClauseStart(line, '1.5.')) return false;
+    return normalizeSearch(line).includes('tambem deverao ser fornecidos');
+  });
+  if (sectionStart < 0) return;
+
+  let pendingParts: string[] = [];
+
+  const flushPending = () => {
+    const description = normalizeSpaces(pendingParts.join(' ')).replace(/[.;:]+$/g, '').trim();
+    pendingParts = [];
+    if (!description) return;
+
+    pushUniqueBudgetLine(
+      rows,
+      seen,
+      {
+        description,
+        detail: 'Quantidade suficiente para atender aos empregados quando necessÃ¡rio, conforme Anexo I-C (CuiabÃ¡).',
+        source: 'edital_cuiaba_epi_lista',
+        sectionLabel: 'Anexo I-C â€” EPI',
+      },
+      'EPI complementar',
+      `edital_cuiaba_epi_lista_${rows.length}`,
+      description,
+    );
+  };
+
+  for (let i = sectionStart + 1; i < lines.length; i += 1) {
+    const line = lines[i]!;
+    if (isCuiabaClauseStart(line, '1.6.') || isCuiabaClauseStart(line, '2.')) {
+      flushPending();
+      break;
+    }
+    if (/Orienta[cÃ§][aÃ£]o\s*-\s*SEI/i.test(line)) continue;
+
+    const bullet = /^\s*[a-z]\s*[\)\.]\s*(.+)$/i.exec(line);
+    if (bullet) {
+      flushPending();
+      pendingParts = [bullet[1] ?? ''];
+      continue;
+    }
+
+    if (pendingParts.length > 0) {
+      pendingParts.push(line);
+    }
+  }
+
+  flushPending();
+}
+
 export function extractBudgetLinesFromCuiabaEpiAnnex(fullText: string): BudgetLineCandidate[] {
-  if (!/ANEXO\s+I\s*-\s*C/i.test(fullText) || !/EQUIPAMENTOS?\s+DE\s+PROTE[CÇ][AÃ]O\s+INDIVIDUAIS/i.test(fullText)) {
+  const normalizedText = normalizeSearch(fullText);
+  if (!/ANEXO\s+I\s*-\s*C/i.test(fullText) || !normalizedText.includes('equipamentos de protecao individuais')) {
     return [];
   }
 
@@ -974,15 +1036,34 @@ export function extractBudgetLinesFromCuiabaEpiAnnex(fullText: string): BudgetLi
     .split('\n')
     .map((line) => normalizeSpaces(line))
     .filter((line) => line.length > 0 && !isNoise(line));
-  const lines = splitCuiabaBrokenRoleLines(baseLines);
+  const annexHeaderIndex = baseLines.findIndex((line, index) => {
+    if (normalizeSearch(line) !== 'anexo i - c') return false;
+    return normalizeSearch(baseLines[index + 1] ?? '').includes('detalhamento do equipamentos de protecao individuais');
+  });
+  if (annexHeaderIndex < 0) return [];
+
+  const lines = splitCuiabaBrokenRoleLines(baseLines.slice(annexHeaderIndex));
 
   const rows: BudgetLineCandidate[] = [];
   const seen = new Set<string>();
   const headerIndex = lines.findIndex((line, index) => {
-    if (/^CARGO\b.+LOTA[CÇ][AÃ]O\b.+QUANTIDADE\/EMPREGADO\/ANO/i.test(line)) return true;
+    const normalizedLine = normalizeSearch(line);
+    if (
+      normalizedLine.startsWith('cargo') &&
+      normalizedLine.includes('lotacao') &&
+      normalizedLine.includes('quantidade/empregado/ano')
+    ) {
+      return true;
+    }
+
+    const normalizedNextLine = normalizeSearch(lines[index + 1] ?? '');
     return (
-      /^CARGO\b.+LOTA[CÇ][AÃ]O\b.+EPI['’`]S?\s+A\s+SEREM/i.test(line) &&
-      /^FORNECIDOS\b.+QUANTIDADE\/EMPREGADO\/ANO/i.test(lines[index + 1] ?? '')
+      normalizedLine.startsWith('cargo') &&
+      normalizedLine.includes('lotacao') &&
+      normalizedLine.includes('epi') &&
+      normalizedLine.includes('serem') &&
+      normalizedNextLine.startsWith('fornecidos') &&
+      normalizedNextLine.includes('quantidade/empregado/ano')
     );
   });
   if (headerIndex < 0) return [];
@@ -1019,7 +1100,7 @@ export function extractBudgetLinesFromCuiabaEpiAnnex(fullText: string): BudgetLi
 
   for (let i = headerIndex + 1; i < lines.length; i += 1) {
     const line = lines[i]!;
-    if (/^1\.5\.|^2\./.test(line)) break;
+    if (isCuiabaClauseStart(line, '1.5.') || isCuiabaClauseStart(line, '2.')) break;
     if (/Orienta[cç][aã]o\s*-\s*SEI/i.test(line)) continue;
 
     const inlineWildcardRole = parseCuiabaInlineWildcardRoleRow(line);
@@ -1075,6 +1156,8 @@ export function extractBudgetLinesFromCuiabaEpiAnnex(fullText: string): BudgetLi
 
     pendingItemParts = [line];
   }
+
+  extractCuiabaSupplementalEpiList(lines, rows, seen);
 
   return dedupeRowsBySemanticItem(rows);
 }

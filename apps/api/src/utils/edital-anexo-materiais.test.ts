@@ -219,6 +219,13 @@ Porteiro Portarias * *
 Recepcionista Diversos * *
 Secretário Executivo Superintendência * *
 1.5. Também deverão ser fornecidos.
+a) Luva de procedimentos nao-cirurgicos;
+b) Mascaras descartaveis;
+c) Mascaras PFF2;
+d) Avental descartavel em TNT;
+e) Touca descartavel em TNT;
+f) Demais EPIs que posteriormente seja analisada a necessidade.
+1.6. A listagem é apenas referencial.
 `;
 
 const FIXTURE_CUIABA_EQUIPMENT_ANNEX = `
@@ -327,10 +334,12 @@ describe('edital-anexo-materiais', () => {
 
   it('extrai anexo de EPI de Cuiaba preservando lotacao e quantidades', () => {
     const rows = extractBudgetLinesFromCuiabaEpiAnnex(FIXTURE_CUIABA_EPI_ANNEX);
-    assert.equal(rows.length, 9);
+    assert.equal(rows.length, 15);
     assert.ok(rows.some((row) => row.proposedValue.includes('"item":"Cinta ergonômica"')));
     assert.ok(rows.some((row) => row.proposedValue.includes('"quantity":"24 caixas"') || row.proposedValue.includes('"quantity":"24 cx c/ 50und."')));
     assert.ok(rows.some((row) => row.proposedValue.includes('Unidade de Abastecimento e Controle de Estoques')));
+    assert.ok(rows.some((row) => row.proposedValue.includes('Mascaras PFF2')));
+    assert.ok(rows.some((row) => row.proposedValue.includes('Touca descartavel em TNT')));
     assert.ok(rows.every((row) => !row.proposedValue.includes('sob demanda')));
   });
 
@@ -348,6 +357,6 @@ describe('edital-anexo-materiais', () => {
     );
     assert.equal(parsed.anchorFound, true);
     assert.equal(parsed.matchedProfile, 'cuiaba_annexes');
-    assert.ok(parsed.budgetLines.length >= 29);
+    assert.ok(parsed.budgetLines.length >= 35);
   });
 });
