@@ -56,53 +56,48 @@ const offeringCategoriesField = z.preprocess(
 
 const offeringCategoriesOtherDetailSchema = z.preprocess(emptyToUndefined, z.string().trim().max(400).optional());
 
-const supplierBaseSchema = z
-  .object({
-    legalName: z.string().trim().min(1),
-    tradeName: optionalTrim,
-    documentNumber: optionalTrim,
-    contactName: optionalTrim,
-    address: optionalTrim,
-    phone: optionalTrim,
-    email: z.preprocess(emptyToUndefined, z.string().email().optional()),
-    cnd: optionalTrim,
-    notes: optionalTrim,
-    offeringCategories: offeringCategoriesField,
-    offeringCategoriesOtherDetail: offeringCategoriesOtherDetailSchema,
-  })
-  .superRefine((data, ctx) => {
-    const hasOutros = data.offeringCategories.includes('OUTROS');
-    const detail = (data.offeringCategoriesOtherDetail ?? '').trim();
-    if (hasOutros && !detail) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'Descreva o que se enquadra em «Outros».',
-        path: ['offeringCategoriesOtherDetail'],
-      });
-    }
-  });
-
-export const createSupplierSchema = supplierBaseSchema;
-
-export const supplierIdParamsSchema = z.object({
-  id: z.string().min(1),
+const supplierBaseObjectSchema = z.object({
+  legalName: z.string().trim().min(1),
+  tradeName: optionalTrim,
+  documentNumber: optionalTrim,
+  contactName: optionalTrim,
+  address: optionalTrim,
+  phone: optionalTrim,
+  email: z.preprocess(emptyToUndefined, z.string().email().optional()),
+  cnd: optionalTrim,
+  notes: optionalTrim,
+  offeringCategories: offeringCategoriesField,
+  offeringCategoriesOtherDetail: offeringCategoriesOtherDetailSchema,
 });
 
-export const updateSupplierSchema = supplierBaseSchema.partial().superRefine((data, ctx) => {
-  if (!data.offeringCategories?.includes('OUTROS')) {
-    return;
-  }
-  if (data.offeringCategoriesOtherDetail === undefined) {
-    return;
-  }
-  const detail = String(data.offeringCategoriesOtherDetail).trim();
-  if (!detail) {
+function validateOfferingCategoriesOtherDetail(
+  data: {
+    offeringCategories?: SupplierOfferingCategorySlug[];
+    offeringCategoriesOtherDetail?: string;
+  },
+  ctx: z.RefinementCtx,
+) {
+  const hasOutros = data.offeringCategories?.includes('OUTROS') ?? false;
+  const detail = (data.offeringCategoriesOtherDetail ?? '').trim();
+  if (hasOutros && !detail) {
     ctx.addIssue({
       code: 'custom',
       message: 'Descreva o que se enquadra em «Outros».',
       path: ['offeringCategoriesOtherDetail'],
     });
   }
+}
+
+export const createSupplierSchema = supplierBaseObjectSchema.superRefine((data, ctx) => {
+  validateOfferingCategoriesOtherDetail(data, ctx);
+});
+
+export const supplierIdParamsSchema = z.object({
+  id: z.string().min(1),
+});
+
+export const updateSupplierSchema = supplierBaseObjectSchema.partial().superRefine((data, ctx) => {
+  validateOfferingCategoriesOtherDetail(data, ctx);
 });
 
 export type CreateSupplierInput = z.infer<typeof createSupplierSchema>;
