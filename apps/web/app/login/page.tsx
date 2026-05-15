@@ -1,8 +1,14 @@
+import type { Metadata } from 'next';
 import { Suspense } from 'react';
 
 import { LoginForm } from '@/app/login/login-form';
 import { FloatingBackdrop } from '@/components/common/floating-backdrop';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SITE_DISPLAY_NAME } from '@/lib/site-brand';
+
+export const metadata: Metadata = {
+  title: `Entrar | ${SITE_DISPLAY_NAME}`,
+};
 
 function LoginFallback() {
   return (

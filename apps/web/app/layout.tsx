@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Manrope, Space_Grotesk } from 'next/font/google';
 
 import { Providers } from '@/components/providers';
+import { SITE_DISPLAY_NAME, SITE_TAGLINE } from '@/lib/site-brand';
 
 import './globals.css';
 
@@ -24,8 +25,15 @@ const titleFont = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: 'SiteCompras MVP',
-  description: 'Gestão de contratos operacionais, compras e reposições.',
+  title: {
+    default: SITE_DISPLAY_NAME,
+    template: `%s | ${SITE_DISPLAY_NAME}`,
+  },
+  description: SITE_TAGLINE,
+  icons: {
+    icon: [{ url: '/logo-alianca-universal.png', sizes: 'any', type: 'image/png' }],
+    apple: '/logo-alianca-universal.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

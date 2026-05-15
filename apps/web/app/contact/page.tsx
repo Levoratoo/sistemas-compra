@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 
 import { Web3FormsContactForm } from '@/components/contact/web3forms-contact-form';
+import { SITE_DISPLAY_NAME } from '@/lib/site-brand';
 
 export const metadata: Metadata = {
-  title: 'Contacto | SiteCompras',
+  title: `Contacto | ${SITE_DISPLAY_NAME}`,
   description: 'Envie uma mensagem à equipa.',
 };
 

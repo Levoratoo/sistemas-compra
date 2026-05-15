@@ -2,6 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -15,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getDefaultPathForRole } from '@/lib/role-access';
+import { SITE_DISPLAY_NAME, SITE_LOGO_PATH, SITE_TAGLINE } from '@/lib/site-brand';
 
 const schema = z.object({
   email: z.string().trim().email('Informe um e-mail válido.'),
@@ -83,84 +85,101 @@ export function LoginForm() {
   }
 
   return (
-    <Card className="w-full max-w-md border-border/80 shadow-xl">
-      <CardHeader className="space-y-1 text-center">
-        <CardTitle className="font-heading text-2xl">Entrar</CardTitle>
-        <CardDescription>Use o e-mail e a senha fornecidos pelo administrador.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
-          <div className="space-y-2">
-            <Label htmlFor="email">E-mail</Label>
-            <Input
-              autoComplete="email"
-              id="email"
-              inputMode="email"
-              placeholder="nome@empresa.com"
-              type="email"
-              {...form.register('email')}
-            />
-            {form.formState.errors.email ? (
-              <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
-            ) : null}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Senha</Label>
-            <Input autoComplete="current-password" id="password" type="password" {...form.register('password')} />
-            {form.formState.errors.password ? (
-              <p className="text-sm text-destructive">{form.formState.errors.password.message}</p>
-            ) : null}
-          </div>
-          <Button className="w-full gap-2" disabled={submitting} type="submit">
-            <LogIn className="size-4" aria-hidden />
-            {submitting ? 'Entrando...' : 'Entrar'}
-          </Button>
-        </form>
-        <div className="rounded-2xl border border-border/70 bg-muted/30 p-4">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-foreground">Credenciais de acesso</p>
-            <p className="text-xs text-muted-foreground">
-              Perfis demo disponiveis para entrar rapidamente neste ambiente.
-            </p>
-          </div>
-          <div className="mt-3 space-y-3">
-            {demoCredentials.map((credential) => (
-              <div
-                key={credential.email}
-                className="flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-background/90 p-3"
-              >
-                <div className="space-y-1 text-sm">
-                  <p className="font-medium text-foreground">{credential.label}</p>
-                  <p className="text-xs text-muted-foreground">
-                    E-mail:{' '}
-                    <span className="font-mono text-foreground">{credential.email}</span>
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Senha:{' '}
-                    <span className="font-mono text-foreground">{credential.password}</span>
-                  </p>
-                </div>
-                <Button
-                  className="shrink-0"
-                  onClick={() => {
-                    form.setValue('email', credential.email, { shouldDirty: true, shouldValidate: true });
-                    form.setValue('password', credential.password, {
-                      shouldDirty: true,
-                      shouldValidate: true,
-                    });
-                    form.clearErrors();
-                  }}
-                  size="sm"
-                  type="button"
-                  variant="outline"
+    <>
+      <div className="mx-auto mb-8 flex max-w-md flex-col items-center text-center">
+        <Image
+          alt={SITE_DISPLAY_NAME}
+          className="size-28 rounded-full bg-card object-cover shadow-lg ring-2 ring-border/60"
+          height={112}
+          priority
+          src={SITE_LOGO_PATH}
+          width={112}
+        />
+        <h1 className="mt-5 font-heading text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+          {SITE_DISPLAY_NAME}
+        </h1>
+        <p className="mt-2 max-w-sm text-sm text-muted-foreground">{SITE_TAGLINE}</p>
+      </div>
+
+      <Card className="w-full max-w-md border-border/80 shadow-xl">
+        <CardHeader className="space-y-1 text-center">
+          <CardTitle className="font-heading text-2xl">Entrar</CardTitle>
+          <CardDescription>Use o e-mail e a senha fornecidos pelo administrador.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
+            <div className="space-y-2">
+              <Label htmlFor="email">E-mail</Label>
+              <Input
+                autoComplete="email"
+                id="email"
+                inputMode="email"
+                placeholder="nome@empresa.com"
+                type="email"
+                {...form.register('email')}
+              />
+              {form.formState.errors.email ? (
+                <p className="text-sm text-destructive">{form.formState.errors.email.message}</p>
+              ) : null}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Senha</Label>
+              <Input autoComplete="current-password" id="password" type="password" {...form.register('password')} />
+              {form.formState.errors.password ? (
+                <p className="text-sm text-destructive">{form.formState.errors.password.message}</p>
+              ) : null}
+            </div>
+            <Button className="w-full gap-2" disabled={submitting} type="submit">
+              <LogIn className="size-4" aria-hidden />
+              {submitting ? 'Entrando...' : 'Entrar'}
+            </Button>
+          </form>
+          <div className="rounded-2xl border border-border/70 bg-muted/30 p-4">
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-foreground">Credenciais de acesso</p>
+              <p className="text-xs text-muted-foreground">
+                Perfis demo disponiveis para entrar rapidamente neste ambiente.
+              </p>
+            </div>
+            <div className="mt-3 space-y-3">
+              {demoCredentials.map((credential) => (
+                <div
+                  key={credential.email}
+                  className="flex items-start justify-between gap-3 rounded-xl border border-border/60 bg-background/90 p-3"
                 >
-                  Usar
-                </Button>
-              </div>
-            ))}
+                  <div className="space-y-1 text-sm">
+                    <p className="font-medium text-foreground">{credential.label}</p>
+                    <p className="text-xs text-muted-foreground">
+                      E-mail:{' '}
+                      <span className="font-mono text-foreground">{credential.email}</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Senha:{' '}
+                      <span className="font-mono text-foreground">{credential.password}</span>
+                    </p>
+                  </div>
+                  <Button
+                    className="shrink-0"
+                    onClick={() => {
+                      form.setValue('email', credential.email, { shouldDirty: true, shouldValidate: true });
+                      form.setValue('password', credential.password, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                      form.clearErrors();
+                    }}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Usar
+                  </Button>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </>
   );
 }

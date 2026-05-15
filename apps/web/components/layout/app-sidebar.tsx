@@ -1,13 +1,15 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef } from 'react';
-import { Sparkles, X } from 'lucide-react';
+import { X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useSidebar } from '@/components/layout/sidebar-context';
 import { cn } from '@/lib/utils';
+import { SITE_DISPLAY_NAME, SITE_LOGO_PATH, SITE_TAGLINE } from '@/lib/site-brand';
 import { useAuth } from '@/components/auth/auth-context';
 import { canAccessTopLevelNav } from '@/lib/role-access';
 import { adminNavItem, approverInboxNavItem, mainNav } from '@/lib/nav';
@@ -76,17 +78,19 @@ export function AppSidebar() {
             </div>
             <div className="space-y-10">
               <div className="space-y-4">
-                <div className="inline-flex items-center gap-2 rounded-full bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-300/95 ring-1 ring-white/10">
-                  <Sparkles className="size-3.5 text-teal-400" aria-hidden />
-                  Contratos
-                </div>
-                <div>
-                  <h2 className="font-heading text-xl font-bold tracking-tight text-sidebar-foreground">
-                    Módulo de compras
-                  </h2>
-                  <p className="mt-2 text-sm font-medium leading-relaxed text-sidebar-muted">
-                    Licitação, implantação e operação em um só lugar.
-                  </p>
+                <div className="flex items-start gap-3">
+                  <Image
+                    alt=""
+                    className="size-14 shrink-0 rounded-full bg-white object-cover shadow-md ring-2 ring-white/25"
+                    height={56}
+                    priority={open}
+                    src={SITE_LOGO_PATH}
+                    width={56}
+                  />
+                  <div className="min-w-0 pt-0.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-teal-300/90">{SITE_DISPLAY_NAME}</p>
+                    <p className="mt-2 text-xs font-medium leading-relaxed text-sidebar-muted">{SITE_TAGLINE}</p>
+                  </div>
                 </div>
               </div>
 
